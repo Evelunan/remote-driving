@@ -4,7 +4,7 @@ import logging.config
 import os
 import yaml
 
-CONFIG_PATH = "config\log_config.yaml"
+CONFIG_PATH = "config/log_config.yaml"
 _LOGGER_SETUP_DONE = False
 
 

@@ -1,5 +1,3 @@
-
-
 import asyncio
 from websockets import ConnectionClosed
 import websockets
@@ -12,13 +10,24 @@ logger = get_logger(__name__)
 
 
 class SignalingServer:
+    """
+    WebRTC 信令服务器
+
+    特性:
+        - 基于房间的对等端连接
+        - 支持配置化
+        - 完整的日志记录
+        - 优雅关闭
+        - 可扩展的消息处理
+    """
     def __init__(self):
         self.config = ServerConfig()
         self.manager = RoomManager(max_peers_per_room=self.config.max_peers_per_room)
         self._server = None
     
     async def _handle_connection(self, websocket) ->None:
-        peer = self.manager.register_peer(websocket)
+        """处理 WebSocket 连接"""
+        peer = await self.manager.register_peer(websocket)
         try: 
             async for message in websocket:
                 await self.manager.handle_message(peer, message)
