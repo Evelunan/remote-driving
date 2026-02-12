@@ -9,7 +9,7 @@ from logger import get_logger
 
 logger = get_logger(__name__)
 
-
+# TODO: 似乎存在性能问题
 class USBCamera(ICamera):
     """
     多进程 USB 摄像头采集器
