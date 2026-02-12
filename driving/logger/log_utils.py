@@ -33,7 +33,7 @@ def setup_logger(config_path=CONFIG_PATH):
 
     # 可选：记录初始化成功（但注意此时 logger 已可用）
     logger = logging.getLogger(__name__)
-    logger.info("✅ 日志系统已通过 YAML 配置初始化")
+    logger.debug("✅ 日志系统已通过 YAML 配置初始化")
     logger.debug(f"日志文件: {filename}")
 
 
