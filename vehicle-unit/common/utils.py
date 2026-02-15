@@ -8,7 +8,7 @@ from typing import Optional
 
 from logger import get_logger
 
-ROOT_PATH = Path(__file__).parent.parent.resolve()
+ROOT_PATH = Path.cwd()
 logger = get_logger(__name__)
 
 SYSTEM = platform.system()
