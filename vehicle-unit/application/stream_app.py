@@ -88,7 +88,7 @@ class MultiCameraStreamApp:
 
     async def run_stream(self, preview: bool = True, target_fps: int = 30):
         if not self.running:
-            return
+            await self.start()
 
         logger.info(f"{len(self.cameras)} 路摄像头推流开始，Ctrl + C 停止")
 

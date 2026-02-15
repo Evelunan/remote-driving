@@ -4,7 +4,7 @@ from multiprocessing import shared_memory
 import cv2
 import time
 
-from interfaces.icamera import ICamera
+from interfaces import ICamera
 from logger import get_logger
 
 logger = get_logger(__name__)

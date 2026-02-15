@@ -13,7 +13,7 @@ from aiortc import (
     VideoStreamTrack,
 )
 
-TURN_SERVER = "8.155.168.101"
+TURN_SERVER = "47.115.230.126"
 # 摄像头轨道
 class CameraTrack(VideoStreamTrack):
     kind = "video"

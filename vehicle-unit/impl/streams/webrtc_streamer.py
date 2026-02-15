@@ -14,9 +14,9 @@ from aiortc import (
     VideoStreamTrack,
 )
 
-from models.config_models.server_config import WebRTCConfig
+from config.loaders import WebRTCConfig
 from logger import get_logger
-from interfaces.istream import IStream
+from interfaces import IStream
 
 logger = get_logger(__name__)
 

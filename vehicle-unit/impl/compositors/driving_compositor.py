@@ -2,7 +2,7 @@ import cv2
 import numpy as np
 from typing import List
 
-from interfaces.icompositor import IFrameCompositor
+from interfaces import IFrameCompositor
 
 
 class DrivingCompositor(IFrameCompositor):
