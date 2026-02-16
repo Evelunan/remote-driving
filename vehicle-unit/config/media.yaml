@@ -6,15 +6,18 @@ resolution:
   fps: 30
 
 cameras:
-  front:
-    vid: "a111"
-    pid: "b111"
-  back:
-    vid: "1bcf"
-    pid: "0005"
-  right:
-    vid: "1bcf"
-    pid: "0003"
-  left:
-    vid: "1bcf"
-    pid: "0004"
+  test:
+    vid: "0408"
+    pid: "5423"
+  # front:
+  #   vid: "a111"
+  #   pid: "b111"
+  # back:
+  #   vid: "1bcf"
+  #   pid: "0005"
+  # right:
+  #   vid: "1bcf"
+  #   pid: "0003"
+  # left:
+  #   vid: "1bcf"
+  #   pid: "0004"

@@ -9,7 +9,6 @@ from logger import get_logger
 
 logger = get_logger(__name__)
 
-# TODO: 似乎存在性能问题
 class USBCamera(ICamera):
     """
     多进程 USB 摄像头采集器
@@ -116,6 +115,7 @@ class USBCamera(ICamera):
         cap = cv2.VideoCapture(self.camera_id)
         if not cap.isOpened():
             logger.error(f"无法打开 {self.camera_name} : {self.camera_id}")
+            self.running.value = False
             return
 
         # 设置 MJPG（减少 USB 带宽压力）
@@ -123,18 +123,19 @@ class USBCamera(ICamera):
             cv2.CAP_PROP_FOURCC,
             cv2.VideoWriter_fourcc("M", "J", "P", "G"),
         )
-        cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.width)
-        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.height)
-        cap.set(cv2.CAP_PROP_FPS, self.fps)
+        # 这三个操作会导致摄像头打开很慢
+        # cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.width)
+        # cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.height)
+        # cap.set(cv2.CAP_PROP_FPS, self.fps)
 
         logger.info(f"{self.camera_name} 打开成功")
 
         self.running.value = True
-        frame_interval = 1.0 / max(self.fps, 1)
+        # frame_interval = 1.0 / max(self.fps, 1)
 
         try:
             while self.running.value:
-                loop_start = time.monotonic()
+                # loop_start = time.monotonic()
 
                 ret, frame = cap.read()
                 if not ret or frame is None:
@@ -153,10 +154,10 @@ class USBCamera(ICamera):
                     self.frame_counter.value += 1
 
                 # ===== FPS 控制 =====
-                elapsed = time.monotonic() - loop_start
-                sleep_time = frame_interval - elapsed
-                if sleep_time > 0:
-                    time.sleep(sleep_time)
+                # elapsed = time.monotonic() - loop_start
+                # sleep_time = frame_interval - elapsed
+                # if sleep_time > 0:
+                #     time.sleep(sleep_time)
 
         except KeyboardInterrupt:
             pass
