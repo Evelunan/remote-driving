@@ -59,6 +59,7 @@ class VideoReceiver:
             self._status_callback(status, message)
 
     async def start(self) -> None:
+        logger.info("video reciver starting....")
         """启动接收器"""
         self._running = True
 
@@ -105,6 +106,11 @@ class VideoReceiver:
             while self._running and self._renderer.is_active():
                 frame = await track.recv()
                 img = frame.to_ndarray(format="bgr24")
+                import cv2
+
+                cv2.imshow("Remote", img)
+                if cv2.waitKey(1) & 0xFF == ord("q"):
+                    break
                 if not self._renderer.render(img):
                     break
         except Exception as e:
@@ -112,6 +118,7 @@ class VideoReceiver:
             self._emit_status(VideoStatus.ERROR, f"视频播放出错: {e}")
         finally:
             self._renderer.close()
+            cv2.destroyAllWindows()
 
     async def _on_ice_candidate(self, candidate: dict) -> None:
         """处理 ICE 候选"""
@@ -131,6 +138,9 @@ class VideoReceiver:
             try:
                 data = await self._signaling.receive()
                 msg_type = data.get("type")
+                logger.info("--------------------------------------")
+                logger.info(data)
+                logger.info("--------------------------------------")
                 handler = self._handlers.get(msg_type)
 
                 if handler:

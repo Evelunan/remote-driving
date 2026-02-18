@@ -7,7 +7,7 @@ from aiortc import (
     RTCIceCandidate,
 )
 
-TURN_SERVER = "81.71.49.243"
+TURN_SERVER = "47.115.230.126"
 
 
 async def main(room, server):

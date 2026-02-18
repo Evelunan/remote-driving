@@ -40,10 +40,10 @@ class VideoFactory:
 
     @staticmethod
     def create_video_receiver(
-        server_url: str,
         room: str,
-        renderer: Optional[IVideoRenderer] = None,
+        server_url: str,
         ice_servers: Optional[List[RTCIceServer]] = None,
+        renderer: Optional[IVideoRenderer] = None,
         signaling_cls: Type[ISignalingClient] = WebSocketSignalingClient,
         webrtc_cls: Type[IWebRTCClient] = AIORTCClient,
     ) -> VideoReceiver:

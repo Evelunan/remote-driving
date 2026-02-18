@@ -24,5 +24,11 @@ handlers:
     stream: ext://sys.stdout
 
 root:
-  level: DEBUG
+  level: INFO
   handlers: [file, console]
+
+# DEBUG: 详细调试信息 
+# INFO: 一般信息 
+# WARNING: 警告信息
+# ERROR: 错误信息 
+# CRITICAL: 严重错误 

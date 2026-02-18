@@ -31,9 +31,7 @@ class WebSocketSignalingClient(ISignalingClient):
             self._connected = True
             await self.send({"type": "join", "room": self._room})
 
-            logger.info(
-                f"信令服务器连接成功: {self._server_url}, 房间: {self._room}"
-            )
+            logger.info(f"信令服务器连接成功: {self._server_url}, 房间: {self._room}")
 
         except Exception as e:
             self._connected = False
@@ -86,8 +84,4 @@ class WebSocketSignalingClient(ISignalingClient):
             raise
 
     def is_connected(self) -> bool:
-        return (
-            self._connected
-            and self._ws is not None
-            and not self._ws.closed
-        )
+        return self._connected and self._ws is not None

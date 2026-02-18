@@ -127,6 +127,9 @@ class WebRTCStreamer(IStream):
             except Exception:
                 pass
             self.pc = None
+        if self.track:
+            self.track.stop()
+            self.track = None
 
     async def _init_pc(self):
         self.pc = RTCPeerConnection(RTCConfiguration(self.config.ice_servers))
@@ -163,8 +166,8 @@ class WebRTCStreamer(IStream):
             state = self.pc.iceConnectionState
             logger.info(f"ICE 状态: {state}")
 
-            if state in ("failed", "disconnected"):
-                await self._handle_reconnect()
+            # if state in ("failed", "disconnected"):
+            #     await self._handle_reconnect()
 
     # =====================================================
     # Offer / Answer
@@ -201,6 +204,7 @@ class WebRTCStreamer(IStream):
 
             try:
                 await self._reset_pc()
+                logger.info(f"PEER_ID: {self.peer_id}")
                 if self.peer_id:
                     await self._create_offer()
             finally:
@@ -221,8 +225,16 @@ class WebRTCStreamer(IStream):
             await self._create_offer()
 
     async def _on_new_peer(self, data: dict):
-        self.peer_id = data.get("id")
-        await self._handle_reconnect()
+        peer_id = data.get("id")
+
+        3
+        
+        if not peer_id:
+            return
+        self.peer_id = peer_id
+
+        await self._reset_pc()
+        await self._create_offer()
 
     async def _on_answer(self, data: dict):
         if self.pc and self.pc.signalingState == "have-local-offer":
@@ -255,8 +267,9 @@ class WebRTCStreamer(IStream):
     async def _on_peer_left(self, data: dict):
         left_id = data.get("id")
         if left_id == self.peer_id:
-            logger.info("对方离开")
+            logger.info(f"peer[{self.peer_id}]离开，等待重连...")
             self.peer_id = None
+            # await self._close_pc()
 
     # =====================================================
     # Signaling Loop
@@ -265,6 +278,9 @@ class WebRTCStreamer(IStream):
         try:
             async for raw in self.ws:
                 data = json.loads(raw)
+                logger.info("--------------------------------------")
+                logger.info(data)
+                logger.info("--------------------------------------")
                 handler = self._handlers.get(data.get("type"))
                 if handler:
                     await handler(data)

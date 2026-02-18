@@ -49,7 +49,7 @@ async def start_stream(room: str):
     compositor = DrivingCompositor(width=resolution.width, height=resolution.height)
     app.set_frame_compositor(compositor)
 
-    await app.run_stream(preview=True)
+    await app.run_stream(preview=False)
 
 
 async def main():
