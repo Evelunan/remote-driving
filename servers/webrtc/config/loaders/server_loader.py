@@ -11,7 +11,7 @@ from typing import Optional
 from pathlib import Path
 
 from logger import get_logger
-from utils import SERVER_CONFIG_FILE
+from common import SERVER_CONFIG_FILE
 
 logger = get_logger(__name__)
 

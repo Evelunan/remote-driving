@@ -4,7 +4,7 @@ import logging.config
 import os
 import yaml
 
-from utils import LOG_CONFIG_FILE
+from common import LOG_CONFIG_FILE
 
 _LOGGER_SETUP_DONE = False
 
