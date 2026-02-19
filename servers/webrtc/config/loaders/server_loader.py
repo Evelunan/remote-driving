@@ -11,7 +11,10 @@ from typing import Optional
 from pathlib import Path
 
 from logger import get_logger
-from common import SERVER_CONFIG_FILE
+from common import CONFIG_PATH
+
+SERVER_CONFIG_FILE = CONFIG_PATH / "server.yaml"
+
 
 logger = get_logger(__name__)
 

@@ -7,8 +7,8 @@ from functools import lru_cache
 from typing import Optional
 
 from logger import get_logger
+from constants import LIB_PATH
 
-ROOT_PATH = Path.cwd()
 logger = get_logger(__name__)
 
 SYSTEM = platform.system()
@@ -32,15 +32,13 @@ def _preload_linux_dependencies():
 @lru_cache(maxsize=1)
 def _load_camera_lib() -> Optional[ctypes.CDLL]:
     if SYSTEM == "Windows":
-        lib_filename = "CvCameraIndex_x64.dll"
+        lib_path = LIB_PATH / "CvCameraIndex_x64.dll"
     elif SYSTEM == "Linux":
-        lib_filename = "libcamera_index.so"
+        lib_filename = LIB_PATH / "libcamera_index.so"
         _preload_linux_dependencies()
     else:
         logger.error(f"Unsupported operating system: {SYSTEM}")
         return None
-
-    lib_path = ROOT_PATH / "lib" / lib_filename
 
     if not lib_path.is_file():
         logger.error(f"Camera index library not found: {lib_path}")

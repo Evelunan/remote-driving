@@ -10,7 +10,5 @@ from pathlib import Path
 ROOT_PATH = Path(__file__).parent.parent.resolve()
 
 # 配置文件路径
-CONFIG_DIR = ROOT_PATH / "config"
-SERVER_CONFIG_FILE = CONFIG_DIR / "server.yaml"
-LOG_CONFIG_FILE = CONFIG_DIR / "log.yaml"
+CONFIG_PATH = ROOT_PATH / "config"
 

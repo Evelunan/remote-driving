@@ -2,12 +2,16 @@
 from dataclasses import dataclass, field
 from pathlib import Path
 import yaml
-from logger import get_logger
 from aiortc import RTCIceServer
+from typing import Optional
+
+from common.constants import CONFIG_PATH
+from logger import get_logger
+
 
 logger = get_logger(__name__)
 
-SERVER_CONFIG_PATH = Path.cwd() / "config" / "server.yaml"
+SERVER_CONFIG_PATH = CONFIG_PATH / "server.yaml"
 
 
 @dataclass(frozen=True)
@@ -59,16 +63,19 @@ _webrtc: WebRTCConfig | None = None
 _quic: QuicConfig | None = None
 
 
-def _load_config():
+def _load_config(config_path: Path):
     global _regist, _webrtc, _quic
     if _regist is not None and _webrtc is not None and _quic is not None:
         return
 
-    logger.info(f"Loading server config from {SERVER_CONFIG_PATH}")
-    if not SERVER_CONFIG_PATH.exists():
-        raise FileNotFoundError(f"Media config file not found: {SERVER_CONFIG_PATH}")
+    if config_path is None:
+        config_path = SERVER_CONFIG_PATH
 
-    with open(SERVER_CONFIG_PATH, encoding="utf-8") as f:
+    logger.info(f"Loading server config from {config_path}")
+    if not config_path.exists():
+        raise FileNotFoundError(f"Media config file not found: {config_path}")
+
+    with open(config_path, encoding="utf-8") as f:
         data = yaml.safe_load(f)
 
     # --- Regist ---
@@ -118,16 +125,16 @@ def _load_config():
     )
 
 
-def get_regist_config() -> RegistConfig:
-    _load_config()
+def get_regist_config(config_path: Optional[Path] = None) -> RegistConfig:
+    _load_config(config_path)
     return _regist  # type: ignore
 
 
-def get_webrtc_config() -> WebRTCConfig:
-    _load_config()
+def get_webrtc_config(config_path: Optional[Path] = None) -> WebRTCConfig:
+    _load_config(config_path)
     return _webrtc  # type: ignore
 
 
-def get_quic_config() -> QuicConfig:
-    _load_config()
+def get_quic_config(config_path: Optional[Path] = None) -> QuicConfig:
+    _load_config(config_path)
     return _quic  # type: ignore

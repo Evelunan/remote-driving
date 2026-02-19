@@ -4,8 +4,9 @@ import logging.config
 import os
 import yaml
 
-from common import LOG_CONFIG_FILE
+from common import CONFIG_PATH
 
+LOG_CONFIG_FILE = CONFIG_PATH / "log.yaml"
 _LOGGER_SETUP_DONE = False
 
 

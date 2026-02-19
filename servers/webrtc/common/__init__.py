@@ -7,14 +7,14 @@
 
 from .constants import (
     ROOT_PATH,
-    CONFIG_DIR,
+    CONFIG_PATH,
     SERVER_CONFIG_FILE,
     LOG_CONFIG_FILE,
 )
 
 __all__ = [
     "ROOT_PATH",
-    "CONFIG_DIR",
+    "CONFIG_PATH",
     "SERVER_CONFIG_FILE",
     "LOG_CONFIG_FILE",
 ]

@@ -4,11 +4,13 @@ import logging.config
 import os
 import yaml
 
-CONFIG_PATH = "config/log_config.yaml"
+from common.constants import CONFIG_PATH
+LOG_CONFIG_PATH = CONFIG_PATH / "log.yaml"
+
 _LOGGER_SETUP_DONE = False
 
 
-def setup_logger(config_path=CONFIG_PATH):
+def setup_logger(config_path=LOG_CONFIG_PATH):
     """
     使用 YAML 配置初始化日志系统。
     支持动态日志目录和文件名。

@@ -2,12 +2,14 @@
 from dataclasses import dataclass, field
 from pathlib import Path
 import yaml
-from logger import get_logger
 from aiortc import RTCIceServer
+
+from common.constants import CONFIG_PATH
+from logger import get_logger
 
 logger = get_logger(__name__)
 
-SERVER_CONFIG_PATH = Path.cwd() / "config" / "server.yaml"
+SERVER_CONFIG_PATH = CONFIG_PATH / "server.yaml"
 
 
 @dataclass(frozen=True)

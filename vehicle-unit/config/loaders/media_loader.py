@@ -1,13 +1,15 @@
 # media_config.py
 from dataclasses import dataclass
-from pathlib import Path
 from typing import Optional
 import yaml
+from pathlib import Path
+
 from logger import get_logger
+from common.constants import CONFIG_PATH
 
 logger = get_logger(__name__)
 
-MEDIA_CONFIG_PATH = Path.cwd() / "config" / "media.yaml"
+MEDIA_CONFIG_PATH = CONFIG_PATH / "media.yaml"
 
 
 @dataclass(frozen=True)
@@ -29,18 +31,20 @@ _resolution: Optional[Resolution] = None
 _cameras: Optional[list[Camera]] = None
 
 
-def _load_config():
+def _load_config(config_path: Path):
     """内部函数：从 YAML 加载并解析配置，赋值给缓存变量"""
     global _resolution, _cameras
 
     if _resolution is not None and _cameras is not None:
         return  # 已加载，直接返回
+    if config_path is None:
+        config_path = MEDIA_CONFIG_PATH
 
-    logger.info(f"Loading media config from {MEDIA_CONFIG_PATH}")
-    if not MEDIA_CONFIG_PATH.exists():
-        raise FileNotFoundError(f"Media config file not found: {MEDIA_CONFIG_PATH}")
+    logger.info(f"Loading media config from {config_path}")
+    if not config_path.exists():
+        raise FileNotFoundError(f"Media config file not found: {config_path}")
 
-    with open(MEDIA_CONFIG_PATH, encoding="utf-8") as f:
+    with open(config_path, encoding="utf-8") as f:
         data = yaml.safe_load(f)
 
     # Parse resolution
@@ -62,13 +66,13 @@ def _load_config():
     logger.debug(f"Loaded cameras: {[c.name for c in _cameras]}")
 
 
-def get_resolution_config() -> Resolution:
+def get_resolution_config(config_path: Optional[Path] = None) -> Resolution:
     """获取分辨率配置"""
-    _load_config()
+    _load_config(config_path)
     return _resolution  # type: ignore
 
 
-def get_cameras_config() -> list[Camera]:
+def get_cameras_config(config_path: Optional[Path] = None) -> list[Camera]:
     """获取摄像头配置"""
-    _load_config()
+    _load_config(config_path)
     return _cameras  # type: ignore
