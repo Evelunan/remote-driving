@@ -2,12 +2,11 @@
 
 import ctypes
 import platform
-from pathlib import Path
 from functools import lru_cache
 from typing import Optional
 
 from logger import get_logger
-from constants import LIB_PATH
+from common.constants import LIB_PATH
 
 logger = get_logger(__name__)
 

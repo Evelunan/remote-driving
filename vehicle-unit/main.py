@@ -3,8 +3,6 @@ import asyncio
 import os
 import multiprocessing as mp
 import os
-import sys
-import aiohttp
 
 
 from application import MultiCameraStreamApp

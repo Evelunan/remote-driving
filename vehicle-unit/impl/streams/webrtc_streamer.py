@@ -30,15 +30,16 @@ class VideoFrameTrack(VideoStreamTrack):
         self._latest_frame: Optional[np.ndarray] = None
         self._frame_event = asyncio.Event()
         self._closed = False
-        self._lock = asyncio.Lock()
+        # 会导致track关闭失败
+        # self._lock = asyncio.Lock()
 
     async def update_frame(self, frame: np.ndarray):
         if self._closed:
             return
 
-        async with self._lock:
-            self._latest_frame = frame.copy()
-            self._frame_event.set()
+        # async with self._lock:
+        self._latest_frame = frame.copy()
+        self._frame_event.set()
 
     async def recv(self):
         if self._closed:
@@ -52,9 +53,9 @@ class VideoFrameTrack(VideoStreamTrack):
         except asyncio.TimeoutError:
             pass
 
-        async with self._lock:
-            frame = self._latest_frame
-            self._frame_event.clear()
+        # async with self._lock:
+        frame = self._latest_frame
+        self._frame_event.clear()
 
         if frame is None:
             frame = np.zeros((720, 1280, 3), dtype=np.uint8)
@@ -127,9 +128,6 @@ class WebRTCStreamer(IStream):
             except Exception:
                 pass
             self.pc = None
-        if self.track:
-            self.track.stop()
-            self.track = None
 
     async def _init_pc(self):
         self.pc = RTCPeerConnection(RTCConfiguration(self.config.ice_servers))
@@ -227,8 +225,6 @@ class WebRTCStreamer(IStream):
     async def _on_new_peer(self, data: dict):
         peer_id = data.get("id")
 
-        3
-        
         if not peer_id:
             return
         self.peer_id = peer_id
@@ -269,7 +265,6 @@ class WebRTCStreamer(IStream):
         if left_id == self.peer_id:
             logger.info(f"peer[{self.peer_id}]离开，等待重连...")
             self.peer_id = None
-            # await self._close_pc()
 
     # =====================================================
     # Signaling Loop
@@ -278,9 +273,6 @@ class WebRTCStreamer(IStream):
         try:
             async for raw in self.ws:
                 data = json.loads(raw)
-                logger.info("--------------------------------------")
-                logger.info(data)
-                logger.info("--------------------------------------")
                 handler = self._handlers.get(data.get("type"))
                 if handler:
                     await handler(data)
