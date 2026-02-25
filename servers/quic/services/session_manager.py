@@ -1,5 +1,4 @@
-from typing import Optional, Any
-import json
+from typing import Optional
 
 from logger import get_logger
 

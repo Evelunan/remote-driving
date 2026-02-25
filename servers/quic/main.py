@@ -1,5 +1,4 @@
 import asyncio
-from pathlib import Path
 from aioquic.asyncio import serve
 from aioquic.quic.configuration import QuicConfiguration
 from services import RelayProtocol
