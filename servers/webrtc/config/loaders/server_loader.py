@@ -121,24 +121,3 @@ def get_server_config(config_path: Optional[Path] = None) -> ServerConfig:
     _instance = _create_config(config_dict)
     
     return _instance
-
-
-if __name__ == "__main__":
-    # 测试代码
-    config = get_server_config()
-    logger.info(f"host: {config.host}")
-    logger.info(f"port: {config.port}")
-    logger.info(f"max_peers_per_room: {config.max_peers_per_room}")
-    
-    # 验证单例
-    config2 = get_server_config()
-    assert config is config2, "单例模式失败"
-    logger.info("✅ 单例模式验证通过")
-    
-    # 验证不可变性（应该会抛出异常）
-    try:
-        # 这行代码会抛出异常，因为 frozen=True
-        config.host = "127.0.0.1"  # 取消注释会抛出 FrozenInstanceError
-        pass
-    except Exception as e:
-        logger.info(f"✅ 不可变性验证通过: {type(e).__name__}")

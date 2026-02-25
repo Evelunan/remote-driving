@@ -1,0 +1,6 @@
+quic:
+  host: "0.0.0.0"
+  port: 4433
+  enable_datagrams: true
+  max_datagram_frame_size: 65536
+  idle_timeout: 3600

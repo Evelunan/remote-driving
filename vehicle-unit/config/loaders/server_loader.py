@@ -73,7 +73,7 @@ def _load_config(config_path: Path):
 
     logger.info(f"Loading server config from {config_path}")
     if not config_path.exists():
-        raise FileNotFoundError(f"Media config file not found: {config_path}")
+        raise FileNotFoundError(f"server config file not found: {config_path}")
 
     with open(config_path, encoding="utf-8") as f:
         data = yaml.safe_load(f)
