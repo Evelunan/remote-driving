@@ -13,6 +13,7 @@ from .server_loader import (
     QuicConfig,
     RegistConfig,
 )
+from .vehicle_loader import get_vehicle_config, VehicleConfig
 
 __all__ = [
     # Media
@@ -27,4 +28,7 @@ __all__ = [
     "WebRTCConfig",
     "QuicConfig",
     "RegistConfig",
+    # Vehicle
+    "get_vehicle_config",
+    "VehicleConfig",
 ]

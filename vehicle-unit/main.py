@@ -3,9 +3,10 @@ import asyncio
 import os
 import multiprocessing as mp
 import os
+import sys
 
 
-from application import MultiCameraStreamApp
+from application import MultiCameraStreamApp, QuicDatagram
 from common.utils import *
 from logger import get_logger
 from config.loaders import (
@@ -14,10 +15,12 @@ from config.loaders import (
     get_regist_config,
     get_cameras_config,
     get_resolution_config,
+    get_vehicle_config,
 )
-from impl.cameras import USBCamera
-from impl.streams import WebRTCStreamer
-from impl.compositors import DrivingCompositor
+from infrastructure.cameras import USBCamera
+from infrastructure.streams import WebRTCStreamer
+from infrastructure.compositors import DrivingCompositor
+from infrastructure.controller import SerialController
 
 os.environ["http_proxy"] = ""
 os.environ["https_proxy"] = ""
@@ -50,10 +53,34 @@ async def start_stream(room: str):
     await app.run_stream(preview=False)
 
 
+async def start_control(session_id: str):
+    quic_config = get_quic_config()
+    vehicle_config = get_vehicle_config()
+    controller = SerialController(vehicle_config)
+    client = QuicDatagram(
+        config=quic_config,
+        session_id=session_id,
+        controller=controller,
+    )
+    await client.start()
+
+
 async def main():
     mp.set_start_method("spawn", force=True)
-    logger.info("启动视频推流和控制指令接收...")
-    await asyncio.gather(start_stream("1234"))
+    try:
+        session_id = "1234"
+        room = "1234"
+        logger.info("启动视频推流和控制指令接收...")
+        await asyncio.gather(
+            # start_stream(room),
+            start_control(session_id),
+        )
+
+    except KeyboardInterrupt:
+        logger.info("用户终止程序")
+    except Exception as e:
+        logger.error(f"启动失败: {e}", exc_info=True)
+        sys.exit(1)
 
 
 if __name__ == "__main__":
