@@ -2,7 +2,7 @@ from typing import Optional, Type, List
 from aiortc import RTCIceServer
 
 from logger import get_logger
-from impl.video import (
+from infrastructure.video import (
     VideoReceiver,
     WebSocketSignalingClient,
     AIORTCClient,

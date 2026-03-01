@@ -1,3 +1,14 @@
 from .video import ISignalingClient, IVideoRenderer, IWebRTCClient
-
-__all__ = ["ISignalingClient", "IVideoRenderer", "IWebRTCClient"]
+from .device import IInputDevice
+from .communication import IMessageQueue
+from .processor import IAnalogCalculator, IDataProcessor
+__all__ = [
+    # video
+    "ISignalingClient",
+    "IVideoRenderer",
+    "IWebRTCClient",
+    # device
+    "IInputDevice",
+    #
+    "IMessageQueue",
+]
