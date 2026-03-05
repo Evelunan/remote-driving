@@ -2,6 +2,9 @@ import json
 from typing import Dict
 from interfaces.processor import IDataProcessor, IAnalogCalculator
 from config.input_config import InputType, InputConfigManager
+from logger import get_logger
+
+logger = get_logger(__name__)
 
 
 class DataProcessor(IDataProcessor):
