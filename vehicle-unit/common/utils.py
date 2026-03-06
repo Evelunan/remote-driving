@@ -33,7 +33,7 @@ def _load_camera_lib() -> Optional[ctypes.CDLL]:
     if SYSTEM == "Windows":
         lib_path = LIB_PATH / "CvCameraIndex_x64.dll"
     elif SYSTEM == "Linux":
-        lib_filename = LIB_PATH / "libcamera_index.so"
+        lib_path = LIB_PATH / "libcamera_index.so"
         _preload_linux_dependencies()
     else:
         logger.error(f"Unsupported operating system: {SYSTEM}")
