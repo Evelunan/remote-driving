@@ -162,8 +162,8 @@ class MultiCameraStreamApp:
                 try:
                     composite_frame = self.frame_compositor.compose_frames(
                         # 单个摄像头测试使用
-                        valid_frames * 4
-                        # valid_frames
+                        # valid_frames * 4
+                        valid_frames
                     )
                 except Exception as e:
                     logger.error(f"合成帧失败: {e}")

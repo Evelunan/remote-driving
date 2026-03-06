@@ -24,12 +24,12 @@ webrtc:
       password: coturn
 
 quic:
-  host: 81.71.49.243
+  host: 8.155.171.27
   port: 4433
 
   options:
     verify_mode: false
     enable_datagrams: true
     max_datagram_frame_size: 65536
-    idle_timeout: 15
+    idle_timeout: 3600
 

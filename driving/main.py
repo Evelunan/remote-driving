@@ -58,7 +58,7 @@ async def run_processor(queue: IMessageQueue, packet_queue: asyncio.Queue):
         await processor.process(raw_data)
 
 
-async def run_quic_client(packet_queue: asyncio.Queue, session_id="2430"):
+async def run_quic_client(packet_queue: asyncio.Queue, session_id="1234"):
     config = get_quic_config()
     client = DrivingDatagram(config, session_id, packet_queue)
     await client.start()

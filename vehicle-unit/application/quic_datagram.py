@@ -31,51 +31,39 @@ class QuicDatagram:
         self.quic_config.idle_timeout = config.options.idle_timeout
 
     async def start(self):
+        """启动客户端（带重连机制）"""
         logger.info(
             f"Starting client (host={self.host}, port={self.port}, session={self.session_id})"
         )
 
         while True:
             try:
-                logger.info("Attempting to connect to relay server...")
-
+                logger.info(f"Attempting to connect to relay server...")
                 async with connect(
-                    host=self.host,
-                    port=self.port,
+                    self.host,
+                    self.port,
                     configuration=self.quic_config,
                     create_protocol=lambda *args, **kwargs: CarProtocol(
                         self.session_id, self.controller, *args, **kwargs
                     ),
                 ) as protocol:
-
+                    # 关键：确保 QUIC 握手完成后再继续
                     await protocol.wait_connected()
                     logger.info(
                         f"[car] QUIC Handshake successful. Session: {self.session_id}"
                     )
 
-                    # 启动业务任务
-                    self._business_task = asyncio.create_task(protocol.start_business())
+                    # 启动业务任务（Hello + Heartbeat）
+                    protocol._business_task = asyncio.create_task(
+                        protocol.start_business()
+                    )
 
-                    # 等待连接关闭
+                    # 挂起协程，直到连接关闭或发生异常
                     await protocol.wait_closed()
 
             except (asyncio.TimeoutError, ConnectionRefusedError, OSError) as e:
                 logger.error(f"[car] Connection failed: {e}. Retrying in 3s...")
                 await asyncio.sleep(3)
-
             except Exception as e:
-                logger.exception(f"[car] Unexpected error: {e}")
+                logger.error(f"[car] Unexpected error: {e}. Restarting...")
                 await asyncio.sleep(3)
-
-            finally:
-                # 统一停止业务任务
-                await self._stop_business_task()
-
-    async def _stop_business_task(self):
-        if self._business_task:
-            self._business_task.cancel()
-            try:
-                await self._business_task
-            except asyncio.CancelledError:
-                pass
-            self._business_task = None

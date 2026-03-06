@@ -12,7 +12,7 @@ class DataProcessor(IDataProcessor):
         self,
         packet_queue,
         analog_calculator: IAnalogCalculator,
-        max_linear: float = 1.0,
+        max_linear: float = 5.0,
         max_angular: float = 30.0,
         max_steering: float = 135.0,
     ):

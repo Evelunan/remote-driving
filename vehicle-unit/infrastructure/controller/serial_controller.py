@@ -44,7 +44,7 @@ class SerialController(IController):
         w = max(min(w, self.max_angular_velocity), -self.max_angular_velocity)
 
         direction = 0x01 if v < 0 else 0x00
-        v_abs = abs(v)
+        v_abs = abs(int(v * 100))
         steer_direction = 0x01 if w >= 0 else 0x00
         w_abs = abs(int(w * 100))
         cmd = self.command_buffer
