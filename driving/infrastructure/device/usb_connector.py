@@ -27,11 +27,7 @@ class USBConnector(IInputDevice):
     # CONNECT
     # ==========================
     async def connect(self) -> None:
-        logger.info(
-            "Searching USB device %04x:%04x",
-            self.vendor_id,
-            self.product_id
-        )
+        logger.info("Searching USB device %04x:%04x", self.vendor_id, self.product_id)
 
         self.device = usb.core.find(
             idVendor=self.vendor_id,
@@ -50,9 +46,10 @@ class USBConnector(IInputDevice):
         # 正确遍历结构
         for intf in cfg:
             for ep in intf:
-                if usb.util.endpoint_direction(
-                    ep.bEndpointAddress
-                ) == usb.util.ENDPOINT_IN:
+                if (
+                    usb.util.endpoint_direction(ep.bEndpointAddress)
+                    == usb.util.ENDPOINT_IN
+                ):
                     self.interface = intf
                     self.endpoint_in = ep
                     break
@@ -64,25 +61,18 @@ class USBConnector(IInputDevice):
 
         # Linux 需要 detach
         try:
-            if self.device.is_kernel_driver_active(
-                self.interface.bInterfaceNumber
-            ):
-                self.device.detach_kernel_driver(
-                    self.interface.bInterfaceNumber
-                )
+            if self.device.is_kernel_driver_active(self.interface.bInterfaceNumber):
+                self.device.detach_kernel_driver(self.interface.bInterfaceNumber)
         except Exception:
             pass
 
         # Claim interface（重要）
-        usb.util.claim_interface(
-            self.device,
-            self.interface.bInterfaceNumber
-        )
+        usb.util.claim_interface(self.device, self.interface.bInterfaceNumber)
 
         logger.info(
             "USB connected: interface=%d endpoint=0x%02x",
             self.interface.bInterfaceNumber,
-            self.endpoint_in.bEndpointAddress
+            self.endpoint_in.bEndpointAddress,
         )
 
         self._running = True

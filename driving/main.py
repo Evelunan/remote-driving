@@ -3,8 +3,11 @@ import asyncio
 
 from factories import VideoFactory
 from config.loaders import get_quic_config, get_webrtc_config
-from interfaces import IMessageQueue
-from factories import DeviceFactory, ProcessorFactory, CommunicationFactory
+from interfaces import IMessageQueue, IDataProcessor
+from infrastructure.communication import ControlState
+from infrastructure.device import USBConnector
+from infrastructure.processing import DataProcessor, AnalogCalculator
+
 from logger import get_logger
 from config.loaders import get_quic_config
 from app import DrivingDatagram
@@ -32,13 +35,11 @@ async def test_video():
     await video.start()
 
 
-async def run_usb_connector(queue: IMessageQueue):
-    usb_connector = DeviceFactory.create_usb_device(
-        vendor_id=USBConfig.VENDOR_ID,
-        product_id=USBConfig.PRODUCT_ID,
-        endpoint_in=USBConfig.ENDPOINT_IN,
-    )
-    usb_connector.set_data_callback(queue.put)
+async def run_usb_connector(control_state: ControlState):
+    usb_connector = USBConnector(USBConfig.VENDOR_ID, USBConfig.PRODUCT_ID)
+    analog_calculator = AnalogCalculator()
+    processor = DataProcessor(control_state, analog_calculator)
+    usb_connector.set_data_callback(processor.process)
     try:
         await usb_connector.connect()
     except ConnectionError as e:
@@ -50,29 +51,23 @@ async def run_usb_connector(queue: IMessageQueue):
         await usb_connector.disconnect()
 
 
-async def run_processor(queue: IMessageQueue, packet_queue: asyncio.Queue):
-    analog_calculator = ProcessorFactory.create_analog_calculator()
-    processor = ProcessorFactory.create_data_processor(packet_queue, analog_calculator)
-    while True:
-        raw_data = await queue.get()
-        await processor.process(raw_data)
+# async def run_processor(queue: IMessageQueue, control_state: ControlState):
 
 
-async def run_quic_client(packet_queue: asyncio.Queue, session_id="1234"):
+async def run_quic_client(control_state: ControlState, session_id="1234"):
     config = get_quic_config()
-    client = DrivingDatagram(config, session_id, packet_queue)
+    client = DrivingDatagram(config, session_id, control_state)
     await client.start()
 
 
 async def main():
-    queue = CommunicationFactory.create_message_queue()
-    packet_queue = asyncio.Queue()
-
+    # queue = CommunicationFactory.create_message_queue()
+    # packet_queue = asyncio.Queue()
+    control_state = ControlState()
     async with asyncio.TaskGroup() as tasks:
         # tasks.create_task(test_video())
-        tasks.create_task(run_usb_connector(queue))
-        tasks.create_task(run_processor(queue, packet_queue))
-        tasks.create_task(run_quic_client(packet_queue))
+        tasks.create_task(run_usb_connector(control_state))
+        tasks.create_task(run_quic_client(control_state))
 
 
 if __name__ == "__main__":

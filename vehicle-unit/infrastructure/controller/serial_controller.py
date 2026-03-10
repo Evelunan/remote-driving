@@ -40,13 +40,13 @@ class SerialController(IController):
         logger.debug(f"[car] Send command: {cmd}")
 
     def _prepare_command(self, v, w):
-        v = max(min(v, self.max_linear_velocity), -self.max_linear_velocity)
-        w = max(min(w, self.max_angular_velocity), -self.max_angular_velocity)
+        v = v * 100 * self.max_linear_velocity
+        w = w * 100 * self.max_angular_velocity
 
         direction = 0x01 if v < 0 else 0x00
-        v_abs = abs(int(v * 100))
+        v_abs = abs(int(v))
         steer_direction = 0x01 if w >= 0 else 0x00
-        w_abs = abs(int(w * 100))
+        w_abs = abs(int(w))
         cmd = self.command_buffer
         cmd[3] = direction
         cmd[4] = (v_abs >> 8) & 0xFF

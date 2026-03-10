@@ -1,8 +1,11 @@
 import asyncio
 import json
+from typing import TYPE_CHECKING
 from aioquic.asyncio.protocol import QuicConnectionProtocol
 from aioquic.quic.events import DatagramFrameReceived, ConnectionTerminated
 
+if TYPE_CHECKING:
+    from communication import ControlState
 from logger import get_logger
 
 logger = get_logger(__name__)
@@ -10,11 +13,17 @@ logger = get_logger(__name__)
 
 class DrivingProtocol(QuicConnectionProtocol):
 
-    def __init__(self, session_id, packet_queue, *args, **kwargs):
+    def __init__(
+        self,
+        session_id,
+        control_state: "ControlState",
+        *args,
+        **kwargs,
+    ):
         super().__init__(*args, **kwargs)
 
         self.session_id = session_id
-        self.packet_queue = packet_queue
+        self.control_state = control_state
 
         self._connected = False
         self._business_task: asyncio.Task | None = None
@@ -82,19 +91,14 @@ class DrivingProtocol(QuicConnectionProtocol):
             await self._send_hello()
 
             logger.info("控制循环启动")
-
+            last_ts = 0
             while self._connected:
-
-                try:
-                    ctrl_data = await asyncio.wait_for(
-                        self.packet_queue.get(),
-                        timeout=1
-                    )
-
-                except asyncio.TimeoutError:
-                    continue
-
-                await self._send_control(ctrl_data)
+                state = self.control_state
+                # 如果状态更新才发送
+                if state.timestamp != last_ts:
+                    last_ts = state.timestamp
+                    await self._send_control(state.linear, state.angular)
+                await asyncio.sleep(0.02)  # 50Hz
 
         except asyncio.CancelledError:
             logger.info("业务循环被取消")
@@ -133,14 +137,12 @@ class DrivingProtocol(QuicConnectionProtocol):
     # =========================
     # control
     # =========================
-    async def _send_control(self, ctrl_data):
+    async def _send_control(self, linear, angular):
 
         msg = {
             "session_id": self.session_id,
             "type": "control",
-            "data": ctrl_data,
+            "data": {"linear": linear, "angular": angular},
         }
-
         self._send_json(msg)
-
-        logger.info(f"发送控制: {ctrl_data}")
+        logger.info(f"发送控制: v={linear}, w={angular}")

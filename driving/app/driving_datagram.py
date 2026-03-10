@@ -3,6 +3,7 @@ from aioquic.asyncio import connect
 from aioquic.quic.configuration import QuicConfiguration
 
 from infrastructure.protocol import DrivingProtocol
+from infrastructure.communication import ControlState
 from config.loaders import QuicConfig
 from logger import get_logger
 
@@ -13,17 +14,21 @@ class DrivingDatagram:
 
     RETRY_DELAY = 3
 
-    def __init__(self, config: QuicConfig, session_id: str, packet_queue: asyncio.Queue):
+    def __init__(
+        self, config: QuicConfig, session_id: str, control_state: ControlState
+    ):
 
         self.host = config.host
         self.port = config.port
         self.session_id = session_id
-        self.packet_queue = packet_queue
+        self.control_state = control_state
 
         self.quic_config = QuicConfiguration(is_client=True)
         self.quic_config.verify_mode = config.options.verify_mode
         self.quic_config.enable_datagrams = config.options.enable_datagrams
-        self.quic_config.max_datagram_frame_size = config.options.max_datagram_frame_size
+        self.quic_config.max_datagram_frame_size = (
+            config.options.max_datagram_frame_size
+        )
         self.quic_config.idle_timeout = config.options.idle_timeout
 
     # =========================
@@ -76,7 +81,7 @@ class DrivingDatagram:
 
         return DrivingProtocol(
             self.session_id,
-            self.packet_queue,
+            self.control_state,
             *args,
             **kwargs,
         )
