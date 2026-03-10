@@ -1,1 +1,1 @@
-from .car_protocol import CarProtocol
+from .vehicle_protocol import VehicleProtocol

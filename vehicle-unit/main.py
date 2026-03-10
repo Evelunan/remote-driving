@@ -6,7 +6,7 @@ import os
 import sys
 
 
-from application import MultiCameraStreamApp, QuicDatagram
+from application import MultiCameraStreamApp, VehicleDatagram
 from common.utils import *
 from logger import get_logger
 from config.loaders import (
@@ -57,7 +57,7 @@ async def start_control(session_id: str):
     quic_config = get_quic_config()
     vehicle_config = get_vehicle_config()
     controller = SerialController(vehicle_config)
-    client = QuicDatagram(
+    client = VehicleDatagram(
         config=quic_config,
         session_id=session_id,
         controller=controller,

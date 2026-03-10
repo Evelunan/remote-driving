@@ -1,3 +1,3 @@
 from .stream_app import MultiCameraStreamApp
-from .quic_datagram import QuicDatagram
+from .vehicle_datagram import VehicleDatagram
 __all__ = ["MultiCameraStreamApp"]
