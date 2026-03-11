@@ -86,17 +86,15 @@ class DrivingProtocol(QuicConnectionProtocol):
     # 业务主循环
     # =========================
     async def _business_loop(self):
-
         try:
             await self._send_hello()
 
             logger.info("控制循环启动")
-            last_ts = 0
             while self._connected:
-                state = self.control_state
-                # 如果状态更新才发送
-                if state.timestamp != last_ts:
-                    last_ts = state.timestamp
+                state = self.control_state.get_snapshot()
+                linear = state.linear
+                angular = state.angular
+                if linear != 0.0 or angular != 0.0:
                     await self._send_control(state.linear, state.angular)
                 await asyncio.sleep(0.02)  # 50Hz
 

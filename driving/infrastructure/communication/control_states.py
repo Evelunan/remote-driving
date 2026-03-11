@@ -1,19 +1,20 @@
-from dataclasses import dataclass
-import asyncio
+from typing import NamedTuple
 import time
 
 
-@dataclass
+class ControlSnapshot(NamedTuple):
+    linear: float
+    angular: float
+    timestamp: float
+
+
 class ControlState:
 
-    linear: float = 0.0
-    angular: float = 0.0
-    timestamp: float = 0.0
-    lock: asyncio.Lock = asyncio.Lock()
+    def __init__(self):
+        self._snapshot = ControlSnapshot(0.0, 0.0, time.monotonic())
 
-    async def update(self, linear, angular):
+    def update(self, linear: float, angular: float):
+        self._snapshot = ControlSnapshot(linear, angular, time.monotonic())
 
-        async with self.lock:
-            self.linear = linear
-            self.angular = angular
-            self.timestamp = time.monotonic()
+    def get_snapshot(self) -> ControlSnapshot:
+        return self._snapshot

@@ -24,7 +24,7 @@ webrtc:
       password: coturn
 
 quic:
-  host: 8.155.171.27
+  host: 8.155.147.99
   port: 4433
 
   options:
