@@ -118,7 +118,7 @@ class DrivingProtocol(QuicConnectionProtocol):
     # hello / keepalive
     # =========================
     async def _send_hello(self):
-        payload = ControlCodec.encode_keepalive(self.session_id)
+        payload = ControlCodec.encode(ControlCodec.MSG_HELLO_DRIVING, self.session_id)
         self._send_datagram(payload)
         logger.info(f"身份发送完成 session={self.session_id}")
 
@@ -126,7 +126,8 @@ class DrivingProtocol(QuicConnectionProtocol):
     # control
     # =========================
     async def _send_control(self, linear, angular):
-        payload = ControlCodec.encode_control(
+        payload = ControlCodec.encode(
+            ControlCodec.MSG_CONTROL,
             self.session_id,
             linear,
             angular,
