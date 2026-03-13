@@ -21,27 +21,30 @@ class DataProcessor(IDataProcessor):
         self.control_state = control_state
         self.analog = analog_calculator
         self.configs = InputConfigManager().get_all_configs()
-        self.last_v = 0.0
-        self.last_w = 0.0
+        self.last_v = None
+        self.last_w = None
 
     def process(self, data: bytes) -> None:
         # 数字输入
         digital_state = self._process_digital(data)
         # 模拟输入
-        analog_values = self.analog.calculate(data)
-        throttle = analog_values["throttle"]
-        brake = analog_values["brake"]
-        steering = analog_values["steering"]
+        # analog_values = self.analog.calculate(data)
+        # throttle = analog_values["throttle"]
+        # brake = analog_values["brake"]
+        # steering = analog_values["steering"]
 
-        v = self._clamp(throttle - brake, -1.0, 1.0)
-        w = self._clamp(steering, -1.0, 1.0)
-        v = round(v, 2)
-        w = round(w, 2)
+        # v = self._clamp(throttle - brake, -1.0, 1.0)
+        # w = self._clamp(steering, -1.0, 1.0)
+        # v = round(v, 2)
+        # w = round(w, 2)
+        v = data[4]
+        w = data[3]
 
         if v != self.last_v or w != self.last_w:
             self.last_v = v
             self.last_w = w
             self.control_state.update(v, w)
+            # logger.info(f" v_raw:{data[4]}, w_raw:{data[3]}")
             # logger.info(f"v: {v}, w: {w}")
 
     def _process_digital(self, data: bytes) -> Dict[InputType, bool]:

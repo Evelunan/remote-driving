@@ -7,6 +7,7 @@ from aioquic.quic.events import DatagramFrameReceived, ConnectionTerminated
 if TYPE_CHECKING:
     from communication import ControlState
 from logger import get_logger
+from .control_codec import ControlCodec
 
 logger = get_logger(__name__)
 
@@ -15,7 +16,7 @@ class DrivingProtocol(QuicConnectionProtocol):
 
     def __init__(
         self,
-        session_id,
+        session_id: int,
         control_state: "ControlState",
         *args,
         **kwargs,
@@ -68,11 +69,10 @@ class DrivingProtocol(QuicConnectionProtocol):
     def _handle_datagram(self, data: bytes):
 
         try:
-            message = json.loads(data.decode())
+            message = ControlCodec.decode(data)
             logger.debug(f"收到服务器消息: {message}")
-
-        except json.JSONDecodeError:
-            logger.warning(f"收到非法JSON: {data!r}")
+        except Exception:
+            logger.warning(f"收到非法数据: {data!r}")
 
     # =========================
     # 启动业务
@@ -94,7 +94,7 @@ class DrivingProtocol(QuicConnectionProtocol):
                 state = self.control_state.get_snapshot()
                 linear = state.linear
                 angular = state.angular
-                if linear != 0.0 or angular != 0.0:
+                if linear != ControlCodec.ZERO or angular != ControlCodec.ZERO:
                     await self._send_control(state.linear, state.angular)
                 await asyncio.sleep(0.02)  # 50Hz
 
@@ -105,42 +105,32 @@ class DrivingProtocol(QuicConnectionProtocol):
             logger.exception("业务循环异常")
 
     # =========================
-    # 发送JSON
+    # 发送datagram
     # =========================
-    def _send_json(self, data: dict):
-
+    def _send_datagram(self, payload: bytes):
         try:
-            payload = json.dumps(data).encode()
-
             self._quic.send_datagram_frame(payload)
             self.transmit()
-
         except Exception:
             logger.exception("发送数据失败")
 
     # =========================
-    # hello
+    # hello / keepalive
     # =========================
     async def _send_hello(self):
-
-        msg = {
-            "session_id": self.session_id,
-            "type": "hello-driving",
-        }
-
-        self._send_json(msg)
-
+        payload = ControlCodec.encode_keepalive(self.session_id)
+        self._send_datagram(payload)
         logger.info(f"身份发送完成 session={self.session_id}")
 
     # =========================
     # control
     # =========================
     async def _send_control(self, linear, angular):
-
-        msg = {
-            "session_id": self.session_id,
-            "type": "control",
-            "data": {"linear": linear, "angular": angular},
-        }
-        self._send_json(msg)
-        logger.info(f"发送控制: v={linear}, w={angular}")
+        payload = ControlCodec.encode_control(
+            self.session_id,
+            linear,
+            angular,
+        )
+        self._send_datagram(payload)
+        msg = ControlCodec.decode(payload)
+        logger.info(f"发送指令：{msg}")

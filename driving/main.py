@@ -54,7 +54,7 @@ async def run_usb_connector(control_state: ControlState):
 # async def run_processor(queue: IMessageQueue, control_state: ControlState):
 
 
-async def run_quic_client(control_state: ControlState, session_id="1234"):
+async def run_quic_client(control_state: ControlState, session_id=1234):
     config = get_quic_config()
     client = DrivingDatagram(config, session_id, control_state)
     await client.start()
