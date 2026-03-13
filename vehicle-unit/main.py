@@ -56,11 +56,12 @@ async def start_stream(room: str):
 async def start_control(session_id: str):
     quic_config = get_quic_config()
     vehicle_config = get_vehicle_config()
-    controller = SerialController(vehicle_config)
+    # controller = SerialController(vehicle_config)
     client = VehicleDatagram(
         config=quic_config,
         session_id=session_id,
-        controller=controller,
+        # controller=controller,
+        controller=None,
     )
     await client.start()
 
@@ -68,7 +69,7 @@ async def start_control(session_id: str):
 async def main():
     mp.set_start_method("spawn", force=True)
     try:
-        session_id = "1234"
+        session_id = 1234
         room = "1234"
         logger.info("启动视频推流和控制指令接收...")
         await asyncio.gather(

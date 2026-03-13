@@ -23,6 +23,7 @@ class ControlCodec:
     MSG_HELLO_CAR = 0x02
     MSG_CONTROL = 0x03
     MSG_STATE = 0x04
+    MSG_HEARTBEAT = 0x05
 
     ZERO = 128
 
@@ -143,6 +144,7 @@ ControlCodec._ENCODE_TABLE = {
     ControlCodec.MSG_HELLO_CAR: ControlCodec.encode_hello,
     ControlCodec.MSG_CONTROL: ControlCodec.encode_motion,
     ControlCodec.MSG_STATE: ControlCodec.encode_motion,
+    ControlCodec.MSG_HEARTBEAT: ControlCodec.encode_hello,
 }
 
 ControlCodec._DECODE_TABLE = {
@@ -150,4 +152,5 @@ ControlCodec._DECODE_TABLE = {
     ControlCodec.MSG_HELLO_CAR: ("hello-car", ControlCodec.decode_hello),
     ControlCodec.MSG_CONTROL: ("control", ControlCodec.decode_motion),
     ControlCodec.MSG_STATE: ("state", ControlCodec.decode_motion),
+    ControlCodec.MSG_HEARTBEAT: ("heartbeat", ControlCodec.decode_hello),
 }

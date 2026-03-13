@@ -5,8 +5,17 @@ from aioquic.quic.events import DatagramFrameReceived
 
 from logger import get_logger
 from .session_manager import session_manager
+from .control_codec import ControlCodec
 
 logger = get_logger(__name__)
+
+ROUTE_TABLE = {
+    "hello-car": ("bind", "car"),
+    "hello-driving": ("bind", "driving"),
+    "control": ("forward", "car"),
+    "state": ("forward", "driving"),
+    "heartbeat": None,
+}
 
 
 class RelayProtocol(QuicConnectionProtocol):
@@ -24,50 +33,46 @@ class RelayProtocol(QuicConnectionProtocol):
     def quic_event_received(self, event):
         if not isinstance(event, DatagramFrameReceived):
             return
-        session_id, role, msg_data = None, None, event.data
+
+        data = event.data
         try:
-            msg = json.loads(msg_data.decode())
-            session_id = str(msg.get("session_id")) if msg.get("session_id") else None
-            role = msg.get("type")
+            msg = ControlCodec.decode(data)
         except Exception as e:
-            logger.error(f"invalid message: {e}")
-
-        if not session_id or not role:
+            logger.error(f"decode failed: {e}")
             return
 
-        if role.startswith("hello"):
-            self.session_manager.bind_peer(
-                session_id, "car" if role == "hello-car" else "driving", self
-            )
-            logger.info(f"bind {role} to session {session_id}")
+        session_id = msg["session_id"]
+        msg_type = msg["type"]
+        action = ROUTE_TABLE.get(msg_type)
+
+        if not action:
             return
 
-        # ---- 处理 heartbeat（只 log，不转发）----
-        if role in ("heartbeat", "probe"):
-            logger.info(f"Received heartbeat from {session_id} msg {msg_data}")
+        op, role = action
+        if op == "bind":
+            self.session_manager.bind_peer(session_id, role, self)
             return
 
-        # ---- 正常转发阶段 ----
-        if role == "control":
-            peer = self.session_manager.get_peer(session_id, "car")
-        elif role == "state":
-            peer = self.session_manager.get_peer(session_id, "driving")
-        else:
-            return
-
+        peer = self.session_manager.get_peer(session_id, role)
         if peer:
-            peer._quic.send_datagram_frame(msg_data)
+            peer._quic.send_datagram_frame(data)
             peer.transmit()
 
     async def detect_connection(self):
         while True:
             await asyncio.sleep(5)
             try:
+                session_id = self.session_manager.get_session_id(self)
+                if not session_id:
+                    continue
                 # 改为 JSON 格式，避免客户端解析失败
-                ping_msg = json.dumps({"type": "ping"}).encode()
+                ping_msg = ControlCodec.encode(ControlCodec.MSG_HEARTBEAT, session_id)
+
                 self._quic.send_datagram_frame(ping_msg)
                 self.transmit()  # 确保发送
                 # log_info("Ping sent: Connection alive")
+            except asyncio.CancelledError:
+                pass
             except Exception as e:
                 logger.error(f"Ping failed: {e}")
                 self.session_manager.unbind(self)
