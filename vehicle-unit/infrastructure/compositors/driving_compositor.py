@@ -1,101 +1,175 @@
 import cv2
 import numpy as np
-from typing import List
+from enum import Enum
+from logger import get_logger
 
-from interfaces import IFrameCompositor
+logger = get_logger(__name__)
+
+class LayoutType(Enum):
+    FRONT_DOMINANT = 1
+    TRIPLE = 2
+    GRID = 3
 
 
-class DrivingCompositor(IFrameCompositor):
-    """
-    输入顺序:
-        frames[0] -> 左摄像头
-        frames[1] -> 前摄像头
-        frames[2] -> 右摄像头
-        frames[3] -> 后摄像头
-    """
+class DrivingCompositor:
 
-    def __init__(self, width: int, height: int):
+    def __init__(self, width: int, height: int, layout=LayoutType.FRONT_DOMINANT):
+
         self.width = width
         self.height = height
+        self.layout = layout
 
-        # 后置摄像头参数
-        self.rear_height_ratio = 0.25
-        self.rear_width_ratio = 0.25
-        self.rear_position_y_ratio = 0.05
+        # GPU 是否可用
+        self.use_cuda = cv2.cuda.getCudaEnabledDeviceCount() > 0
 
-        # 预计算渐变背景（避免每帧循环）
-        self._background = self._create_gradient_background()
+        # 预分配画布
+        self.canvas = np.zeros((height, width, 3), dtype=np.uint8)
 
-    # ==========================
-    # 背景生成（高效向量化）
-    # ==========================
-    def _create_gradient_background(self) -> np.ndarray:
-        composite_width = self.width * 3
-        gradient = np.linspace(80, 50, self.height).astype(np.uint8)
-        bg = np.zeros((self.height, composite_width, 3), dtype=np.uint8)
+        # UI参数
+        self.line_color = (40, 40, 40)
+        self.line_thickness = 2
 
-        # BGR -> (0, G, G)
-        bg[:, :, 1] = gradient[:, None]
-        bg[:, :, 2] = gradient[:, None]
+        # FRONT 占比
+        self.front_ratio = 0.7
 
-        return bg
+    # =========================
+    # 动态布局切换
+    # =========================
+    def set_layout(self, layout: LayoutType):
+        if not self.use_cuda:
+            logger.info("使用gpu")
+        self.layout = layout
 
-    # ==========================
-    # resize封装
-    # ==========================
-    def _resize(self, frame: np.ndarray, w: int, h: int) -> np.ndarray:
-        return cv2.resize(frame, (w, h), interpolation=cv2.INTER_AREA)
+    # =========================
+    # GPU resize
+    # =========================
+    def _resize(self, frame, w, h):
+        if not self.use_cuda:
+            return cv2.resize(frame, (w, h), interpolation=cv2.INTER_AREA)
 
-    # ==========================
-    # 主合成函数
-    # ==========================
-    def compose_frames(self, frames: List[np.ndarray]) -> np.ndarray:
-        if len(frames) < 4:
-            raise ValueError("DrivingCompositor requires 4 frames: left, front, right, rear")
+        gpu_frame = cv2.cuda_GpuMat()
+        gpu_frame.upload(frame)
 
-        composite = self._background.copy()
-
-        # ================= LEFT =================
-        frame_left = self._resize(frames[0], self.width, self.height)
-        composite[:, 0:self.width] = frame_left
-
-        # ================= FRONT =================
-        frame_front = self._resize(frames[1], self.width, self.height)
-        composite[:, self.width:self.width * 2] = frame_front
-
-        # ================= RIGHT =================
-        frame_right = self._resize(frames[2], self.width, self.height)
-        composite[:, self.width * 2:self.width * 3] = frame_right
-
-        # ================= REAR (Picture in Picture) =================
-        rear_width = int(self.width * self.rear_width_ratio)
-        rear_height = int(self.height * self.rear_height_ratio)
-
-        frame_rear = self._resize(frames[3], rear_width, rear_height)
-
-        rear_x = self.width + (self.width - rear_width) // 2
-        rear_y = int(self.height * self.rear_position_y_ratio)
-
-        # 边框
-        border_thickness = 2
-        cv2.rectangle(
-            composite,
-            (rear_x - border_thickness, rear_y - border_thickness),
-            (rear_x + rear_width + border_thickness,
-             rear_y + rear_height + border_thickness),
-            (0, 0, 0),
-            border_thickness
+        gpu_resized = cv2.cuda.resize(
+            gpu_frame, (w, h), interpolation=cv2.INTER_AREA
         )
+        return gpu_resized.download()
 
-        # 放置后摄像头
-        composite[rear_y:rear_y + rear_height,
-                  rear_x:rear_x + rear_width] = frame_rear
+    # =========================
+    # FRONT DOMINANT
+    # =========================
+    def _compose_front_dominant(self, frames):
+        left, front, right, rear = frames
+        W = self.width
+        H = self.height
 
-        # ================= 分隔线 =================
-        line_color = (40, 40, 40)
-        cv2.line(composite, (self.width, 0),
-                 (self.width, self.height), line_color, 2)
-        cv2.line(composite, (self.width * 2, 0),
-                 (self.width * 2, self.height), line_color, 2)
+        front_h = int(H * self.front_ratio)
+        bottom_h = H - front_h
+        cell_w = W // 3
 
-        return composite
+        canvas = self.canvas
+        canvas[:] = 0
+
+        # FRONT
+        f = self._resize(front, W, front_h)
+        canvas[0:front_h, 0:W] = f
+
+        # LEFT
+        l = self._resize(left, cell_w, bottom_h)
+        canvas[front_h:H, 0:cell_w] = l
+
+        # REAR
+        r = self._resize(rear, cell_w, bottom_h)
+        canvas[front_h:H, cell_w:cell_w * 2] = r
+
+        # RIGHT
+        rr = self._resize(right, cell_w, bottom_h)
+        canvas[front_h:H, cell_w * 2:W] = rr
+
+        # 分隔线
+        cv2.line(canvas, (0, front_h), (W, front_h),
+                 self.line_color, self.line_thickness)
+
+        cv2.line(canvas, (cell_w, front_h), (cell_w, H),
+                 self.line_color, self.line_thickness)
+
+        cv2.line(canvas, (cell_w * 2, front_h), (cell_w * 2, H),
+                 self.line_color, self.line_thickness)
+
+        return canvas
+
+    # =========================
+    # TRIPLE 布局
+    # =========================
+    def _compose_triple(self, frames):
+        left, front, right, rear = frames
+
+        W = self.width
+        H = self.height
+
+        cell_w = W // 3
+
+        canvas = self.canvas
+        canvas[:] = 0
+
+        l = self._resize(left, cell_w, H)
+        f = self._resize(front, cell_w, H)
+        r = self._resize(right, cell_w, H)
+
+        canvas[:, 0:cell_w] = l
+        canvas[:, cell_w:cell_w * 2] = f
+        canvas[:, cell_w * 2:W] = r
+
+        # rear pip
+        pip_w = int(cell_w * 0.6)
+        pip_h = int(H * 0.3)
+
+        rear_frame = self._resize(rear, pip_w, pip_h)
+
+        x = cell_w + (cell_w - pip_w) // 2
+        y = int(H * 0.05)
+
+        canvas[y:y + pip_h, x:x + pip_w] = rear_frame
+
+        return canvas
+
+    # =========================
+    # GRID 布局
+    # =========================
+    def _compose_grid(self, frames):
+
+        left, front, right, rear = frames
+
+        W = self.width
+        H = self.height
+
+        half_w = W // 2
+        half_h = H // 2
+
+        canvas = self.canvas
+        canvas[:] = 0
+
+        canvas[0:half_h, 0:half_w] = self._resize(left, half_w, half_h)
+        canvas[0:half_h, half_w:W] = self._resize(front, half_w, half_h)
+        canvas[half_h:H, 0:half_w] = self._resize(right, half_w, half_h)
+        canvas[half_h:H, half_w:W] = self._resize(rear, half_w, half_h)
+
+        return canvas
+
+    # =========================
+    # 主函数
+    # =========================
+    def compose_frames(self, frames: list[np.ndarray]) -> np.ndarray:
+        if len(frames) < 4:
+            raise ValueError("Need 4 frames: left, front, right, rear")
+
+        if self.layout == LayoutType.FRONT_DOMINANT:
+            return self._compose_front_dominant(frames)
+
+        if self.layout == LayoutType.TRIPLE:
+            return self._compose_triple(frames)
+
+        if self.layout == LayoutType.GRID:
+            return self._compose_grid(frames)
+
+        return self._compose_front_dominant(frames)
