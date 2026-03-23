@@ -50,7 +50,7 @@ async def start_stream(room: str):
     compositor = DrivingCompositor(width=resolution.width, height=resolution.height)
     app.set_frame_compositor(compositor)
 
-    await app.run_stream(preview=False)
+    await app.run_stream(preview=True)
 
 
 async def start_control(session_id: str):
@@ -73,7 +73,7 @@ async def main():
         room = "1234"
         logger.info("启动视频推流和控制指令接收...")
         await asyncio.gather(
-            # start_stream(room),
+            start_stream(room),
             start_control(session_id),
         )
 

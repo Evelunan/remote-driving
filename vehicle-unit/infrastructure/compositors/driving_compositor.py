@@ -66,6 +66,7 @@ class DrivingCompositor:
         front_h = int(H * self.front_ratio)
         bottom_h = H - front_h
         cell_w = W // 3
+        last_w = W - cell_w * 2  # 处理整数除法余数
 
         canvas = self.canvas
         canvas[:] = 0
@@ -82,8 +83,8 @@ class DrivingCompositor:
         r = self._resize(rear, cell_w, bottom_h)
         canvas[front_h:H, cell_w:cell_w * 2] = r
 
-        # RIGHT
-        rr = self._resize(right, cell_w, bottom_h)
+        # RIGHT (使用剩余宽度)
+        rr = self._resize(right, last_w, bottom_h)
         canvas[front_h:H, cell_w * 2:W] = rr
 
         # 分隔线
@@ -108,13 +109,14 @@ class DrivingCompositor:
         H = self.height
 
         cell_w = W // 3
+        last_w = W - cell_w * 2  # 处理整数除法余数
 
         canvas = self.canvas
         canvas[:] = 0
 
         l = self._resize(left, cell_w, H)
         f = self._resize(front, cell_w, H)
-        r = self._resize(right, cell_w, H)
+        r = self._resize(right, last_w, H)
 
         canvas[:, 0:cell_w] = l
         canvas[:, cell_w:cell_w * 2] = f
@@ -145,14 +147,16 @@ class DrivingCompositor:
 
         half_w = W // 2
         half_h = H // 2
+        right_w = W - half_w  # 处理整数除法余数
+        bottom_h = H - half_h  # 处理整数除法余数
 
         canvas = self.canvas
         canvas[:] = 0
 
         canvas[0:half_h, 0:half_w] = self._resize(left, half_w, half_h)
-        canvas[0:half_h, half_w:W] = self._resize(front, half_w, half_h)
-        canvas[half_h:H, 0:half_w] = self._resize(right, half_w, half_h)
-        canvas[half_h:H, half_w:W] = self._resize(rear, half_w, half_h)
+        canvas[0:half_h, half_w:W] = self._resize(front, right_w, half_h)
+        canvas[half_h:H, 0:half_w] = self._resize(right, half_w, bottom_h)
+        canvas[half_h:H, half_w:W] = self._resize(rear, right_w, bottom_h)
 
         return canvas
 
@@ -161,7 +165,10 @@ class DrivingCompositor:
     # =========================
     def compose_frames(self, frames: list[np.ndarray]) -> np.ndarray:
         if len(frames) < 4:
-            raise ValueError("Need 4 frames: left, front, right, rear")
+            # 使用黑帧填充缺失的帧
+            black_frame = np.zeros((self.height, self.width, 3), dtype=np.uint8)
+            while len(frames) < 4:
+                frames.append(black_frame.copy())
 
         if self.layout == LayoutType.FRONT_DOMINANT:
             return self._compose_front_dominant(frames)

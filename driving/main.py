@@ -65,7 +65,7 @@ async def main():
     # packet_queue = asyncio.Queue()
     control_state = ControlState()
     async with asyncio.TaskGroup() as tasks:
-        # tasks.create_task(test_video())
+        tasks.create_task(test_video())
         tasks.create_task(run_usb_connector(control_state))
         tasks.create_task(run_quic_client(control_state))
 
