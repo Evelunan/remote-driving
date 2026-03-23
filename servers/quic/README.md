@@ -24,3 +24,28 @@ quic/
 - `enable_datagrams`: 启用数据报
 - `max_datagram_frame_size`: 最大数据报大小
 - `idle_timeout`: 空闲超时
+
+## 打包可执行文件
+
+使用 nuitka 打包成独立可执行文件：
+
+```bash
+# 安装 nuitka
+uv add --dev nuitka
+
+# 打包（config和certs目录会打包进可执行文件）
+uv run python -m nuitka main.py `
+  --standalone `
+  --output-dir=dist `
+  --output-filename=quic_server `
+  --include-data-dir=config=config `
+  --include-data-dir=certs=certs `
+  --lto=yes `
+  --jobs=8 `
+  --python-flag=-O `
+  --python-flag=no_site `
+  --windows-console-mode=force `
+  --assume-yes-for-downloads
+```
+
+打包后在 `dist/` 目录生成 `quic_server(.exe)` 可执行文件。
