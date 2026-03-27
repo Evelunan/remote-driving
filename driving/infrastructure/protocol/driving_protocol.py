@@ -4,10 +4,10 @@ from typing import TYPE_CHECKING
 from aioquic.asyncio.protocol import QuicConnectionProtocol
 from aioquic.quic.events import DatagramFrameReceived, ConnectionTerminated
 
-if TYPE_CHECKING:
-    from communication import ControlState
+from interfaces import IMessageQueue
 from logger import get_logger
 from .control_codec import ControlCodec
+from infrastructure.communication import ControlState
 
 logger = get_logger(__name__)
 
@@ -17,14 +17,14 @@ class DrivingProtocol(QuicConnectionProtocol):
     def __init__(
         self,
         session_id: int,
-        control_state: "ControlState",
+        processed_queue: IMessageQueue,
         *args,
         **kwargs,
     ):
         super().__init__(*args, **kwargs)
 
         self.session_id = session_id
-        self.control_state = control_state
+        self.processed_queue = processed_queue
 
         self._connected = False
         self._business_task: asyncio.Task | None = None
@@ -88,14 +88,21 @@ class DrivingProtocol(QuicConnectionProtocol):
     async def _business_loop(self):
         try:
             await self._send_hello()
-
             logger.info("控制循环启动")
             while self._connected:
-                state = self.control_state.get_snapshot()
-                linear = state.linear
-                angular = state.angular
+                try:
+                    data: ControlState = await asyncio.wait_for(
+                        self.processed_queue.get(), timeout=1.0
+                    )
+                except asyncio.TimeoutError:
+                    continue
+
+                snap = data.get_snapshot()
+                linear = snap.linear
+                angular = snap.angular
                 if linear != ControlCodec.ZERO or angular != ControlCodec.ZERO:
-                    await self._send_control(state.linear, state.angular)
+                    await self._send_control(linear, angular)
+                    
                 await asyncio.sleep(0.02)  # 50Hz
 
         except asyncio.CancelledError:

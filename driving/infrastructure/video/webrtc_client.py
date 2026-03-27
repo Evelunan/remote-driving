@@ -9,7 +9,6 @@ from aiortc import (
 )
 
 from interfaces import IWebRTCClient
-from config.loaders import WebRTCConfig
 
 
 class AIORTCClient(IWebRTCClient):

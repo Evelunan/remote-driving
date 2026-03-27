@@ -10,8 +10,8 @@ class ControlSnapshot(NamedTuple):
 
 class ControlState:
 
-    def __init__(self):
-        self._snapshot = ControlSnapshot(0.0, 0.0, time.monotonic())
+    def __init__(self, linear=0, angular=0):
+        self._snapshot = ControlSnapshot(linear, angular, time.monotonic())
 
     def update(self, linear: int, angular: int):
         self._snapshot = ControlSnapshot(linear, angular, time.monotonic())

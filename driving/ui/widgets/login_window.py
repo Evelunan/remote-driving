@@ -126,9 +126,7 @@ class LoginPage(QWidget):
         self._login_thread: Optional[LoginThread] = None
 
         # 检查是否启用调试模式
-        self._debug_mode = os.getenv("DEBUG_MODE", "0") == "1" or getattr(
-            # AppConfig, "DEBUG_LOGIN", False
-        )
+        self._debug_mode = True
 
         self._setup_ui()
 

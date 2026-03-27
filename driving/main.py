@@ -4,7 +4,7 @@ import asyncio
 from factories import VideoFactory
 from config.loaders import get_quic_config, get_webrtc_config
 from interfaces import IMessageQueue, IDataProcessor
-from infrastructure.communication import ControlState
+from infrastructure.communication import ControlState, AsyncQueue
 from infrastructure.device import USBConnector
 from infrastructure.processing import DataProcessor, AnalogCalculator
 
@@ -51,12 +51,15 @@ async def run_usb_connector(control_state: ControlState):
         await usb_connector.disconnect()
 
 
-# async def run_processor(queue: IMessageQueue, control_state: ControlState):
-
-
 async def run_quic_client(control_state: ControlState, session_id=1234):
     config = get_quic_config()
-    client = DrivingDatagram(config, session_id, control_state)
+    client = DrivingDatagram(
+        config.host,
+        config.port,
+        config.to_aiortc_config(),
+        session_id,
+        control_state,
+    )
     await client.start()
 
 
@@ -70,9 +73,44 @@ async def main():
         tasks.create_task(run_quic_client(control_state))
 
 
+async def test_queue():
+    SENTINEL = None
+
+    async def product(queue: AsyncQueue):
+        try:
+            for i in range(100):
+                await queue.put(i)
+                # logger.info(f"product {i}")
+                # await asyncio.sleep(0.1)
+        finally:
+            await queue.put(SENTINEL)
+            # logger.info("Producer finished, sent sentinel.")
+
+    async def consume(queue: AsyncQueue):
+        try:
+            while True:
+                data = await asyncio.wait_for(queue.get(), timeout=1.0)
+                if data is SENTINEL:
+                    logger.info("Consumer received sentinel, exiting loop.")
+                    break
+                logger.info(f"consume {data}")
+                # await asyncio.sleep(0.5)
+        except asyncio.TimeoutError:
+            logger.warning("Consumer timed out")
+        except Exception as e:
+            logger.error(f"Consumer error: {e}")
+
+    queue = AsyncQueue(5)
+    tasks = [
+        asyncio.create_task(product(queue)),
+        asyncio.create_task(consume(queue)),
+    ]
+    await asyncio.gather(*tasks)
+
+
 if __name__ == "__main__":
     # asyncio.run(test_video())
     try:
-        asyncio.run(main())
+        asyncio.run(test_queue())
     except KeyboardInterrupt:
         logger.info("客户端已退出")

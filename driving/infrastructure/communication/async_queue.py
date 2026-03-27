@@ -5,7 +5,7 @@ from interfaces import IMessageQueue
 
 
 class AsyncQueue(IMessageQueue):
-    def __init__(self, max_size: int = 100):
+    def __init__(self, max_size: int = 10):
         self._queue: Deque[Any] = deque(maxlen=max_size)
         self._condition = asyncio.Condition()
 

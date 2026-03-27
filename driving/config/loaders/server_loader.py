@@ -2,7 +2,10 @@
 from dataclasses import dataclass, field
 from pathlib import Path
 import yaml
+
+
 from aiortc import RTCIceServer
+from aioquic.quic.configuration import QuicConfiguration
 
 from common.constants import CONFIG_PATH
 from logger import get_logger
@@ -53,6 +56,14 @@ class QuicConfig:
     host: str
     port: int
     options: QuicOptions
+
+    def to_aiortc_config(self, is_client: bool = True) -> QuicConfiguration:
+        quic_config = QuicConfiguration(is_client=is_client)
+        quic_config.verify_mode = self.options.verify_mode
+        quic_config.enable_datagrams = self.options.enable_datagrams
+        quic_config.max_datagram_frame_size = self.options.max_datagram_frame_size
+        quic_config.idle_timeout = self.options.idle_timeout
+        return quic_config
 
 
 # 缓存变量（模块级单例）

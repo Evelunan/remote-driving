@@ -1,11 +1,8 @@
 import json
 from typing import Dict
-from interfaces.processor import IDataProcessor, IAnalogCalculator
+from interfaces import IDataProcessor, IAnalogCalculator, IMessageQueue
 from config.input_config import InputType, InputConfigManager
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from ..communication import ControlState
+from infrastructure.communication import ControlState
 
 from logger import get_logger
 
@@ -15,10 +12,10 @@ logger = get_logger(__name__)
 class DataProcessor(IDataProcessor):
     def __init__(
         self,
-        control_state: "ControlState",
+        processed_queue: IMessageQueue,
         analog_calculator: IAnalogCalculator,
     ):
-        self.control_state = control_state
+        self.processed_queue = processed_queue
         self.analog = analog_calculator
         self.configs = InputConfigManager().get_all_configs()
         self.last_v = None
@@ -40,12 +37,11 @@ class DataProcessor(IDataProcessor):
         v = data[4]
         w = data[3]
 
-        if v != self.last_v or w != self.last_w:
-            self.last_v = v
-            self.last_w = w
-            self.control_state.update(v, w)
-            # logger.info(f" v_raw:{data[4]}, w_raw:{data[3]}")
-            # logger.info(f"v: {v}, w: {w}")
+        state = ControlState(v, w)
+        self.processed_queue.put(state)
+        
+        # logger.info(f" v_raw:{data[4]}, w_raw:{data[3]}")
+        # logger.info(f"v: {v}, w: {w}")
 
     def _process_digital(self, data: bytes) -> Dict[InputType, bool]:
         state = {}

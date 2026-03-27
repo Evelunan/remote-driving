@@ -1,7 +1,6 @@
 from .video_factory import VideoFactory
-from .communication_factory import CommunicationFactory
-from .device_factory import DeviceFactory
-from .processor_factory import ProcessorFactory
+from .ui_factory import UIFactory
+from .control_factory import ControlFactory
 
 __all__ = [
     "VideoFactory",
