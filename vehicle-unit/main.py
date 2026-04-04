@@ -6,7 +6,7 @@ import os
 import sys
 
 
-from application import MultiCameraStreamApp, VehicleDatagram
+from application import  VehicleDatagram, MultiCameraManager
 from common.utils import *
 from logger import get_logger
 from config.loaders import (
@@ -29,29 +29,6 @@ os.environ["all_proxy"] = ""
 logger = get_logger(__name__)
 
 
-async def start_stream(room: str):
-    app = MultiCameraStreamApp()
-    cameras = get_cameras_config()
-    resolution = get_resolution_config()
-    for c in cameras:
-        id = get_camera_index(vid=c.vid, pid=c.pid)
-        camera = USBCamera(
-            camera_id=id,
-            width=resolution.width,
-            height=resolution.height,
-            fps=resolution.fps,
-            camera_name=c.name,
-        )
-        app.add_camera(camera)
-
-    streamer = WebRTCStreamer(room=room, config=get_webrtc_config())
-    app.set_stream_encoder(streamer)
-
-    compositor = DrivingCompositor(width=resolution.width, height=resolution.height)
-    app.set_frame_compositor(compositor)
-
-    await app.run_stream(preview=True)
-
 
 async def start_control(session_id: str):
     quic_config = get_quic_config()
@@ -66,6 +43,26 @@ async def start_control(session_id: str):
     await client.start()
 
 
+async def test_multi_camera_manager(room="1234"):
+    config = get_webrtc_config()
+    streamer = WebRTCStreamer(room, config)
+    manager = MultiCameraManager(streamer)
+    cameras = get_cameras_config()
+    resolution = get_resolution_config()
+    for c in cameras:
+        id = get_camera_index(vid=c.vid, pid=c.pid)
+        camera = USBCamera(
+            camera_id=id,
+            camera_name=c.name,
+        )
+        manager.add_camera(camera)
+
+    await manager.start()
+    await streamer.start()
+    stop_event = asyncio.Event()
+    await stop_event.wait()
+
+
 async def main():
     mp.set_start_method("spawn", force=True)
     try:
@@ -73,10 +70,10 @@ async def main():
         room = "1234"
         logger.info("启动视频推流和控制指令接收...")
         await asyncio.gather(
-            start_stream(room),
-            start_control(session_id),
+            # start_stream(room),
+            # start_control(session_id),
+            test_multi_camera_manager()
         )
-
     except KeyboardInterrupt:
         logger.info("用户终止程序")
     except Exception as e:
@@ -86,3 +83,4 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+    # test_controller()

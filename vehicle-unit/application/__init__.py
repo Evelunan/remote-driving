@@ -1,3 +1,2 @@
-from .stream_app import MultiCameraStreamApp
 from .vehicle_datagram import VehicleDatagram
-__all__ = ["MultiCameraStreamApp"]
+from .multi_camera_manager import MultiCameraManager
