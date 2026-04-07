@@ -24,7 +24,7 @@ class MultiCameraManager:
 
     def add_camera(self, camera: USBCamera):
         self.cameras.append(camera)
-        self.streamer.create_video_track(camera.camera_name)
+        self.streamer.regist_video_track(camera.camera_name)
 
     async def start(self):
         if len(self.cameras) == 0:

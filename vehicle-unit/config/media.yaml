@@ -6,7 +6,7 @@ resolution:
   fps: 30
 
 cameras:
-  test:
+  front:
     vid: "0408"
     pid: "5423"
   # front:

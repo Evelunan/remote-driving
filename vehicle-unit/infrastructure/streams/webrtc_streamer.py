@@ -48,6 +48,7 @@ class WebRTCStreamer:
     async def _create_peer(self, peer_id: str):
         pc = PeerConnectionManager(self.config.ice_servers)
 
+        self.track_manager.reset_tracks()
         # 绑定 track
         for track in self.track_manager.all_tracks():
             pc.add_track(track)
@@ -125,12 +126,13 @@ class WebRTCStreamer:
     # =====================================================
     # 对外接口
     # =====================================================
-    def create_video_track(self, name="default"):
-        return self.track_manager.create_track(name)
+    def regist_video_track(self, name="default"):
+        return self.track_manager.register(name)
 
     async def push_frame(self, frame, track_name="default"):
         track = self.track_manager.get_track(track_name)
-        await track.update_frame(frame)
+        if track:
+            await track.update_frame(frame)
 
     async def close(self):
         for pc in self.peers.values():
