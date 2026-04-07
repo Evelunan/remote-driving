@@ -7,9 +7,9 @@ import struct
 # steering:   uint8         角速度原始值 (0-255) 128为中点， <128：左转   >128：右转
 
 # 延迟抖动
-# type session speed steering timestamp
-# 1B   2B      1B    1B       4B
 
+# | type | session | seq | speed | steering | timestamp |
+# | 1B   |   2B    | 4B  | 1B    | 1B       | 4B        |
 
 class ControlCodec:
     """
