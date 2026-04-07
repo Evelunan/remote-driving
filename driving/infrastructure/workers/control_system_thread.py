@@ -1,4 +1,5 @@
 import asyncio
+from typing import Optional
 from PyQt6.QtCore import QThread
 from aioquic.asyncio import connect
 
@@ -16,7 +17,6 @@ logger = get_logger(__name__)
 class USBConfig:
     """USB 设备配置"""
 
-    # 方向盘设备
     VENDOR_ID = 0x2F24
     PRODUCT_ID = 0x0009
     ENDPOINT_IN = 0x81
@@ -25,11 +25,11 @@ class USBConfig:
 class ControlSystemThread(QThread):
     """控制系统线程 - USB 设备 + 数据处理 + QUIC 通信"""
 
-    def __init__(self, signal_bridge: SignalBridge, session_id: str):
+    def __init__(self, signal_bridge: Optional[SignalBridge], session_id: str):
         super().__init__()
-        self._bridge = signal_bridge
+        self._bridge = signal_bridge  # 现在可以是 None
         self._session_id = session_id
-        self._loop = None
+        self._loop: Optional[asyncio.AbstractEventLoop] = None
         self._running = False
         self._stopping = False
 
@@ -45,14 +45,24 @@ class ControlSystemThread(QThread):
             if not self._stopping:
                 logger.error(f"控制系统错误: {e}")
         finally:
-            try:
-                self._loop.run_until_complete(self._loop.shutdown_asyncgens())
-            except Exception:
-                pass
-            try:
-                self._loop.close()
-            except Exception:
-                pass
+            # 清理事件循环
+            if self._loop:
+                try:
+                    # 取消所有待处理的任务
+                    pending = asyncio.all_tasks(self._loop)
+                    for task in pending:
+                        task.cancel()
+                    # 等待所有任务取消完成
+                    if pending:
+                        self._loop.run_until_complete(
+                            asyncio.gather(*pending, return_exceptions=True)
+                        )
+
+                    self._loop.run_until_complete(self._loop.shutdown_asyncgens())
+                except Exception:
+                    pass
+                finally:
+                    self._loop.close()
 
     async def _main(self):
         raw_queue = ControlFactory.create_message_queue()
@@ -70,6 +80,21 @@ class ControlSystemThread(QThread):
             for t in tasks:
                 t.cancel()
 
+    # --- 辅助方法：安全发射信号 ---
+    def _safe_emit(self, signal_name: str, *args):
+        """
+        如果 bridge 存在，则发射信号；否则忽略。
+        signal_name: 信号方法名，如 "usb_status_changed"
+        """
+        if not self._stopping and self._bridge is not None:
+            try:
+                signal = getattr(self._bridge, signal_name)
+                signal.emit(*args)
+            except AttributeError:
+                logger.warning(f"SignalBridge 缺少信号: {signal_name}")
+            except Exception as e:
+                logger.error(f"发射信号 {signal_name} 时出错: {e}")
+
     async def _run_usb(self, raw_queue: IMessageQueue):
         usb = ControlFactory.create_usb_device(
             USBConfig.VENDOR_ID, USBConfig.PRODUCT_ID
@@ -77,34 +102,29 @@ class ControlSystemThread(QThread):
         usb.set_data_callback(raw_queue.put)
 
         async def safe_sleep(delay: float):
-            """可取消的 sleep"""
             try:
                 await asyncio.sleep(delay)
                 return True
             except asyncio.CancelledError:
                 return False
 
-        def emit_status(online: bool, msg: str):
-            if not self._stopping:
-                self._bridge.usb_status_changed.emit(online, msg)
-
         while self._running:
             try:
-                emit_status(False, "连接中")
+                self._safe_emit("usb_status_changed", False, "连接中")
                 await usb.connect()
-                emit_status(True, "在线")
+                self._safe_emit("usb_status_changed", True, "在线")
+
                 while self._running and usb.is_connected():
                     await asyncio.sleep(0.5)
             except asyncio.CancelledError:
                 break
             except ConnectionError:
-                emit_status(False, "未连接")
+                self._safe_emit("usb_status_changed", False, "未连接")
                 if not await safe_sleep(3):
                     break
             except Exception as e:
-                # 建议记录日志，而不是吞掉异常
                 logger.info(f"[USB ERROR] {e}")
-                emit_status(False, "错误")
+                self._safe_emit("usb_status_changed", False, "错误")
                 if not await safe_sleep(3):
                     break
             finally:
@@ -116,16 +136,12 @@ class ControlSystemThread(QThread):
     async def _run_processor(
         self, raw_queue: IMessageQueue, processed_queue: IMessageQueue
     ):
-
         proc = ControlFactory.create_data_processor(processed_queue)
         while self._running:
             try:
                 data = await asyncio.wait_for(raw_queue.get(), timeout=1.0)
-                # vals = calc.calculate(data)
-                # if not self._stopping:
-                #     self._bridge.control_data_updated.emit(
-                #         vals["throttle"], vals["brake"], vals["steering"]
-                #     )
+                # 这里的业务逻辑保持不变，不再依赖 bridge 发射数据
+                # 如果需要回调，可以通过 proc 的回调机制处理
                 await proc.process(data)
             except asyncio.CancelledError:
                 break
@@ -139,24 +155,22 @@ class ControlSystemThread(QThread):
         config = get_quic_config()
         while self._running:
             try:
-                if not self._stopping:
-                    self._bridge.quic_status_changed.emit(False, "连接中")
+                self._safe_emit("quic_status_changed", False, "连接中")
+
                 async with connect(
                     config.host,
                     config.port,
                     configuration=config.to_aiortc_config(True),
                     create_protocol=lambda *a, **k: DrivingProtocol(
-                        self._session_id, processed_queue, *a, **k
+                        int(self._session_id), processed_queue, *a, **k
                     ),
                 ) as protocol:
                     await protocol.wait_connected()
-                    if not self._stopping:
-                        self._bridge.quic_status_changed.emit(True, "在线")
+                    self._safe_emit("quic_status_changed", True, "在线")
                     protocol.start()
                     await protocol.wait_closed()
             except (asyncio.TimeoutError, ConnectionRefusedError, OSError):
-                if not self._stopping:
-                    self._bridge.quic_status_changed.emit(False, "离线")
+                self._safe_emit("quic_status_changed", False, "离线")
                 try:
                     await asyncio.sleep(3)
                 except asyncio.CancelledError:
@@ -164,8 +178,7 @@ class ControlSystemThread(QThread):
             except asyncio.CancelledError:
                 break
             except Exception:
-                if not self._stopping:
-                    self._bridge.quic_status_changed.emit(False, "错误")
+                self._safe_emit("quic_status_changed", False, "错误")
                 try:
                     await asyncio.sleep(3)
                 except asyncio.CancelledError:
@@ -175,5 +188,11 @@ class ControlSystemThread(QThread):
         self._stopping = True
         self._running = False
         if self._loop and self._loop.is_running():
-            for task in asyncio.all_tasks(self._loop):
-                self._loop.call_soon_threadsafe(task.cancel)
+            # 安全地取消任务
+            self._loop.call_soon_threadsafe(self._cancel_all_tasks)
+
+    def _cancel_all_tasks(self):
+        # 在事件循环线程内执行取消
+        tasks = asyncio.all_tasks(self._loop)
+        for task in tasks:
+            task.cancel()

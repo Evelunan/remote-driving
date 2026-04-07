@@ -1,116 +1,60 @@
-import asyncio
-
-
-from factories import VideoFactory
-from config.loaders import get_quic_config, get_webrtc_config
-from interfaces import IMessageQueue, IDataProcessor
-from infrastructure.communication import ControlState, AsyncQueue
-from infrastructure.device import USBConnector
-from infrastructure.processing import DataProcessor, AnalogCalculator
+import cv2
 
 from logger import get_logger
-from config.loaders import get_quic_config
-from app import DrivingDatagram
+from infrastructure.workers import ControlSystemThread
+from infrastructure.workers import WebRTCReceiverThread
+from infrastructure.video import WebRTCReceiver, FrameBuffer, MultiCameraDisplay
+from config.loaders import get_webrtc_config
 
 logger = get_logger(__name__)
 
 
-class USBConfig:
-    """USB 设备配置"""
+def main():
+    # 1. 创建线程实例
+    control = ControlSystemThread(session_id="1234", signal_bridge=None)
 
-    # 方向盘设备
-    VENDOR_ID = 0x2F24
-    PRODUCT_ID = 0x0009
-    ENDPOINT_IN = 0x81
+    config = get_webrtc_config()
+    buffer = FrameBuffer()
+    display = MultiCameraDisplay(width=1280, height=720)
+    reciver = WebRTCReceiver("1234", config)
+    reciver.on_frame(buffer.put)
 
+    video = WebRTCReceiverThread(reciver)
+    # 2. 启动线程
+    # control.start()
+    video.start()
+    logger.info("控制系统线程已启动")
 
-async def test_video():
-    quic_config = get_quic_config()
-    webrtc_config = get_webrtc_config()
-    video = VideoFactory.create_video_receiver(
-        room="1234",
-        server_url=webrtc_config.signaling.url,
-        ice_servers=webrtc_config.ice_servers,
-    )
-    await video.start()
-
-
-async def run_usb_connector(control_state: ControlState):
-    usb_connector = USBConnector(USBConfig.VENDOR_ID, USBConfig.PRODUCT_ID)
-    analog_calculator = AnalogCalculator()
-    processor = DataProcessor(control_state, analog_calculator)
-    usb_connector.set_data_callback(processor.process)
     try:
-        await usb_connector.connect()
-    except ConnectionError as e:
-        logger.warning("USB connector not available: %s", e)
-        return
-    try:
-        await asyncio.Future()  # 保持运行
+        # 3. 保持主线程运行，等待用户中断
+        # 这里只是简单的死循环等待，实际项目中可能是 app.exec() 或其他逻辑
+        while True:
+            canvas = display.compose(buffer, "front_dominant")
+            cv2.imshow("Multi-Camera View", canvas)
+            key = cv2.waitKey(1) & 0xFF
+            if key == ord("q"):
+                logger.info("用户主动退出")
+            control.wait(33)  # 等待1秒，防止死锁，同时检测线程状态
+
+    except KeyboardInterrupt:
+        logger.info("收到退出信号，正在关闭...")
     finally:
-        await usb_connector.disconnect()
+        # 4. 优雅关闭流程 (关键步骤)
+        logger.info("正在停止控制系统...")
 
+        # 调用你定义的请求停止方法 (设置标志位)
+        control.request_stop()
 
-async def run_quic_client(control_state: ControlState, session_id=1234):
-    config = get_quic_config()
-    client = DrivingDatagram(
-        config.host,
-        config.port,
-        config.to_aiortc_config(),
-        session_id,
-        control_state,
-    )
-    await client.start()
+        # 调用 Qt 线程的标准停止方法
+        control.quit()
 
-
-async def main():
-    # queue = CommunicationFactory.create_message_queue()
-    # packet_queue = asyncio.Queue()
-    control_state = ControlState()
-    async with asyncio.TaskGroup() as tasks:
-        tasks.create_task(test_video())
-        tasks.create_task(run_usb_connector(control_state))
-        tasks.create_task(run_quic_client(control_state))
-
-
-async def test_queue():
-    SENTINEL = None
-
-    async def product(queue: AsyncQueue):
-        try:
-            for i in range(100):
-                await queue.put(i)
-                # logger.info(f"product {i}")
-                # await asyncio.sleep(0.1)
-        finally:
-            await queue.put(SENTINEL)
-            # logger.info("Producer finished, sent sentinel.")
-
-    async def consume(queue: AsyncQueue):
-        try:
-            while True:
-                data = await asyncio.wait_for(queue.get(), timeout=1.0)
-                if data is SENTINEL:
-                    logger.info("Consumer received sentinel, exiting loop.")
-                    break
-                logger.info(f"consume {data}")
-                # await asyncio.sleep(0.5)
-        except asyncio.TimeoutError:
-            logger.warning("Consumer timed out")
-        except Exception as e:
-            logger.error(f"Consumer error: {e}")
-
-    queue = AsyncQueue(5)
-    tasks = [
-        asyncio.create_task(product(queue)),
-        asyncio.create_task(consume(queue)),
-    ]
-    await asyncio.gather(*tasks)
+        # 【核心修复】：阻塞主线程，直到 control 线程彻底结束
+        # 参数 5000 表示最多等待 5000ms (5秒)，防止死锁
+        if control.wait(5000):
+            logger.info("控制系统已安全退出")
+        else:
+            logger.warning("控制系统退出超时，强制终止")
 
 
 if __name__ == "__main__":
-    # asyncio.run(test_video())
-    try:
-        asyncio.run(test_queue())
-    except KeyboardInterrupt:
-        logger.info("客户端已退出")
+    main()

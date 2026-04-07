@@ -21,7 +21,7 @@ class DataProcessor(IDataProcessor):
         self.last_v = None
         self.last_w = None
 
-    def process(self, data: bytes) -> None:
+    async def process(self, data: bytes) -> None:
         # 数字输入
         digital_state = self._process_digital(data)
         # 模拟输入
@@ -38,8 +38,8 @@ class DataProcessor(IDataProcessor):
         w = data[3]
 
         state = ControlState(v, w)
-        self.processed_queue.put(state)
-        
+        await self.processed_queue.put(state)
+
         # logger.info(f" v_raw:{data[4]}, w_raw:{data[3]}")
         # logger.info(f"v: {v}, w: {w}")
 

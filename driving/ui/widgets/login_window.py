@@ -431,8 +431,8 @@ class LoginPage(QWidget):
         )
         self.login_success.emit(
             {
-                "session_id": "DEBUG_SESSION",
-                "room": "DEBUG_ROOM",
+                "session_id": "1234",
+                "room": "1234",
                 "vehicle_id": "TEST_001",
                 "vehicle_name": "测试车辆",
                 "debug_mode": True,

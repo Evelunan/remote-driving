@@ -20,16 +20,17 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtGui import QFont
 from PyQt6.QtCore import QTimer, Qt
 
-from infrastructure.video import QueueBasedRenderer
-from factories import UIFactory, VideoFactory
+from factories import UIFactory
 from ui.widgets.login_window import LoginPage
 from infrastructure.workers import (
     SignalBridge,
-    VideoReceiverThread,
     ControlSystemThread,
     VehicleStatusThread,
+    WebRTCReceiverThread,
 )
+from infrastructure.video import WebRTCReceiver, MultiCameraDisplay, FrameBuffer
 from logger import get_logger
+from config.loaders import get_webrtc_config
 
 logger = get_logger(__name__)
 
@@ -69,7 +70,6 @@ class MainWindow(QMainWindow):
         self._theme = UIFactory.get_theme()
 
         # 服务相关
-        self._renderer = None
         self._receiver_thread = None
         self._control_thread = None
         self._vehicle_status_thread = None
@@ -86,6 +86,9 @@ class MainWindow(QMainWindow):
 
         # WebRTC 连接状态标记（只有连接成功后才允许显示视频传输状态）
         self._webrtc_connected = False
+
+        self.fb = FrameBuffer()
+        self.display = MultiCameraDisplay()
 
         # 登录数据
         self._login_data = {}
@@ -256,7 +259,6 @@ class MainWindow(QMainWindow):
 
     def _start_services(self):
         self._last_resolution = (0, 0)
-        self._renderer = None
         self._receiver_thread = None
         self._control_thread = None
         self._vehicle_status_thread = None
@@ -267,16 +269,11 @@ class MainWindow(QMainWindow):
         self._start_vehicle_status()
 
     def _start_video(self):
-        self._renderer = QueueBasedRenderer()
-        receiver = VideoFactory.create_video_receiver(
-            self._server, self._room, self._renderer
-        )
-        self._receiver_thread = VideoReceiverThread(receiver)
-        self._receiver_thread.connection_changed.connect(self._on_video_conn)
-        self._receiver_thread.error_occurred.connect(
-            lambda e: logger.error(f"视频错误: {e}")
-        )
-        self._receiver_thread.status_changed.connect(self._on_video_status_changed)
+        config = get_webrtc_config()
+        receiver = WebRTCReceiver(self._room, config)
+        receiver.on_frame(self.fb.put)
+
+        self._receiver_thread = WebRTCReceiverThread(receiver)
         self._receiver_thread.start()
 
     def _start_control(self):
@@ -328,17 +325,6 @@ class MainWindow(QMainWindow):
 
         # 重置 WebRTC 连接状态
         self._webrtc_connected = False
-
-        # 先将渲染器置为 None，防止定时器访问
-        old_renderer = self._renderer
-        self._renderer = None
-
-        if self._receiver_thread and self._receiver_thread.isRunning():
-            if old_renderer:
-                old_renderer.request_stop()
-            self._receiver_thread.request_stop()
-            self._receiver_thread.wait(3000)
-        self._receiver_thread = None
 
         if self._control_panel:
             self._control_panel.set_connection_status("video", False, "重连中")
@@ -411,17 +397,12 @@ class MainWindow(QMainWindow):
 
     def _update_frame(self):
         # 检查服务是否正在运行以及组件是否有效
-        if (
-            not self._services_running
-            or self._renderer is None
-            or self._video_panel is None
-        ):
+        if not self._services_running:
             return
 
         try:
             # 超低延迟模式：直接获取最新帧，无需等待
-            frame = self._renderer.get_latest_frame()
-
+            frame = self.display.compose(self.fb)
             if frame is not None:
                 self._last_resolution = (frame.shape[1], frame.shape[0])
                 video_display = self._video_panel.get_video_display()
@@ -430,9 +411,10 @@ class MainWindow(QMainWindow):
                 # 只有 WebRTC 已连接时才更新视频传输状态
                 if self._control_panel and self._webrtc_connected:
                     self._control_panel.set_connection_status("video", True, "传输中")
-            elif self._renderer is not None and not self._renderer.is_active():
                 if self._control_panel:
                     self._control_panel.set_connection_status("video", False, "无信号")
+            else:
+                logger.info("frame is none")
         except Exception as e:
             logger.debug(f"更新帧时出错: {e}")
 
@@ -498,15 +480,6 @@ class MainWindow(QMainWindow):
                 self._time_timer.stop()
         except Exception as e:
             logger.debug(f"停止时间定时器时出错: {e}")
-
-        # 停止渲染器
-        try:
-            if self._renderer:
-                self._renderer.request_stop()
-                self._renderer = None
-        except Exception as e:
-            logger.debug(f"停止渲染器时出错: {e}")
-            self._renderer = None
 
         # 停止视频接收线程
         try:
