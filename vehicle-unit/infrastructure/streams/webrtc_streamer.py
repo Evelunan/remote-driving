@@ -77,12 +77,15 @@ class WebRTCStreamer:
     # =====================================================
     async def _on_joined(self, data):
         self.my_id = data["id"]
-
-        for peer_id in data.get("peers", []):
+        existing_peers = data.get("peers", [])
+        logger.info(f"peer joined: 房间-{self.room}, peers: {existing_peers}")
+        for peer_id in existing_peers:
             await self._handle_new_peer(peer_id)
 
     async def _on_new_peer(self, data):
-        await self._handle_new_peer(data["id"])
+        peer_id = data["id"]
+        logger.info(f"new peer: {peer_id}已加入")
+        await self._handle_new_peer(peer_id)
 
     async def _handle_new_peer(self, peer_id):
         pc = await self._create_peer(peer_id)
