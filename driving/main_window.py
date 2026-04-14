@@ -173,7 +173,7 @@ class MainWindow(QMainWindow):
 
         # 直接添加组件，不设置 alignment，让 QHBoxLayout 自动拉伸高度
         content_layout.addWidget(self._multi_video_widget, 1)
-        content_layout.addWidget(self._control_panel.get_widget(), 0)
+        content_layout.addWidget(self._control_panel, 0)
         layout.addWidget(content, 1)
 
         # 底部栏
@@ -216,10 +216,6 @@ class MainWindow(QMainWindow):
         self._frame_timer.timeout.connect(self._multi_video_widget._refresh_frames)
         self._frame_timer.start(AppConfig.FRAME_TIMER_INTERVAL)
 
-        self._stats_timer = QTimer()
-        self._stats_timer.timeout.connect(self._update_stats)
-        self._stats_timer.start(AppConfig.STATS_TIMER_INTERVAL)
-
         self._time_timer = QTimer()
         self._time_timer.timeout.connect(self._update_time)
         self._time_timer.start(AppConfig.TIME_TIMER_INTERVAL)
@@ -246,6 +242,12 @@ class MainWindow(QMainWindow):
         receiver.on_frame(self.fb.put)
 
         self._receiver_thread = WebRTCReceiverThread(receiver)
+
+        self._receiver_thread.connection_changed.connect(self._on_video_conn)
+        self._receiver_thread.error_occurred.connect(
+            lambda e: logger.error(f"视频错误: {e}")
+        )
+        self._receiver_thread.status_changed.connect(self._on_video_status_changed)
         self._receiver_thread.start()
 
     def _start_control(self):
@@ -301,7 +303,7 @@ class MainWindow(QMainWindow):
         if self._control_panel:
             self._control_panel.set_connection_status("video", False, "重连中")
             self._control_panel.set_connection_status("webrtc", False, "重连中")
-
+        self._receiver_thread.request_stop()
         self._start_video()
 
     def _on_video_conn(self, connected: bool):
@@ -312,6 +314,11 @@ class MainWindow(QMainWindow):
         self._control_panel.set_connection_status("webrtc", connected, text)
 
     def _on_video_status_changed(self, status: str, message: str):
+        if not self._services_running or self._multi_video_widget is None:
+            return
+        if status != "receiving":
+            self._multi_video_widget.show_message_all(message)
+
         # 更新控制面板的连接状态
         if self._control_panel:
             if status == "connecting":
@@ -331,7 +338,7 @@ class MainWindow(QMainWindow):
             elif status == "connected":
                 self._webrtc_connected = True
                 self._control_panel.set_connection_status("webrtc", True, "已连接")
-                self._control_panel.set_connection_status("video", False, "等待视频")
+                self._control_panel.set_connection_status("video", True, "传输中")
             elif status == "receiving":
                 # 只有 WebRTC 已连接时才更新视频状态
                 if self._webrtc_connected:
@@ -348,57 +355,6 @@ class MainWindow(QMainWindow):
             elif status == "error":
                 self._webrtc_connected = False
                 self._control_panel.set_connection_status("signal", False, "错误")
-
-    # def _update_frame(self):
-    #     # 检查服务是否正在运行以及组件是否有效
-    #     if not self._services_running:
-    #         return
-
-    #     try:
-    #         # 超低延迟模式：直接获取最新帧，无需等待
-    #         frame = self.display.compose(self.fb)
-    #         # frame = self.fb.front
-    #         if frame is not None:
-    #             self._last_resolution = (frame.shape[1], frame.shape[0])
-    #             video_display = self._video_panel.get_video_display()
-    #             if video_display:
-    #                 video_display.update_frame(frame)
-    #             # 只有 WebRTC 已连接时才更新视频传输状态
-    #             if self._control_panel and self._webrtc_connected:
-    #                 self._control_panel.set_connection_status("video", True, "传输中")
-    #             if self._control_panel:
-    #                 self._control_panel.set_connection_status("video", False, "无信号")
-    #         # else:
-    #         # logger.info("frame is none")
-    #     except Exception as e:
-    #         logger.debug(f"更新帧时出错: {e}")
-
-    def _update_stats(self):
-        pass
-        # # 检查服务是否正在运行以及组件是否有效
-        # if (
-        #     not self._services_running
-        #     or self._control_panel is None
-        # ):
-        #     return
-
-        # video_display = self._video_panel.get_video_display()
-        # if not video_display:
-        #     return
-
-        # fps = video_display.get_fps()
-        # w, h = self._last_resolution
-        # render_time = (
-        #     video_display.get_avg_render_time()
-        #     if hasattr(video_display, "get_avg_render_time")
-        #     else 0
-        # )
-
-        # self._control_panel.set_stat_value("fps", str(fps) if fps > 0 else "--")
-        # self._control_panel.set_stat_value("resolution", f"{w}×{h}" if w > 0 else "--")
-        # self._control_panel.set_stat_value(
-        #     "latency", f"{render_time:.1f}ms" if render_time > 0 else "--"
-        # )
 
     def get_session_id(self) -> str:
         """获取会话ID"""
@@ -423,12 +379,6 @@ class MainWindow(QMainWindow):
                 self._frame_timer.stop()
         except Exception as e:
             logger.debug(f"停止帧定时器时出错: {e}")
-
-        try:
-            if hasattr(self, "_stats_timer") and self._stats_timer:
-                self._stats_timer.stop()
-        except Exception as e:
-            logger.debug(f"停止统计定时器时出错: {e}")
 
         try:
             if hasattr(self, "_time_timer") and self._time_timer:

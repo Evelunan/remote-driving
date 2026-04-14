@@ -61,7 +61,7 @@ class MultiVideoWidget(QWidget):
         self._layout_mode: Optional[str] = None
 
         # 四路 VideoDisplay
-        self._displays = {}
+        self._displays: dict[str, VideoDisplay] = {}
         for cam in CAMERA_NAMES:
             d = VideoDisplay(scaling_mode="ultra_low_latency")
             d.show_message(f"{DEFAULT_LABELS[cam]} - 等待视频流...")
@@ -118,7 +118,9 @@ class MultiVideoWidget(QWidget):
 
         # 外层带边框的容器
         container = QWidget()
-        container.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        container.setSizePolicy(
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding
+        )
         container.setStyleSheet(_CONTAINER_STYLE)
 
         # 为每个 VideoDisplay 创建新的边框 frame
@@ -209,10 +211,13 @@ class MultiVideoWidget(QWidget):
             if back_frame is not None:
                 self._pip_back.update_frame(back_frame)
 
-
     def apply_theme(self, theme) -> None:
         """为所有 VideoDisplay 应用主题"""
         for d in self._displays.values():
             d.apply_theme(theme)
         if self._pip_back is not None:
             self._pip_back.apply_theme(theme)
+
+    def show_message_all(self, message: str) -> None:
+        for display in self._displays.values():
+            display.show_message(message)

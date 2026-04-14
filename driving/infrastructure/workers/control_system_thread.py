@@ -40,7 +40,7 @@ class ControlSystemThread(QThread):
         try:
             self._loop.run_until_complete(self._main())
         except asyncio.CancelledError:
-            logger.debug("控制系统任务被取消")
+            logger.info("控制系统任务被取消")
         except Exception as e:
             if not self._stopping:
                 logger.error(f"控制系统错误: {e}")

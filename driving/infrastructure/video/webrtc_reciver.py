@@ -16,6 +16,20 @@ if TYPE_CHECKING:
 logger = get_logger(__name__)
 
 
+# 状态码常量
+class VideoStatus:
+    CONNECTING = "connecting"  # 正在连接信令服务器
+    JOINED = "joined"  # 已加入房间
+    WAITING_PEER = "waiting_peer"  # 等待车端加入
+    PEER_JOINED = "peer_joined"  # 车端已加入，等待视频流
+    RECEIVING_OFFER = "receiving_offer"  # 收到 offer，正在建立连接
+    CONNECTED = "connected"  # WebRTC 连接成功
+    RECEIVING = "receiving"  # 正在接收视频
+    PEER_LEFT = "peer_left"  # 车端离开
+    DISCONNECTED = "disconnected"  # 连接断开
+    ERROR = "error"  # 发生错误
+
+
 class WebRTCReceiver:
     """WebRTC 视频接收端"""
 
@@ -38,11 +52,28 @@ class WebRTCReceiver:
         # 运行状态
         self._running = False
 
+        # 状态回调
+        self._status_callback: Optional[Callable[[str, str], None]] = None
+
+    def set_status_callback(self, callback: Callable[[str, str], None]) -> None:
+        """设置状态变化回调函数
+
+        Args:
+            callback: 回调函数，参数为 (status_code, message)
+        """
+        self._status_callback = callback
+
+    def _emit_status(self, status: str, message: str) -> None:
+        """发送状态变化通知"""
+        if self._status_callback:
+            self._status_callback(status, message)
+
     # =====================================================
     # 启动
     # =====================================================
     async def start(self):
         """启动接收端，连接信令服务器并加入房间"""
+        self._emit_status(VideoStatus.CONNECTING, "正在连接信令服务器...")
         await self.signaling.connect()
 
         # 注册信令回调
@@ -75,6 +106,7 @@ class WebRTCReceiver:
         # 设置 track 接收回调
         @pc.pc.on("track")
         def on_track(track):
+            self._emit_status(VideoStatus.RECEIVING, "正在接收视频流...")
             logger.info(f"收到来自 {peer_id} 的 track: {track.kind}, id={track.id}")
             if track.kind == "video":
                 asyncio.create_task(self._recv_track(track))
@@ -103,7 +135,6 @@ class WebRTCReceiver:
         """接收并处理视频 track"""
         track_id = track.id
         logger.info(f"开始接收{track_id} 的视频流...")
-
         while self._running:
             try:
                 frame = await track.recv()
@@ -140,14 +171,21 @@ class WebRTCReceiver:
             logger.info(
                 f"已加入房间，车端在线 (peers: {len(existing_peers)})，等待视频流..."
             )
+            self._emit_status(
+                VideoStatus.PEER_JOINED,
+                f"已加入房间，车端在线 (peers: {len(existing_peers)})，等待视频流...",
+            )
         else:
             logger.info("已加入房间，等待推流端...")
+            self._emit_status(VideoStatus.WAITING_PEER, "已加入房间，等待车端连接...")
 
     async def _on_offer(self, data):
         """处理收到的 offer，创建 answer"""
         peer_id = data["from"]
         logger.info("收到连接请求，正在建立 WebRTC 连接...")
-
+        self._emit_status(
+            VideoStatus.RECEIVING_OFFER, "收到连接请求，正在建立 WebRTC 连接..."
+        )
         pc = await self._create_peer(peer_id)
 
         # 设置远程描述
@@ -171,6 +209,7 @@ class WebRTCReceiver:
         )
 
         logger.info(f"已向 {peer_id} 发送 answer")
+        self._emit_status(VideoStatus.CONNECTED, "WebRTC 连接已建立，等待视频流...")
 
     async def _on_candidate(self, data: dict):
         """处理 ICE candidate"""
@@ -186,10 +225,12 @@ class WebRTCReceiver:
             await pc.close()
         self.peers.pop(peer_id, None)
         logger.info(f"{peer_id}已离开")
+        self._emit_status(VideoStatus.PEER_LEFT, "车端已离开，等待重新连接...")
 
     async def _on_new_peer(self, data: dict):
         peer_id = data["id"]
         logger.info(f"{peer_id}已加入，等待offer")
+        self._emit_status(VideoStatus.PEER_JOINED, "车端已连接，等待视频流...")
 
     # =====================================================
     # 生命周期
@@ -199,12 +240,17 @@ class WebRTCReceiver:
         if not self._running:
             return
         self._running = False
-        
+        self._emit_status(VideoStatus.DISCONNECTED, "已断开连接")
+        try:
+            await self.signaling.close()
+        except Exception as e:
+            logger.warning(f"关闭 signaling 异常: {e}")
         # 等待信令监听循环结束
+
         if self._listen_task:
             try:
                 # 等待任务自然结束（因为 _running=False 会导致循环退出）
-                await asyncio.wait_for(self._listen_task, timeout=5.0)
+                await asyncio.wait_for(self._listen_task, timeout=3.0)
             except asyncio.TimeoutError:
                 logger.warning("信令监听任务超时，强制取消")
                 self._listen_task.cancel()
@@ -213,8 +259,11 @@ class WebRTCReceiver:
 
         for peer_id, pc in self.peers.items():
             logger.info(f"关闭与 {peer_id} 的连接")
-            await pc.close()
-        await self.signaling.close()
+            try:
+                await pc.close()
+            except Exception as e:
+                logger.warning(f"关闭 peer 失败: {e}")
+
         logger.info("接收端已关闭")
 
     async def _listen_loop(self):
