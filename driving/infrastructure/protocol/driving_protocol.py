@@ -141,4 +141,4 @@ class DrivingProtocol(QuicConnectionProtocol):
         )
         self._send_datagram(payload)
         msg = ControlCodec.decode(payload)
-        logger.info(f"发送指令：{msg}")
+        logger.info(f"发送指令：speed:{msg.get("speed_norm")}, steering:{msg.get("steering_norm")}")

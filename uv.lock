@@ -5,7 +5,7 @@ requires-python = ">=3.12"
 [manifest]
 members = [
     "driving",
-    "my-driving-improve",
+    "my-driving",
     "quic",
     "vehicle-unit",
     "webrtc",
@@ -625,7 +625,7 @@ wheels = [
 ]
 
 [[package]]
-name = "my-driving-improve"
+name = "my-driving"
 version = "0.1.0"
 source = { virtual = "." }
 

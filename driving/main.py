@@ -21,7 +21,7 @@ def main():
 
     video = WebRTCReceiverThread(reciver)
     # 2. 启动线程
-    # control.start()
+    control.start()
     video.start()
     logger.info("控制系统线程已启动")
 

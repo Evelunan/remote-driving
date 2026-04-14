@@ -1,5 +1,8 @@
 import threading
 import numpy as np
+from logger import get_logger
+
+logger = get_logger(__name__)
 
 
 class FrameBuffer:
@@ -16,6 +19,7 @@ class FrameBuffer:
             raise ValueError(
                 f"Invalid track_id: '{track_id}'. Must be one of {self.positions}"
             )
+        # logger.info(f"放入来自{track_id}的帧")
         self.frames[track_id] = frame
 
     def get(self, position: str):

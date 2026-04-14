@@ -21,7 +21,8 @@ from PyQt6.QtGui import QFont
 from PyQt6.QtCore import QTimer, Qt
 
 from factories import UIFactory
-from ui.widgets.login_window import LoginPage
+from ui.widgets import LoginPage, MultiVideoWidget
+
 from infrastructure.workers import (
     SignalBridge,
     ControlSystemThread,
@@ -30,53 +31,26 @@ from infrastructure.workers import (
 )
 from infrastructure.video import WebRTCReceiver, MultiCameraDisplay, FrameBuffer
 from logger import get_logger
-from config.loaders import get_webrtc_config
+from config.loaders import get_webrtc_config, AppConfig
 
 logger = get_logger(__name__)
-
-
-class AppConfig:
-    """应用配置"""
-
-    # 应用信息
-    APP_NAME = "远程驾驶控制系统"
-    APP_NAME_EN = "Remote Driving Control"
-    VERSION = "1.0.0"
-
-    # UI 配置
-    WINDOW_MIN_WIDTH = 1200
-    WINDOW_MIN_HEIGHT = 750
-    DEFAULT_THEME = "modern_glass"  # 现代毛玻璃主题 dark_tech、modern_glass
-
-    # 视频配置（超低延迟模式）
-    VIDEO_QUEUE_SIZE = 1  # 最小队列：只保留最新帧
-    VIDEO_FRAME_TIMEOUT = 0.001  # 1ms 超时，最快响应
-
-    # 定时器间隔 (ms)
-    FRAME_TIMER_INTERVAL = 5  # ~200fps 轮询，确保最低延迟
-    STATS_TIMER_INTERVAL = 500  # 0.5s
-    TIME_TIMER_INTERVAL = 1000  # 1s
-    VEHICLE_STATUS_INTERVAL = 2000  # 2s 车辆状态轮询间隔
 
 
 class MainWindow(QMainWindow):
     """主窗口 - 包含登录页面和控制页面"""
 
-    def __init__(self, session_id: str = None, room: str = None, server: str = None):
+    def __init__(self, session_id: str = None, room: str = None):
         super().__init__()
         self._session_id = session_id
         self._room = room
-        self._server = server
         self._theme = UIFactory.get_theme()
 
         # 服务相关
         self._receiver_thread = None
         self._control_thread = None
         self._vehicle_status_thread = None
-        self._last_resolution = (0, 0)
 
         # UI 组件引用（用于安全检查）
-        self._video_panel = None
         self._control_panel = None
         self._navbar = None
         self._time_label = None
@@ -86,18 +60,12 @@ class MainWindow(QMainWindow):
 
         # WebRTC 连接状态标记（只有连接成功后才允许显示视频传输状态）
         self._webrtc_connected = False
-
         self.fb = FrameBuffer()
-        self.display = MultiCameraDisplay()
 
         # 登录数据
         self._login_data = {}
         if session_id and room:
             self._login_data = {"session_id": session_id, "room": room}
-
-        self.setWindowTitle(f"{AppConfig.APP_NAME} | {AppConfig.APP_NAME_EN}")
-        self.setMinimumSize(AppConfig.WINDOW_MIN_WIDTH, AppConfig.WINDOW_MIN_HEIGHT)
-        self._apply_global_style()
 
         self._setup_ui()
 
@@ -133,6 +101,9 @@ class MainWindow(QMainWindow):
             self._control_panel.set_connection_status("quic", ok, text)
 
     def _setup_ui(self):
+        self.setWindowTitle(f"{AppConfig.APP_NAME} | {AppConfig.APP_NAME_EN}")
+        self.setMinimumSize(AppConfig.WINDOW_MIN_WIDTH, AppConfig.WINDOW_MIN_HEIGHT)
+
         central = QWidget()
         self.setCentralWidget(central)
         main_layout = QVBoxLayout(central)
@@ -152,6 +123,7 @@ class MainWindow(QMainWindow):
         self._stacked_widget.addWidget(self._control_page)
 
         main_layout.addWidget(self._stacked_widget)
+        self._apply_global_style()
 
     def _on_login_success(self, data: dict):
         """登录成功，切换到控制页面"""
@@ -195,12 +167,12 @@ class MainWindow(QMainWindow):
         content_layout.setContentsMargins(20, 20, 20, 20)
         content_layout.setSpacing(20)
 
-        self._video_panel = UIFactory.create_video_panel(scaling_mode="balanced")
+        self._multi_video_widget = MultiVideoWidget(self.fb)
         self._control_panel = UIFactory.create_control_panel()
         self._control_panel.set_reconnect_callback(self._reconnect)
 
         # 直接添加组件，不设置 alignment，让 QHBoxLayout 自动拉伸高度
-        content_layout.addWidget(self._video_panel.get_widget(), 1)
+        content_layout.addWidget(self._multi_video_widget, 1)
         content_layout.addWidget(self._control_panel.get_widget(), 0)
         layout.addWidget(content, 1)
 
@@ -241,7 +213,7 @@ class MainWindow(QMainWindow):
 
     def _setup_timers(self):
         self._frame_timer = QTimer()
-        self._frame_timer.timeout.connect(self._update_frame)
+        self._frame_timer.timeout.connect(self._multi_video_widget._refresh_frames)
         self._frame_timer.start(AppConfig.FRAME_TIMER_INTERVAL)
 
         self._stats_timer = QTimer()
@@ -329,35 +301,17 @@ class MainWindow(QMainWindow):
         if self._control_panel:
             self._control_panel.set_connection_status("video", False, "重连中")
             self._control_panel.set_connection_status("webrtc", False, "重连中")
-        if self._video_panel:
-            video_display = self._video_panel.get_video_display()
-            if video_display:
-                video_display.show_message("正在重新连接...")
 
         self._start_video()
 
     def _on_video_conn(self, connected: bool):
         if not self._services_running or self._control_panel is None:
             return
-
         text = "在线" if connected else "离线"
         self._control_panel.set_connection_status("signal", connected, text)
         self._control_panel.set_connection_status("webrtc", connected, text)
 
     def _on_video_status_changed(self, status: str, message: str):
-        """处理视频状态变化"""
-        if not self._services_running or self._video_panel is None:
-            return
-
-        video_display = self._video_panel.get_video_display()
-        if not video_display:
-            return
-
-        # 只在没有视频帧显示时才更新消息
-        # 一旦开始接收视频帧，由 _update_frame 负责更新显示
-        if status != "receiving":
-            video_display.show_message(message)
-
         # 更新控制面板的连接状态
         if self._control_panel:
             if status == "connecting":
@@ -395,55 +349,56 @@ class MainWindow(QMainWindow):
                 self._webrtc_connected = False
                 self._control_panel.set_connection_status("signal", False, "错误")
 
-    def _update_frame(self):
-        # 检查服务是否正在运行以及组件是否有效
-        if not self._services_running:
-            return
+    # def _update_frame(self):
+    #     # 检查服务是否正在运行以及组件是否有效
+    #     if not self._services_running:
+    #         return
 
-        try:
-            # 超低延迟模式：直接获取最新帧，无需等待
-            frame = self.display.compose(self.fb)
-            if frame is not None:
-                self._last_resolution = (frame.shape[1], frame.shape[0])
-                video_display = self._video_panel.get_video_display()
-                if video_display:
-                    video_display.update_frame(frame)
-                # 只有 WebRTC 已连接时才更新视频传输状态
-                if self._control_panel and self._webrtc_connected:
-                    self._control_panel.set_connection_status("video", True, "传输中")
-                if self._control_panel:
-                    self._control_panel.set_connection_status("video", False, "无信号")
-            else:
-                logger.info("frame is none")
-        except Exception as e:
-            logger.debug(f"更新帧时出错: {e}")
+    #     try:
+    #         # 超低延迟模式：直接获取最新帧，无需等待
+    #         frame = self.display.compose(self.fb)
+    #         # frame = self.fb.front
+    #         if frame is not None:
+    #             self._last_resolution = (frame.shape[1], frame.shape[0])
+    #             video_display = self._video_panel.get_video_display()
+    #             if video_display:
+    #                 video_display.update_frame(frame)
+    #             # 只有 WebRTC 已连接时才更新视频传输状态
+    #             if self._control_panel and self._webrtc_connected:
+    #                 self._control_panel.set_connection_status("video", True, "传输中")
+    #             if self._control_panel:
+    #                 self._control_panel.set_connection_status("video", False, "无信号")
+    #         # else:
+    #         # logger.info("frame is none")
+    #     except Exception as e:
+    #         logger.debug(f"更新帧时出错: {e}")
 
     def _update_stats(self):
-        # 检查服务是否正在运行以及组件是否有效
-        if (
-            not self._services_running
-            or self._video_panel is None
-            or self._control_panel is None
-        ):
-            return
+        pass
+        # # 检查服务是否正在运行以及组件是否有效
+        # if (
+        #     not self._services_running
+        #     or self._control_panel is None
+        # ):
+        #     return
 
-        video_display = self._video_panel.get_video_display()
-        if not video_display:
-            return
+        # video_display = self._video_panel.get_video_display()
+        # if not video_display:
+        #     return
 
-        fps = video_display.get_fps()
-        w, h = self._last_resolution
-        render_time = (
-            video_display.get_avg_render_time()
-            if hasattr(video_display, "get_avg_render_time")
-            else 0
-        )
+        # fps = video_display.get_fps()
+        # w, h = self._last_resolution
+        # render_time = (
+        #     video_display.get_avg_render_time()
+        #     if hasattr(video_display, "get_avg_render_time")
+        #     else 0
+        # )
 
-        self._control_panel.set_stat_value("fps", str(fps) if fps > 0 else "--")
-        self._control_panel.set_stat_value("resolution", f"{w}×{h}" if w > 0 else "--")
-        self._control_panel.set_stat_value(
-            "latency", f"{render_time:.1f}ms" if render_time > 0 else "--"
-        )
+        # self._control_panel.set_stat_value("fps", str(fps) if fps > 0 else "--")
+        # self._control_panel.set_stat_value("resolution", f"{w}×{h}" if w > 0 else "--")
+        # self._control_panel.set_stat_value(
+        #     "latency", f"{render_time:.1f}ms" if render_time > 0 else "--"
+        # )
 
     def get_session_id(self) -> str:
         """获取会话ID"""
@@ -530,7 +485,6 @@ class MainWindow(QMainWindow):
         self._login_data = {}
 
         # 清除 UI 组件引用（在销毁控制页面之前）
-        self._video_panel = None
         self._control_panel = None
         self._navbar = None
         self._time_label = None
@@ -553,7 +507,7 @@ class MainWindow(QMainWindow):
         event.accept()
 
 
-def run_gui(room: str = None, server: str = None):
+def run_gui(room: str = None):
     """
     启动 GUI
 
@@ -568,10 +522,10 @@ def run_gui(room: str = None, server: str = None):
 
     if room:
         # 直接进入主界面（开发/调试模式）
-        window = MainWindow(session_id=room, room=room, server=server)
+        window = MainWindow(session_id=room, room=room)
     else:
         # 正常登录流程
-        window = MainWindow(server=server)
+        window = MainWindow()
 
     window.show()
     sys.exit(app.exec())
@@ -582,8 +536,5 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description=AppConfig.APP_NAME)
     parser.add_argument("--room", help="房间号（跳过登录）")
-    parser.add_argument(
-        "--server", default="ServerConfig.SIGNALING_URL", help="信令服务器"
-    )
     args = parser.parse_args()
-    run_gui(args.room, args.server)
+    run_gui(args.room)
