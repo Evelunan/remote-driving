@@ -4,11 +4,12 @@ import multiprocessing as mp
 from multiprocessing import shared_memory
 import cv2
 import time
-
+import platform
 from interfaces import ICamera
 from logger import get_logger
 
 logger = get_logger(__name__)
+
 
 class USBCamera(ICamera):
     def __init__(
@@ -21,8 +22,10 @@ class USBCamera(ICamera):
     ):
         self.camera_id = camera_id
         self.camera_name = camera_name
-
-        self.cap = cv2.VideoCapture(camera_id)
+        if platform.system() == "Linux":
+            self.cap = cv2.VideoCapture(camera_id, cv2.CAP_V4L2)
+        else:
+            self.cap = cv2.VideoCapture(camera_id)
         # 降低内部缓冲（减少延迟）
         self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
 
@@ -103,11 +106,11 @@ class USBCamera(ICamera):
 
     def get_latest_frame(self) -> np.ndarray | None:
         """
-        获取最新帧（copy，线程安全）
+        获取最新帧
         """
-        # with self._lock:
-        #     if self._latest_frame is None:
-        #         return None
+        with self._lock:
+            if self._latest_frame is None:
+                return None
         return self._latest_frame
 
     def get_frame_count(self) -> int:
@@ -119,29 +122,52 @@ class USBCamera(ICamera):
 
     def _capture_loop(self):
         logger.info(f"{self.camera_name} 开始采集")
+        frame_interval = 1.0 / self.fps if self.fps > 0 else 0.033
+        next_time = time.time()
 
         while self._running:
             try:
-                # ===== 低延迟核心（丢旧帧）=====
-                self.cap.grab()
-                ret, frame = self.cap.retrieve()
+                now = time.time()
+                delta = next_time - now
 
-                if not ret or frame is None:
-                    logger.warning("读取帧失败")
+                # ===== 1. 混合休眠策略 =====
+                if delta > 0:
+                    if delta > 0.002:
+                        time.sleep(delta - 0.001)
+
+                    # 忙等（建议换 perf_counter）
+                    while time.time() < next_time:
+                        pass
+                else:
+                    # ===== 2. 防“时间债务” =====
+                    # 慢了就直接跳到当前时间
+                    next_time = now
+
+                # ✅ 关键：始终沿时间轴推进
+                next_time += frame_interval
+
+                # ===== 3. 低延迟采集 =====
+                if not self.cap.grab():
+                    logger.warning(f"{self.camera_id} {self.camera_name} grab 失败")
                     time.sleep(0.01)
                     continue
 
-                # ===== 分辨率兜底（有些摄像头不生效）=====
+                ret, frame = self.cap.retrieve()
+
+                if not ret or frame is None:
+                    logger.warning(f"{self.camera_id} {self.camera_name} 读取帧失败")
+                    time.sleep(0.01)
+                    continue
+
                 if frame.shape[1] != self.width or frame.shape[0] != self.height:
                     frame = cv2.resize(frame, (self.width, self.height))
 
-                # ===== 写入最新帧 =====
                 with self._lock:
                     self._latest_frame = frame
                     self._frame_count += 1
 
             except Exception as e:
-                logger.exception(f"采集异常: {e}")
+                logger.exception(f"{self.camera_id} {self.camera_name} 采集异常: {e}")
                 time.sleep(0.05)
 
         logger.info(f"{self.camera_name} 采集线程退出")
