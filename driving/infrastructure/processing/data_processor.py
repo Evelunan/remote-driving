@@ -25,20 +25,8 @@ class DataProcessor(IDataProcessor):
         # 数字输入
         digital_state = self._process_digital(data)
         # 模拟输入
-        # analog_values = self.analog.calculate(data)
-        # throttle = analog_values["throttle"]
-        # brake = analog_values["brake"]
-        # steering = analog_values["steering"]
-
-        # v = self._clamp(throttle - brake, -1.0, 1.0)
-        # w = self._clamp(steering, -1.0, 1.0)
-        # v = round(v, 2)
-        # w = round(w, 2)
-        v = data[4]
-        w = data[3]
-
-        state = ControlState(v, w)
-        await self.processed_queue.put(state)
+        analog_values = self.analog.calculate(data)
+        await self.processed_queue.put(analog_values)
 
         # logger.info(f" v_raw:{data[4]}, w_raw:{data[3]}")
         # logger.info(f"v: {v}, w: {w}")

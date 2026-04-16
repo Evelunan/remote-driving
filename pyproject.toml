@@ -1,5 +1,5 @@
 [project]
-name = "my-driving"
+name = "remote-driving"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
@@ -13,3 +13,7 @@ members = [
     "servers/quic",
     "servers/webrtc",
 ]
+
+[[tool.uv.index]]
+name = "aliyun"
+url = "https://mirrors.aliyun.com/pypi/simple/"

@@ -3,7 +3,7 @@ from abc import ABC, abstractmethod
 
 class IController(ABC):
     @abstractmethod
-    def send_command(self, v, w):
+    def send_command(self, throttle, brake, steering):
         """发送控制指令"""
         pass
 

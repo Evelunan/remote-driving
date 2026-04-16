@@ -13,6 +13,8 @@ class SerialController(IController):
         self.max_linear_velocity = config.motion.max_linear_velocity
         self.max_angular_velocity = config.motion.max_angular_velocity
 
+        self.current_linear = 0
+
         self.command_template = bytearray(config.communication.protocol.template_bytes)
         # 预分配缓冲区
         self.command_buffer = bytearray(self.command_template)
@@ -33,20 +35,25 @@ class SerialController(IController):
             timeout=0.01,
         )
 
-    def send_command(self, v, w):
+    def send_command(self, throttle, brake, steering):
         """高效发送控制指令"""
+        v, w = self._compute_motion(
+            throttle,
+            brake,
+            steering,
+            self.current_linear,
+            self.max_linear_velocity,
+            self.max_angular_velocity,
+        )
         cmd = self._prepare_command(v, w)
         self.serial.write(cmd)
         logger.debug(f"[car] Send command: {cmd}")
 
     def _prepare_command(self, v, w):
-        v = v * 100 * self.max_linear_velocity
-        w = w * 100 * self.max_angular_velocity
-
         direction = 0x01 if v < 0 else 0x00
-        v_abs = abs(int(v))
+        v_abs = abs(int(v * 100))
         steer_direction = 0x01 if w >= 0 else 0x00
-        w_abs = abs(int(w))
+        w_abs = abs(int(w * 100))
         cmd = self.command_buffer
         cmd[3] = direction
         cmd[4] = (v_abs >> 8) & 0xFF
@@ -61,6 +68,20 @@ class SerialController(IController):
         cmd[self.checksum_position] = checksum
 
         return cmd
+
+    def _compute_motion(self, throttle, brake, steering, current_v, max_v, max_w):
+        w = steering * max_w
+        # 刹车优先
+        if brake > 0:
+            if current_v > 0:
+                v = max(0.0, current_v - brake * max_v)
+            elif current_v < 0:
+                v = min(0.0, current_v + brake * max_v)
+            else:
+                v = 0.0
+        else:
+            v = throttle * max_v
+        return v, w
 
     def close(self):
         """关闭串口连接"""

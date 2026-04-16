@@ -90,8 +90,24 @@ class USBConnector(IInputDevice):
     # ==========================
     # READ LOOP
     # ==========================
-    async def _read_loop(self):
+    def _should_process(
+        self, data: bytes, last: bytes | None, threshold: int = 2
+    ) -> bool:
+        v3, v4 = data[3], data[4]
 
+        # 1. 忽略中立状态
+        if abs(v3 - 128) <= threshold and abs(v4 - 128) <= threshold:
+            return False
+        # 2. 忽略微小变化
+        if last is not None:
+            lv3, lv4 = last[3], last[4]
+            if abs(v3 - lv3) <= threshold and abs(v4 - lv4) <= threshold:
+                return False
+
+        return True
+
+    async def _read_loop(self):
+        last_data = None
         while self._running:
             try:
 
@@ -101,9 +117,11 @@ class USBConnector(IInputDevice):
                     self.max_packet_size,
                     timeout=100,
                 )
-
-                result = self.data_callback(bytes(data))
-
+                data = bytes(data)
+                if not self._should_process(data, last_data):
+                    continue
+                last_data = data
+                result = self.data_callback(data)
                 if inspect.iscoroutine(result):
                     await result
 

@@ -1,13 +1,15 @@
 import asyncio
 import json
+import time
 from typing import TYPE_CHECKING
 from aioquic.asyncio.protocol import QuicConnectionProtocol
 from aioquic.quic.events import DatagramFrameReceived, ConnectionTerminated
 
 from interfaces import IMessageQueue
 from logger import get_logger
-from .control_codec import ControlCodec
-from infrastructure.communication import ControlState
+
+# from .control_codec import ControlCodec
+from .codec import ControlCodec
 
 logger = get_logger(__name__)
 
@@ -70,6 +72,13 @@ class DrivingProtocol(QuicConnectionProtocol):
 
         try:
             message = ControlCodec.decode(data)
+            if message["type"] == ControlCodec.MessageType.STATE:
+                seq = message["seq"]
+                send_time = message["timestamp"]
+                received_time = time.time() * 1000
+                rtt = received_time - send_time
+                logger.info(f"车辆端收到序列号：{seq}, 往返时延：{rtt}ms")
+
             logger.debug(f"收到服务器消息: {message}")
         except Exception:
             logger.warning(f"收到非法数据: {data!r}")
@@ -91,18 +100,14 @@ class DrivingProtocol(QuicConnectionProtocol):
             logger.info("控制循环启动")
             while self._connected:
                 try:
-                    data: ControlState = await asyncio.wait_for(
+                    data: dict = await asyncio.wait_for(
                         self.processed_queue.get(), timeout=1.0
                     )
                 except asyncio.TimeoutError:
                     continue
 
-                snap = data.get_snapshot()
-                linear = snap.linear
-                angular = snap.angular
-                if linear != ControlCodec.ZERO or angular != ControlCodec.ZERO:
-                    await self._send_control(linear, angular)
-                    
+                await self._send_control(data)
+
                 await asyncio.sleep(0.02)  # 50Hz
 
         except asyncio.CancelledError:
@@ -125,20 +130,25 @@ class DrivingProtocol(QuicConnectionProtocol):
     # hello / keepalive
     # =========================
     async def _send_hello(self):
-        payload = ControlCodec.encode(ControlCodec.MSG_HELLO_DRIVING, self.session_id)
+        payload = ControlCodec.encode(
+            ControlCodec.MessageType.HELLO_DRIVING, self.session_id
+        )
         self._send_datagram(payload)
         logger.info(f"身份发送完成 session={self.session_id}")
 
     # =========================
     # control
     # =========================
-    async def _send_control(self, linear, angular):
+    async def _send_control(self, data: dict):
+        throttle, brake, steering = data["throttle"], data["brake"], data["steering"]
         payload = ControlCodec.encode(
-            ControlCodec.MSG_CONTROL,
+            ControlCodec.MessageType.CONTROL,
             self.session_id,
-            linear,
-            angular,
+            throttle=throttle,
+            brake=brake,
+            steering=steering,
         )
         self._send_datagram(payload)
-        msg = ControlCodec.decode(payload)
-        logger.info(f"发送指令：speed:{msg.get("speed_norm")}, steering:{msg.get("steering_norm")}")
+        logger.info(
+            f"发送指令：throttle = {throttle:.2f}, brake = {brake:.2f}, steering = {steering:.2f}"
+        )

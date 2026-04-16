@@ -4,7 +4,9 @@ from aioquic.quic.events import DatagramFrameReceived, ConnectionTerminated
 
 from interfaces.icontroller import IController
 from logger import get_logger
-from .control_codec import ControlCodec
+
+# from .control_codec import ControlCodec
+from .codec import ControlCodec
 
 logger = get_logger(__name__)
 
@@ -17,6 +19,9 @@ class VehicleProtocol(QuicConnectionProtocol):
         self.controller = controller
         self._connected = False
         self._business_task: asyncio.Task | None = None
+
+        self._last_seq = -1
+        self._last_timestamp = -1
 
     # =========================
     # connection lifecycle
@@ -81,10 +86,10 @@ class VehicleProtocol(QuicConnectionProtocol):
         try:
             msg = ControlCodec.decode(data)
             msg_type = msg.get("type")
-            if msg_type == "control":
+            if msg_type == ControlCodec.MessageType.CONTROL:
                 self.process_control_message(msg)
-            elif msg_type == "heartbeat":
-                logger.info(msg)
+            elif msg_type == ControlCodec.MessageType.HEARTBEAT:
+                logger.debug(msg)
             else:
                 logger.debug(f"[car] Ignore message type: {msg_type}")
         except Exception:
@@ -95,7 +100,7 @@ class VehicleProtocol(QuicConnectionProtocol):
     # =========================
 
     async def _send_hello(self):
-        msg = ControlCodec.encode(ControlCodec.MSG_HELLO_CAR, self.session_id)
+        msg = ControlCodec.encode(ControlCodec.MessageType.HELLO_CAR, self.session_id)
         self._send_datagram(msg)
         logger.info(f"[car] hello sent (session={self.session_id})")
 
@@ -106,7 +111,9 @@ class VehicleProtocol(QuicConnectionProtocol):
     async def _heartbeat_loop(self):
         logger.info("[car] Heartbeat loop started")
         while self._connected:
-            heartbeat = ControlCodec.encode(ControlCodec.MSG_HEARTBEAT, self.session_id)
+            heartbeat = ControlCodec.encode(
+                ControlCodec.MessageType.HEARTBEAT, self.session_id
+            )
             self._send_datagram(heartbeat)
             await asyncio.sleep(3)
         logger.info("[car] Heartbeat loop stopped")
@@ -118,11 +125,33 @@ class VehicleProtocol(QuicConnectionProtocol):
     def process_control_message(self, message: dict):
         if message is None:
             return
-        linear, angular = message.get("speed_norm", 0), message.get("steering_norm", 0)
-        logger.info(f"[car] control: linear={linear}, angular={angular}")
+        # 接收端
+        seq = message["seq"]
+        if not ControlCodec.is_newer(seq, self._last_seq):
+            return
+        self._last_seq = seq
+
+        throttle, brake, steering = (
+            message["throttle"],
+            message["brake"],
+            message["steering"],
+        )
+        
+        # 发给驾驶端，用于测试时延
+        data = ControlCodec.encode(
+            type=ControlCodec.MessageType.STATE,
+            session=self.session_id,
+            throttle=throttle,
+            brake=brake,
+            steering=steering,
+            timestamp=message["timestamp"],
+            seq=seq,
+        )
+        self._send_datagram(data)
+
         if self.controller == None:
             return
         try:
-            self.controller.send_command(linear, angular)
+            self.controller.send_command(throttle, brake, steering)
         except Exception:
             logger.exception("[car] control execution failed")
