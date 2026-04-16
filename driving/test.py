@@ -1,7 +1,18 @@
-import time
+from infrastructure.workers import ControlSystemThread
+from infrastructure.communication import AsyncQueue
+from infrastructure.protocol import ControlCodec
+import asyncio
 
-start = time.time()
-for _ in range(100):
-    _
-end = time.time()
-print(rtt = (end- start))
+queue = AsyncQueue()
+
+
+
+async def run_quic():
+    control = ControlSystemThread(signal_bridge=None, session_id="1234")
+    await control._run_quic(queue)
+    stop_event = asyncio.Event()
+    await stop_event.wait()
+
+
+if __name__ == "__main__":
+    asyncio.run(run_quic())

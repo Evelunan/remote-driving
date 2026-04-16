@@ -69,7 +69,7 @@ class ControlCodec:
 
         # 自动时间戳（毫秒）
         if timestamp is None:
-            timestamp = int(time.time() * 1000) & 0xFFFFFFFF
+            timestamp = (time.time_ns() // 1_000_000) & 0xFFFFFFFF
 
         # 自动序列号
         if seq is None:

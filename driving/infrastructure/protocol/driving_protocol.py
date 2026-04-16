@@ -75,8 +75,8 @@ class DrivingProtocol(QuicConnectionProtocol):
             if message["type"] == ControlCodec.MessageType.STATE:
                 seq = message["seq"]
                 send_time = message["timestamp"]
-                received_time = time.time() * 1000
-                rtt = received_time - send_time
+                received_time = (time.time_ns() // 1_000_000) & 0xFFFFFFFF
+                rtt = (received_time - send_time) & 0xFFFFFFFF
                 logger.info(f"车辆端收到序列号：{seq}, 往返时延：{rtt}ms")
 
             logger.debug(f"收到服务器消息: {message}")
