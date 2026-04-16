@@ -136,7 +136,7 @@ class VehicleProtocol(QuicConnectionProtocol):
             message["brake"],
             message["steering"],
         )
-        
+
         # 发给驾驶端，用于测试时延
         data = ControlCodec.encode(
             type=ControlCodec.MessageType.STATE,
@@ -147,6 +147,7 @@ class VehicleProtocol(QuicConnectionProtocol):
             timestamp=message["timestamp"],
             seq=seq,
         )
+        logger.info(message)
         self._send_datagram(data)
 
         if self.controller == None:

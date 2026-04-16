@@ -34,13 +34,13 @@ logger = get_logger(__name__)
 async def start_control(session_id: str):
     quic_config = get_quic_config()
     vehicle_config = get_vehicle_config()
-    controller = SerialController(vehicle_config)
+    # controller = SerialController(vehicle_config)
     # controller = RCLpyCmdVelController()
     client = VehicleDatagram(
         config=quic_config,
         session_id=session_id,
-        controller=controller,
-        # controller=None,
+        # controller=controller,
+        controller=None,
     )
     await client.start()
 
@@ -77,7 +77,7 @@ async def main():
         logger.info("启动视频推流和控制指令接收...")
         await asyncio.gather(
             # start_stream(room),
-            # start_control(session_id),
+            start_control(session_id),
             test_multi_camera_manager(),
         )
     except KeyboardInterrupt:
