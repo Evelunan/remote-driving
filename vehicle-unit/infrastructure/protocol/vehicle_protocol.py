@@ -137,7 +137,7 @@ class VehicleProtocol(QuicConnectionProtocol):
             message["steering"],
         )
 
-        # 发给驾驶端，用于测试时延
+        # 只修改类型，原封不动的发回去，进行时延测试
         data = ControlCodec.encode(
             type=ControlCodec.MessageType.STATE,
             session=self.session_id,

@@ -4,7 +4,13 @@ from infrastructure.protocol import ControlCodec
 import asyncio
 
 queue = AsyncQueue()
-
+queue.put(
+    {
+        "throttle": 0.1,
+        "brake": 0,
+        "steering": 0.2,
+    }
+)
 
 
 async def run_quic():

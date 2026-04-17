@@ -7,14 +7,26 @@ resolution:
 
 cameras:
   front:
-    vid: "1bcf"
-    pid: "0001"
+    vid: "0408"
+    pid: "5423"
   back:
-    vid: "1bcf"
-    pid: "0002"
+    vid: "a113"
+    pid: "b113"
   right:
-    vid: "1bcf"
-    pid: "0004"
+    vid: "a114"
+    pid: "b114"
   left:
-    vid: "1bcf"
-    pid: "0003"
+    vid: "a111"
+    pid: "b111"
+  # front:
+  #   vid: "1bcf"
+  #   pid: "0001"
+  # back:
+  #   vid: "1bcf"
+  #   pid: "0002"
+  # right:
+  #   vid: "1bcf"
+  #   pid: "0004"
+  # left:
+  #   vid: "1bcf"
+  #   pid: "0003"

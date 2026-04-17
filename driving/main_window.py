@@ -29,7 +29,7 @@ from infrastructure.workers import (
     VehicleStatusThread,
     WebRTCReceiverThread,
 )
-from infrastructure.video import WebRTCReceiver, MultiCameraDisplay, FrameBuffer
+from infrastructure.video import WebRTCReceiver, FrameBuffer
 from logger import get_logger
 from config.loaders import get_webrtc_config, AppConfig
 
@@ -252,6 +252,7 @@ class MainWindow(QMainWindow):
 
     def _start_control(self):
         self._control_thread = ControlSystemThread(self._bridge, self._session_id)
+        self._control_thread._state_callback = self._control_panel.set_conmand_grid
         self._control_thread.start()
 
     def _start_vehicle_status(self):

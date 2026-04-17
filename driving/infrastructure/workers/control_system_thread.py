@@ -8,7 +8,7 @@ from .signal_bridge import SignalBridge
 from logger import get_logger
 from factories import ControlFactory
 from config.loaders import get_quic_config
-from infrastructure.protocol import DrivingProtocol
+from infrastructure.protocol import DrivingProtocol, ControlCodec
 from app import DrivingDatagram
 
 logger = get_logger(__name__)
@@ -22,6 +22,11 @@ class USBConfig:
     ENDPOINT_IN = 0x81
 
 
+class VehicleInfo:
+    max_w = 5
+    max_v = 5
+
+
 class ControlSystemThread(QThread):
     """控制系统线程 - USB 设备 + 数据处理 + QUIC 通信"""
 
@@ -33,6 +38,12 @@ class ControlSystemThread(QThread):
         self._running = False
         self._stopping = False
 
+        self._raw_queue = ControlFactory.create_message_queue()
+        self._processed_queue = ControlFactory.create_message_queue()
+
+        self._state_queue = ControlFactory.create_message_queue()
+        self._state_callback = None
+
     def run(self):
         self._running = True
         self._loop = asyncio.new_event_loop()
@@ -43,7 +54,7 @@ class ControlSystemThread(QThread):
             logger.info("控制系统任务被取消")
         except Exception as e:
             if not self._stopping:
-                logger.error(f"控制系统错误: {e}")
+                logger.exception(f"控制系统错误: {e}")
         finally:
             # 清理事件循环
             if self._loop:
@@ -65,12 +76,14 @@ class ControlSystemThread(QThread):
                     self._loop.close()
 
     async def _main(self):
-        raw_queue = ControlFactory.create_message_queue()
-        processed_queue = ControlFactory.create_message_queue()
         tasks = [
-            asyncio.create_task(self._run_usb(raw_queue)),
-            asyncio.create_task(self._run_processor(raw_queue, processed_queue)),
-            asyncio.create_task(self._run_quic(processed_queue)),
+            asyncio.create_task(self._run_usb(self._raw_queue)),
+            asyncio.create_task(
+                self._run_processor(self._raw_queue, self._processed_queue)
+            ),
+            asyncio.create_task(self._run_quic(self._processed_queue)),
+            asyncio.create_task(self._run_state()),
+            # asyncio.create_task(self.put_processed_data()),
         ]
         try:
             await asyncio.gather(*tasks)
@@ -167,6 +180,7 @@ class ControlSystemThread(QThread):
                 ) as protocol:
                     await protocol.wait_connected()
                     self._safe_emit("quic_status_changed", True, "在线")
+                    protocol.set_state_callback(self._state_queue.put)
                     protocol.start()
                     await protocol.wait_closed()
             except (asyncio.TimeoutError, ConnectionRefusedError, OSError):
@@ -184,6 +198,24 @@ class ControlSystemThread(QThread):
                 except asyncio.CancelledError:
                     break
 
+    async def _run_state(self):
+        while self._running:
+            try:
+                message = await asyncio.wait_for(self._state_queue.get(), timeout=1.0)
+                v, w, rtt = ControlCodec.process_state(
+                    message, VehicleInfo.max_v, VehicleInfo.max_w
+                )
+                if self._state_callback:
+                    self._state_callback(v, w, rtt)
+            except asyncio.CancelledError:
+                break
+            except asyncio.TimeoutError:
+                if self._state_callback:
+                    self._state_callback(0, 0, 0)
+            except Exception as e:
+                if not self._stopping:
+                    logger.error(f"错误: {e}")
+
     def request_stop(self):
         self._stopping = True
         self._running = False
@@ -196,3 +228,14 @@ class ControlSystemThread(QThread):
         tasks = asyncio.all_tasks(self._loop)
         for task in tasks:
             task.cancel()
+
+    async def put_processed_data(self):
+        while self._running:
+            await asyncio.sleep(0.05)
+            await self._processed_queue.put(
+                {
+                    "throttle": 0.1,
+                    "brake": 0,
+                    "steering": 0.2,
+                }
+            )

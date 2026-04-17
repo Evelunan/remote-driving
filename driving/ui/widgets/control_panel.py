@@ -117,6 +117,25 @@ class ControlPanel(QFrame):
 
         self._layout.addWidget(self._vehicle_card)
 
+        self._command_card = DataCard("指令状态：")
+        self._command_stats: dict[str, StatItem] = {
+            "v": StatItem("速度", "m/s"),
+            "w": StatItem("角速度", "rad/s"),
+            "rtt": StatItem("往返时延", "ms"),
+            "delay": StatItem("时延", "ms"),
+        }
+
+        command_grid = QGridLayout()
+        command_grid.setSpacing(16)
+
+        command_grid.addWidget(self._command_stats["v"], 0, 0)
+        command_grid.addWidget(self._command_stats["w"], 0, 1)
+        command_grid.addWidget(self._command_stats["rtt"], 1, 0)
+        command_grid.addWidget(self._command_stats["delay"], 1, 1)
+
+        self._command_card.add_layout(command_grid)
+        self._layout.addWidget(self._command_card)
+
         # 弹性空间填充剩余高度
         self._layout.addStretch(1)
 
@@ -180,7 +199,7 @@ class ControlPanel(QFrame):
         return self._connections
 
     def get_stat_items(self) -> Dict[str, IStatItem]:
-        return { **self._vehicle_stats}
+        return {**self._vehicle_stats}
 
     def set_reconnect_callback(self, callback: Callable) -> None:
         self._reconnect_callback = callback
@@ -202,3 +221,9 @@ class ControlPanel(QFrame):
         """设置统计值"""
         if name in self._vehicle_stats:
             self._vehicle_stats[name].set_value(value)
+
+    def set_conmand_grid(self, v, w, rtt):
+        self._command_stats["v"].set_value(v)
+        self._command_stats["w"].set_value(w)
+        self._command_stats["delay"].set_value(rtt / 2)
+        self._command_stats["rtt"].set_value(rtt)

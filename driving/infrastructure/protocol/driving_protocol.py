@@ -1,4 +1,5 @@
 import asyncio
+import inspect
 import json
 import time
 from typing import TYPE_CHECKING
@@ -30,6 +31,7 @@ class DrivingProtocol(QuicConnectionProtocol):
 
         self._connected = False
         self._business_task: asyncio.Task | None = None
+        self._state_callback = None
 
     # =========================
     # 连接建立
@@ -73,12 +75,19 @@ class DrivingProtocol(QuicConnectionProtocol):
         try:
             message = ControlCodec.decode(data)
             if message["type"] == ControlCodec.MessageType.STATE:
-                seq = message["seq"]
-                send_time = message["timestamp"]
-                received_time = (time.time_ns() // 1_000_000) & 0xFFFFFFFF
-                rtt = (received_time - send_time) & 0xFFFFFFFF
-                logger.info(f"车辆端收到序列号：{seq}, 往返时延：{rtt}ms")
+                if self._state_callback:
+                    logger.info(f"put data {message}")
+                    cb = self._state_callback
 
+                    if inspect.iscoroutinefunction(cb):
+                        try:
+                            loop = asyncio.get_running_loop()
+                            loop.create_task(cb(message))
+                        except RuntimeError:
+                            # 没有运行中的事件循环（极端情况）
+                            asyncio.run(cb(message))
+                    else:
+                        cb(message)
             logger.debug(f"收到服务器消息: {message}")
         except Exception:
             logger.warning(f"收到非法数据: {data!r}")
@@ -149,6 +158,9 @@ class DrivingProtocol(QuicConnectionProtocol):
             steering=steering,
         )
         self._send_datagram(payload)
-        logger.info(
+        logger.debug(
             f"发送指令：throttle = {throttle:.2f}, brake = {brake:.2f}, steering = {steering:.2f}"
         )
+
+    def set_state_callback(self, callback):
+        self._state_callback = callback

@@ -153,3 +153,19 @@ class ControlCodec:
         MAX_SEQ = 0xFFFF
         HALF = 0x8000
         return ((new_seq - old_seq) & MAX_SEQ) < HALF
+
+    @staticmethod
+    def compute_motion(throttle, brake, steering, max_v, max_w):
+        v = (throttle - brake) * max_v
+        w = steering * max_w
+        return v, w
+
+    @staticmethod
+    def process_state(message: dict, max_v, max_w):
+        v, w = ControlCodec.compute_motion(
+            message["throttle"], message["brake"], message["steering"], max_v, max_w
+        )
+        send_time = message["timestamp"]
+        received_time = (time.time_ns() // 1_000_000) & 0xFFFFFFFF
+        rtt = (received_time - send_time) & 0xFFFFFFFF
+        return v, w, rtt
