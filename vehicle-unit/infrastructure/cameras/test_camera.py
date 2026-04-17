@@ -124,25 +124,19 @@ class TestCamera(ICamera):
         cy = self.height // 2
         cv2.circle(frame, (cx, cy), 30, (255, 255, 255), 2)
 
-        # ===== 标识（最重要）=====
+        ts = time.time()  # 用真实时间用于显示
+        local_time = time.localtime(ts)
+        time_str = time.strftime("%H:%M:%S", local_time)
+        ms = int((ts % 1) * 1000)
+        text = f"capture: {time_str}.{ms:03d}"
         cv2.putText(
             frame,
-            f"{self.camera_name}",
+            text,
             (20, 40),
             cv2.FONT_HERSHEY_SIMPLEX,
-            0.8,
-            (0, 0, 0),
+            1,
+            (0, 255, 0),
             2,
+            cv2.LINE_AA,
         )
-
-        cv2.putText(
-            frame,
-            f"Frame: {self._frame_count}",
-            (20, 80),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            0.6,
-            (0, 0, 0),
-            2,
-        )
-
         return frame

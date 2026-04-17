@@ -48,17 +48,20 @@ DEFAULT_STYLES = {
     "radius": 8,
 }
 
+
 class VideoDisplay(QLabel):
     """优化的视频显示组件"""
 
-    def __init__(self, scaling_mode: str = "ultra_low_latency", parent: Optional[QWidget] = None):
+    def __init__(
+        self, scaling_mode: str = "ultra_low_latency", parent: Optional[QWidget] = None
+    ):
         super().__init__(parent)
-        
+
         # 基础配置
         self.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.setMinimumSize(320, 180)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
-        
+
         # 状态变量
         self._theme: Optional[ITheme] = None
         self._scaling_mode = scaling_mode
@@ -90,7 +93,8 @@ class VideoDisplay(QLabel):
 
     def _apply_default_style(self):
         """应用默认深色样式"""
-        self.setStyleSheet(f"""
+        self.setStyleSheet(
+            f"""
             QLabel {{
                 background-color: {DEFAULT_STYLES['bg_color']};
                 border: none;
@@ -98,7 +102,8 @@ class VideoDisplay(QLabel):
                 color: {DEFAULT_STYLES['text_color']};
                 font-size: {DEFAULT_STYLES['font_size']}px;
             }}
-        """)
+        """
+        )
 
     def get_widget(self) -> QWidget:
         return self
@@ -106,12 +111,13 @@ class VideoDisplay(QLabel):
     def apply_theme(self, theme: ITheme) -> None:
         """应用自定义主题"""
         self._theme = theme
-        
+
         try:
             font_family = theme.get_font_family()
             font_rule = f"font-family: {font_family};" if font_family else ""
-            
-            self.setStyleSheet(f"""
+
+            self.setStyleSheet(
+                f"""
                 QLabel {{
                     background-color: {theme.bg_primary};
                     border: none;
@@ -120,16 +126,19 @@ class VideoDisplay(QLabel):
                     font-size: {DEFAULT_STYLES['font_size']}px;
                     {font_rule}
                 }}
-            """)
+            """
+            )
         except AttributeError:
             # 主题属性缺失时回退
             self._apply_default_style()
 
-    def _get_interpolation(self, src_size: Tuple[int, int], dst_size: Tuple[int, int]) -> int:
+    def _get_interpolation(
+        self, src_size: Tuple[int, int], dst_size: Tuple[int, int]
+    ) -> int:
         """根据缩放方向和性能表现选择最佳插值算法"""
         src_w, src_h = src_size
         dst_w, dst_h = dst_size
-        
+
         if dst_w <= 0 or dst_h <= 0:
             return cv2.INTER_NEAREST
 
@@ -164,13 +173,15 @@ class VideoDisplay(QLabel):
         frame_size = (frame_w, frame_h)
 
         # 快速路径：尺寸未变
-        if (widget_size == self._cached_widget_size and 
-            frame_size == self._cached_frame_size):
+        if (
+            widget_size == self._cached_widget_size
+            and frame_size == self._cached_frame_size
+        ):
             return False
 
         # 计算目标尺寸 (保持宽高比)
         tw, th = widget_size.width(), widget_size.height()
-        
+
         if tw <= 0 or th <= 0:
             self._cached_target_size = (frame_w, frame_h)
             self._cached_widget_size = widget_size
@@ -185,14 +196,18 @@ class VideoDisplay(QLabel):
         self._cached_widget_size = widget_size
         self._cached_frame_size = frame_size
         self._cached_target_size = (target_w, target_h)
-        
+
         # 预计算插值算法
-        self._cached_interpolation = self._get_interpolation(frame_size, (target_w, target_h))
+        self._cached_interpolation = self._get_interpolation(
+            frame_size, (target_w, target_h)
+        )
 
         # 预分配/重分配缓冲区 (HWC 格式: Height, Width, Channels)
-        if (self._scaled_buffer is None or 
-            self._scaled_buffer.shape[0] != target_h or 
-            self._scaled_buffer.shape[1] != target_w):
+        if (
+            self._scaled_buffer is None
+            or self._scaled_buffer.shape[0] != target_h
+            or self._scaled_buffer.shape[1] != target_w
+        ):
             # 确保缓冲区是连续的内存块
             self._scaled_buffer = np.empty((target_h, target_w, 3), dtype=np.uint8)
 
@@ -217,17 +232,26 @@ class VideoDisplay(QLabel):
             if self._scaled_buffer is not None:
                 try:
                     # 零拷贝关键：直接写入预分配缓冲区
-                    cv2.resize(frame, (target_w, target_h), 
-                               dst=self._scaled_buffer, 
-                               interpolation=self._cached_interpolation)
+                    cv2.resize(
+                        frame,
+                        (target_w, target_h),
+                        dst=self._scaled_buffer,
+                        interpolation=self._cached_interpolation,
+                    )
                     display_frame = self._scaled_buffer
                 except Exception:
                     # 极端情况下 resize 失败，回退到创建新数组
-                    display_frame = cv2.resize(frame, (target_w, target_h), 
-                                               interpolation=self._cached_interpolation)
+                    display_frame = cv2.resize(
+                        frame,
+                        (target_w, target_h),
+                        interpolation=self._cached_interpolation,
+                    )
             else:
-                display_frame = cv2.resize(frame, (target_w, target_h), 
-                                           interpolation=self._cached_interpolation)
+                display_frame = cv2.resize(
+                    frame,
+                    (target_w, target_h),
+                    interpolation=self._cached_interpolation,
+                )
         else:
             # 无需缩放，直接使用原帧
             display_frame = frame
@@ -237,7 +261,7 @@ class VideoDisplay(QLabel):
 
         # 构建 QImage
         # 确保数据是连续的，虽然 cv2.resize dst 通常是连续的，但保险起见
-        if not display_frame.flags['C_CONTIGUOUS']:
+        if not display_frame.flags["C_CONTIGUOUS"]:
             display_frame = np.ascontiguousarray(display_frame)
 
         sh, sw = display_frame.shape[:2]
@@ -245,8 +269,10 @@ class VideoDisplay(QLabel):
 
         # 构造 QImage
         # 注意：PyQt6 中 QImage 构造函数参数顺序保持一致
-        qimg = QImage(display_frame.data, sw, sh, bytes_per_line, QImage.Format.Format_BGR888)
-        
+        qimg = QImage(
+            display_frame.data, sw, sh, bytes_per_line, QImage.Format.Format_BGR888
+        )
+
         # 更新显示
         # QPixmap::fromImage 会进行一次拷贝，这是 Qt 显示的必经之路，无法避免
         # 但我们避免了 Python 层面的中间数组分配
@@ -263,6 +289,21 @@ class VideoDisplay(QLabel):
         if frame is None:
             return
 
+        ts = time.time()  # 用真实时间用于显示
+        local_time = time.localtime(ts)
+        time_str = time.strftime("%H:%M:%S", local_time)
+        ms = int((ts % 1) * 1000)
+        text = f"display : {time_str}.{ms:03d}"
+        cv2.putText(
+            frame,
+            text,
+            (20, 80),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            1,
+            (0, 255, 0),
+            2,
+            cv2.LINE_AA,
+        )
         self._current_frame = frame
         h, w = frame.shape[:2]
         self._resolution = (w, h)
@@ -285,11 +326,12 @@ class VideoDisplay(QLabel):
         self._scaled_buffer = None  # 释放缓冲区引用
         self.clear()
         self.setText(text)
-        
+
         # 确保文本样式与主题一致
         if self._theme:
             try:
-                self.setStyleSheet(f"""
+                self.setStyleSheet(
+                    f"""
                     QLabel {{
                         background-color: {self._theme.bg_primary};
                         border: none;
@@ -298,7 +340,8 @@ class VideoDisplay(QLabel):
                         font-family: {self._theme.get_font_family() or ''};
                         border-radius: {DEFAULT_STYLES['radius']}px;
                     }}
-                """)
+                """
+                )
             except AttributeError:
                 self._apply_default_style()
         else:
@@ -349,7 +392,7 @@ class VideoDisplay(QLabel):
         super().resizeEvent(event)
         # 清除尺寸缓存，触发重新计算
         self._cached_widget_size = QSize(0, 0)
-        
+
         if self._current_frame is not None:
             # 异步或直接同步刷新？这里直接调用以保持一致性
             # 如果帧率极高，可以考虑加一个简单的节流，但通常 resize 不频繁

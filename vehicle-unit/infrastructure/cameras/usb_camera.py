@@ -123,20 +123,19 @@ class USBCamera(ICamera):
     def _capture_loop(self):
         logger.info(f"{self.camera_name} 开始采集")
         frame_interval = 1.0 / self.fps if self.fps > 0 else 0.033
-        next_time = time.time()
+        next_time = time.perf_counter()
 
         while self._running:
             try:
-                now = time.time()
+                now = time.perf_counter()
                 delta = next_time - now
 
                 # ===== 1. 混合休眠策略 =====
                 if delta > 0:
                     if delta > 0.002:
                         time.sleep(delta - 0.001)
-
-                    # 忙等（建议换 perf_counter）
-                    while time.time() < next_time:
+                    # 忙等
+                    while time.perf_counter() < next_time:
                         pass
                 else:
                     # ===== 2. 防“时间债务” =====
@@ -161,6 +160,21 @@ class USBCamera(ICamera):
 
                 if frame.shape[1] != self.width or frame.shape[0] != self.height:
                     frame = cv2.resize(frame, (self.width, self.height))
+                ts = time.time()  # 用真实时间用于显示
+                local_time = time.localtime(ts)
+                time_str = time.strftime("%H:%M:%S", local_time)
+                ms = int((ts % 1) * 1000)
+                text = f"capture: {time_str}.{ms:03d}"
+                cv2.putText(
+                    frame,
+                    text,
+                    (20, 40),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    1,
+                    (0, 255, 0),
+                    2,
+                    cv2.LINE_AA,
+                )
 
                 with self._lock:
                     self._latest_frame = frame
