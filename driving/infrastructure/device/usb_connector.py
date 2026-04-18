@@ -91,7 +91,7 @@ class USBConnector(IInputDevice):
     # READ LOOP
     # ==========================
     def _should_process(
-        self, data: bytes, last: bytes | None, threshold: int = 2
+        self, data: bytes, last: bytes | None, threshold: int = 0
     ) -> bool:
         v3, v4 = data[3], data[4]
 
@@ -99,10 +99,10 @@ class USBConnector(IInputDevice):
         if abs(v3 - 128) <= threshold and abs(v4 - 128) <= threshold:
             return False
         # 2. 忽略微小变化
-        if last is not None:
-            lv3, lv4 = last[3], last[4]
-            if abs(v3 - lv3) <= threshold and abs(v4 - lv4) <= threshold:
-                return False
+        # if last is not None:
+        #     lv3, lv4 = last[3], last[4]
+        #     if abs(v3 - lv3) <= threshold and abs(v4 - lv4) <= threshold:
+        #         return False
 
         return True
 

@@ -147,6 +147,7 @@ class WebRTCReceiver:
                 break
             except Exception as e:
                 logger.error(f"接收{track_id} 视频帧出错: {e}")
+                self._emit_status(VideoStatus.ERROR, f"视频播放出错: {e}")
                 break
         logger.info(f"停止接收{track_id} 的视频流")
 
@@ -280,4 +281,5 @@ class WebRTCReceiver:
             except asyncio.CancelledError:
                 break
             except Exception as e:
-                logger.error(f"信令异常: {e}")
+                logger.exception(f"信令异常: {e}")
+                self._emit_status(VideoStatus.ERROR, f"信令异常: {e}")

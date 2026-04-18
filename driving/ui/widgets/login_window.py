@@ -123,7 +123,6 @@ class LoginPage(QWidget):
     def __init__(self, theme: ITheme, parent: Optional[QWidget] = None):
         super().__init__(parent)
         self._theme = theme
-        self._login_thread: Optional[LoginThread] = None
 
         # 检查是否启用调试模式
         self._debug_mode = True
@@ -240,7 +239,7 @@ class LoginPage(QWidget):
         form_layout.setSpacing(20)
 
         # --- 用户名输入 ---
-        username_label = QLabel("用户名")
+        username_label = QLabel("WebRTC房间号")
         username_label.setStyleSheet(
             f"""
             color: {self._get_color('text_secondary')};
@@ -253,14 +252,14 @@ class LoginPage(QWidget):
         form_layout.addWidget(username_label)
 
         self._username_input = QLineEdit()
-        self._username_input.setPlaceholderText("请输入用户名")
+        self._username_input.setPlaceholderText("请输入WebRTC房间号")
         self._username_input.setFixedHeight(44)
         self._username_input.setStyleSheet(self._get_input_style())
         self._username_input.setTextMargins(14, 0, 14, 0)
         form_layout.addWidget(self._username_input)
 
         # --- 密码输入 ---
-        password_label = QLabel("密码")
+        password_label = QLabel("QUIC会话号")
         password_label.setStyleSheet(
             f"""
             color: {self._get_color('text_secondary')};
@@ -273,9 +272,9 @@ class LoginPage(QWidget):
         form_layout.addWidget(password_label)
 
         self._password_input = QLineEdit()
-        self._password_input.setPlaceholderText("请输入密码")
+        self._password_input.setPlaceholderText("请输入QUIC会话号")
         self._password_input.setFixedHeight(44)
-        self._password_input.setEchoMode(QLineEdit.EchoMode.Password)
+        # self._password_input.setEchoMode(QLineEdit.EchoMode.Password)
         self._password_input.setStyleSheet(self._get_input_style())
         self._password_input.setTextMargins(14, 0, 14, 0)
         form_layout.addWidget(self._password_input)
@@ -445,29 +444,21 @@ class LoginPage(QWidget):
         password = self._password_input.text().strip()
 
         if not username:
-            self._show_error("请输入用户名")
+            self._show_error("请输入WebRTC房间号")
             self._username_input.setFocus()
             return
         if not password:
-            self._show_error("请输入密码")
+            self._show_error("请输入QUIC会话号")
             self._password_input.setFocus()
             return
-
+        
         self._set_loading(True)
-        self._status_label.setText("正在验证身份...")
+        self._status_label.setText("正在进入...")
         self._status_label.setStyleSheet(
             f"color: {self._get_color('text_muted')}; font-size: 11px;"
         )
 
-        # 清理旧线程
-        if self._login_thread and self._login_thread.isRunning():
-            self._login_thread.stop()
-            self._login_thread.wait()
-
-        self._login_thread = LoginThread("ServerConfig.API_URL", username, password)
-        self._login_thread.login_success.connect(self._on_login_success)
-        self._login_thread.login_failed.connect(self._on_login_failed)
-        self._login_thread.start()
+        self._on_login_success({"session_id": username, "room": password})
 
     def _on_login_success(self, data: Dict[str, Any]):
         self._set_loading(False)

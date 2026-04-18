@@ -158,7 +158,7 @@ class DrivingProtocol(QuicConnectionProtocol):
             steering=steering,
         )
         self._send_datagram(payload)
-        logger.debug(
+        logger.info(
             f"发送指令：throttle = {throttle:.2f}, brake = {brake:.2f}, steering = {steering:.2f}"
         )
 

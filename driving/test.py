@@ -19,6 +19,13 @@ async def run_quic():
     stop_event = asyncio.Event()
     await stop_event.wait()
 
-
+# def test():
+#     self.cap.grab()
+#     ret, frame = self.cap.retrieve()
+#     # frame直接修改帧，在帧后面追加timestamp 和frame_id
+#     # 发送给接收端
+#     # 切割分成视频帧和 timestamp 和frame_id
+    
 if __name__ == "__main__":
     asyncio.run(run_quic())
+

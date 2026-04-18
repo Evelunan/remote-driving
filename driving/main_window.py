@@ -21,7 +21,7 @@ from PyQt6.QtGui import QFont
 from PyQt6.QtCore import QTimer, Qt
 
 from factories import UIFactory
-from ui.widgets import LoginPage, MultiVideoWidget
+from ui.widgets import LoginPage, MultiVideoWidget, GLMultiVideoWidget
 
 from infrastructure.workers import (
     SignalBridge,
@@ -48,7 +48,6 @@ class MainWindow(QMainWindow):
         # 服务相关
         self._receiver_thread = None
         self._control_thread = None
-        self._vehicle_status_thread = None
 
         # UI 组件引用（用于安全检查）
         self._control_panel = None
@@ -66,7 +65,7 @@ class MainWindow(QMainWindow):
         self._login_data = {}
         if session_id and room:
             self._login_data = {"session_id": session_id, "room": room}
-
+        logger.info(self._login_data)
         self._setup_ui()
 
         # 如果有 session_id，直接进入主控制页面
@@ -150,13 +149,8 @@ class MainWindow(QMainWindow):
 
         # 导航栏
         self._navbar = UIFactory.create_navbar()
-        # 显示车辆信息（如果有）或房间号
-        vehicle_id = self._login_data.get("vehicle_id")
-        vehicle_name = self._login_data.get("vehicle_name")
-        if vehicle_id:
-            self._navbar.set_vehicle_info(vehicle_id, vehicle_name)
-        else:
-            self._navbar.set_room(self._room)
+  
+        self._navbar.set_room(self._room)
         self._navbar.add_action("退出登录", self._logout, style="secondary")
         layout.addWidget(self._navbar.get_widget())
 
@@ -167,6 +161,7 @@ class MainWindow(QMainWindow):
         content_layout.setContentsMargins(20, 20, 20, 20)
         content_layout.setSpacing(20)
 
+        # self._multi_video_widget = GLMultiVideoWidget(self.fb)
         self._multi_video_widget = MultiVideoWidget(self.fb)
         self._control_panel = UIFactory.create_control_panel()
         self._control_panel.set_reconnect_callback(self._reconnect)
@@ -213,9 +208,13 @@ class MainWindow(QMainWindow):
 
     def _setup_timers(self):
         self._frame_timer = QTimer()
-        self._frame_timer.timeout.connect(self._multi_video_widget._refresh_frames)
+        self._frame_timer.timeout.connect(self._multi_video_widget.update)
         self._frame_timer.start(AppConfig.FRAME_TIMER_INTERVAL)
-
+        
+        self._stats_timer = QTimer()
+        self._stats_timer.timeout.connect(self._update_camera_info)
+        self._stats_timer.start(AppConfig.STATS_TIMER_INTERVAL)
+        
         self._time_timer = QTimer()
         self._time_timer.timeout.connect(self._update_time)
         self._time_timer.start(AppConfig.TIME_TIMER_INTERVAL)
@@ -225,16 +224,30 @@ class MainWindow(QMainWindow):
         if self._services_running and self._time_label:
             self._time_label.setText(time.strftime("%Y-%m-%d %H:%M:%S"))
 
+    def _update_camera_info(self):
+        if (
+            not self._services_running
+            or self._multi_video_widget is None
+            or self._control_panel is None
+        ):
+            return
+
+        CAMERA_NAMES = ["front", "back", "left", "right"]
+        for key in CAMERA_NAMES:
+            display = self._multi_video_widget.get_display(key)
+            if display is None:
+                continue
+            fps = display.get_fps()
+            w, h = display.get_resolution()
+            self._control_panel.set_camera_grid(key, fps, w, h)
+
     def _start_services(self):
-        self._last_resolution = (0, 0)
         self._receiver_thread = None
         self._control_thread = None
-        self._vehicle_status_thread = None
         self._webrtc_connected = False
 
         self._start_video()
         self._start_control()
-        self._start_vehicle_status()
 
     def _start_video(self):
         config = get_webrtc_config()
@@ -255,44 +268,7 @@ class MainWindow(QMainWindow):
         self._control_thread._state_callback = self._control_panel.set_conmand_grid
         self._control_thread.start()
 
-    def _start_vehicle_status(self):
-        """
-        启动车辆状态轮询线程
 
-        从 self._login_data 中获取 vehicle_id（车辆唯一标识）传递给 VehicleStatusThread。
-
-        数据流向:
-            1. 登录接口返回 login_data，包含 vehicle_id
-            2. _on_login_success() 保存到 self._login_data
-            3. 此处取出 vehicle_id 传给 VehicleStatusThread
-            4. VehicleStatusThread 用 vehicle_id 请求后端获取车辆状态
-        """
-        vehicle_id = self._login_data.get("vehicle_id")
-        if not vehicle_id:
-            logger.warning("登录数据中缺少 vehicle_id，无法获取车辆状态")
-            return
-
-        self._vehicle_status_thread = VehicleStatusThread(vehicle_id)
-        self._vehicle_status_thread.status_updated.connect(
-            self._on_vehicle_status_updated
-        )
-        self._vehicle_status_thread.start()
-
-    def _on_vehicle_status_updated(self, data: dict):
-        """处理车辆状态更新"""
-        # 检查服务是否正在运行以及组件是否有效
-        if not self._services_running or self._control_panel is None:
-            return
-
-        # 更新车辆状态显示
-        if "speed" in data:
-            self._control_panel.set_stat_value("speed", str(data["speed"]))
-        if "battery" in data:
-            self._control_panel.set_stat_value("battery", str(data["battery"]))
-        if "gear" in data:
-            self._control_panel.set_stat_value("gear", str(data["gear"]))
-        if "signal" in data:
-            self._control_panel.set_stat_value("signal", str(data["signal"]))
 
     def _reconnect(self):
         if not self._services_running:
@@ -304,8 +280,14 @@ class MainWindow(QMainWindow):
         if self._control_panel:
             self._control_panel.set_connection_status("video", False, "重连中")
             self._control_panel.set_connection_status("webrtc", False, "重连中")
+            self._control_panel.set_connection_status("signal", False, "重连中")
+            self._control_panel.set_connection_status("usb", False, "重连中")
+            self._control_panel.set_connection_status("quic", False, "重连中")           
         self._receiver_thread.request_stop()
         self._start_video()
+        
+        self._control_thread.request_stop()
+        self._start_control()
 
     def _on_video_conn(self, connected: bool):
         if not self._services_running or self._control_panel is None:
@@ -317,8 +299,8 @@ class MainWindow(QMainWindow):
     def _on_video_status_changed(self, status: str, message: str):
         if not self._services_running or self._multi_video_widget is None:
             return
-        if status != "receiving":
-            self._multi_video_widget.show_message_all(message)
+        # if status != "receiving":
+        #     self._multi_video_widget.show_message_all(message)
 
         # 更新控制面板的连接状态
         if self._control_panel:
@@ -387,6 +369,11 @@ class MainWindow(QMainWindow):
         except Exception as e:
             logger.debug(f"停止时间定时器时出错: {e}")
 
+        try:
+            if hasattr(self, "_stats_timer") and self._stats_timer:
+                self._stats_timer.stop()
+        except Exception as e:
+            logger.debug(f"停止视频状态时出错: {e}")
         # 停止视频接收线程
         try:
             if self._receiver_thread and self._receiver_thread.isRunning():
@@ -409,16 +396,6 @@ class MainWindow(QMainWindow):
             logger.debug(f"停止控制系统线程时出错: {e}")
             self._control_thread = None
 
-        # 停止车辆状态轮询线程
-        try:
-            if self._vehicle_status_thread and self._vehicle_status_thread.isRunning():
-                self._vehicle_status_thread.request_stop()
-                if not self._vehicle_status_thread.wait(3000):
-                    logger.warning("车辆状态线程未能在超时内停止")
-                self._vehicle_status_thread = None
-        except Exception as e:
-            logger.debug(f"停止车辆状态线程时出错: {e}")
-            self._vehicle_status_thread = None
 
     def _logout(self):
         """退出登录，返回登录页面"""

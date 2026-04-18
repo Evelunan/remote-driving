@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 import threading
 import numpy as np
 from logger import get_logger
@@ -10,6 +11,16 @@ import numpy as np
 from logger import get_logger
 
 logger = get_logger(__name__)
+
+@dataclass
+class Frame:
+    id: int = 0
+    frame: np.ndarray = None
+
+    def copy(self):
+        return Frame(
+            id=self.id, frame=self.frame.copy() if self.frame is not None else None
+        )
 
 
 class FrameBuffer:
@@ -17,7 +28,7 @@ class FrameBuffer:
 
     def __init__(self):
         self.positions = ["front", "back", "left", "right"]
-        self.frames = {p: None for p in self.positions}
+        self.frames = {p: Frame() for p in self.positions}
 
         # ✅ 全局锁（简单可靠）
         self._lock = threading.Lock()
@@ -31,8 +42,8 @@ class FrameBuffer:
 
         # ✅ 写锁
         with self._lock:
-            # ⚠️ 建议 copy，防止外部修改
-            self.frames[track_id] = frame if frame is not None else None
+            self.frames[track_id].frame = frame
+            self.frames[track_id].id += 1
 
     def get(self, position: str):
         """获取帧"""
@@ -40,30 +51,13 @@ class FrameBuffer:
         with self._lock:
             frame = self.frames.get(position)
 
-            # ⚠️ 防止外部修改内部数据
             return frame.copy() if frame is not None else None
-
-    @property
-    def front(self):
-        return self.get("front")
-
-    @property
-    def back(self):
-        return self.get("back")
-
-    @property
-    def left(self):
-        return self.get("left")
-
-    @property
-    def right(self):
-        return self.get("right")
 
     @property
     def all_frames(self):
         """一次性获取所有帧（保证一致性）"""
         with self._lock:
             return tuple(
-                self.frames[p] if self.frames[p] is not None else None
+                self.frames[p].copy() if self.frames[p] is not None else None
                 for p in self.positions
             )

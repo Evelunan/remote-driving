@@ -22,6 +22,6 @@ class AppConfig:
 
     # 定时器间隔 (ms)
     FRAME_TIMER_INTERVAL = 5  # ~200fps 轮询，确保最低延迟
-    STATS_TIMER_INTERVAL = 500  # 0.5s
+    STATS_TIMER_INTERVAL = 1000  # 1s
     TIME_TIMER_INTERVAL = 1000  # 1s
     VEHICLE_STATUS_INTERVAL = 2000  # 2s 车辆状态轮询间隔

@@ -21,7 +21,6 @@ from interfaces.ui import ITheme
 # 缩放模式配置
 # 注意：cv2.INTER_* 是整数常量，在 PyQt6 中无需特殊处理
 SCALING_MODES: Dict[str, Any] = {
-    "auto": None,  # 自动选择
     "quality": {
         "shrink": cv2.INTER_AREA,
         "enlarge": cv2.INTER_LANCZOS4,
@@ -77,17 +76,9 @@ class VideoDisplay(QLabel):
 
         # 性能统计
         self._fps = 0
+        self._last_frame_id = -1
         self._frame_count = 0
         self._last_fps_time = time.time()
-        self._total_frames = 0
-        self._dropped_frames = 0
-        self._last_render_time = 0.0
-        self._avg_render_time = 0.0
-
-        # 自适应画质阈值 (毫秒)
-        self._quality_downgrade_threshold = 12.0
-        self._quality_upgrade_threshold = 6.0
-
         # 应用默认样式
         self._apply_default_style()
 
@@ -138,29 +129,13 @@ class VideoDisplay(QLabel):
         """根据缩放方向和性能表现选择最佳插值算法"""
         src_w, src_h = src_size
         dst_w, dst_h = dst_size
-
         if dst_w <= 0 or dst_h <= 0:
             return cv2.INTER_NEAREST
-
         is_shrinking = (dst_w * dst_h) < (src_w * src_h)
-
-        # 自动模式：基于平均渲染时间动态调整
-        if self._scaling_mode == "auto":
-            if self._avg_render_time > self._quality_downgrade_threshold:
-                # 性能不足，降级为快速算法
-                return cv2.INTER_LINEAR
-            elif self._avg_render_time < self._quality_upgrade_threshold:
-                # 性能充裕，升级画质
-                return cv2.INTER_AREA if is_shrinking else cv2.INTER_CUBIC
-            else:
-                # 中等性能
-                return cv2.INTER_AREA if is_shrinking else cv2.INTER_LINEAR
-
         # 指定模式
         mode_config = SCALING_MODES.get(self._scaling_mode)
         if mode_config:
             return mode_config["shrink"] if is_shrinking else mode_config["enlarge"]
-
         # 兜底
         return cv2.INTER_LINEAR
 
@@ -217,8 +192,6 @@ class VideoDisplay(QLabel):
         """核心渲染流程：缩放并显示"""
         if frame is None:
             return
-
-        start_time = time.perf_counter()
 
         h, w = frame.shape[:2]
         needs_resize = self._update_scale_cache(w, h)
@@ -278,17 +251,15 @@ class VideoDisplay(QLabel):
         # 但我们避免了 Python 层面的中间数组分配
         self.setPixmap(QPixmap.fromImage(qimg))
 
-        # 更新性能统计
-        render_time = (time.perf_counter() - start_time) * 1000.0
-        self._last_render_time = render_time
-        # 指数移动平均 (EMA) 平滑波动
-        self._avg_render_time = 0.9 * self._avg_render_time + 0.1 * render_time
-
-    def update_frame(self, frame: np.ndarray) -> None:
+    def update_frame(self, frame: np.ndarray, frame_id: int) -> None:
         """外部调用的帧更新接口"""
         if frame is None:
             return
-
+        if frame_id == self._last_frame_id:
+            # 重复帧，不渲染
+            return
+        self._last_frame_id = frame_id
+        
         ts = time.time()  # 用真实时间用于显示
         local_time = time.localtime(ts)
         time_str = time.strftime("%H:%M:%S", local_time)
@@ -307,7 +278,6 @@ class VideoDisplay(QLabel):
         self._current_frame = frame
         h, w = frame.shape[:2]
         self._resolution = (w, h)
-        self._total_frames += 1
 
         self._scale_and_display(frame)
 
@@ -354,37 +324,12 @@ class VideoDisplay(QLabel):
             # 强制清除缓存，下一帧重新计算插值算法
             self._cached_widget_size = QSize(0, 0)
 
-    def set_auto_quality(self, enabled: bool) -> None:
-        """启用/禁用自动画质调整"""
-        if enabled:
-            self._scaling_mode = "auto"
-        else:
-            # 如果当前是 auto，切回默认的高性能模式
-            if self._scaling_mode == "auto":
-                self._scaling_mode = "ultra_low_latency"
-
-    def report_dropped_frame(self) -> None:
-        """外部调用：报告丢帧"""
-        self._dropped_frames += 1
-
     # --- 统计信息获取 ---
     def get_fps(self) -> int:
         return self._fps
 
     def get_resolution(self) -> Tuple[int, int]:
         return self._resolution
-
-    def get_drop_rate(self) -> float:
-        if self._total_frames == 0:
-            return 0.0
-        total = self._total_frames + self._dropped_frames
-        return self._dropped_frames / total
-
-    def get_render_time(self) -> float:
-        return self._last_render_time
-
-    def get_avg_render_time(self) -> float:
-        return self._avg_render_time
 
     # --- 事件处理 ---
     def resizeEvent(self, event):

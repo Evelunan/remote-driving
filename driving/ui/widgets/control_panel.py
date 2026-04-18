@@ -87,36 +87,6 @@ class ControlPanel(QFrame):
 
         self._layout.addWidget(self._conn_card)
 
-        # === 车辆状态卡片 ===
-        self._vehicle_card = DataCard("车辆状态")
-
-        vehicle_grid = QGridLayout()
-        vehicle_grid.setSpacing(12)
-
-        self._vehicle_stats: Dict[str, StatItem] = {
-            "speed": StatItem("车速", "km/h"),
-            "battery": StatItem("电量", "%"),
-            "gear": StatItem("档位", ""),
-            "signal": StatItem("信号", ""),
-        }
-
-        vehicle_grid.addWidget(self._vehicle_stats["speed"], 0, 0)
-        vehicle_grid.addWidget(self._vehicle_stats["battery"], 0, 1)
-        vehicle_grid.addWidget(self._vehicle_stats["gear"], 1, 0)
-        vehicle_grid.addWidget(self._vehicle_stats["signal"], 1, 1)
-
-        self._vehicle_card.add_layout(vehicle_grid)
-
-        # 占位提示
-        self._vehicle_placeholder = QLabel("等待服务器数据...")
-        self._vehicle_placeholder.setStyleSheet(
-            "color: #6E7681; font-size: 11px; padding-top: 8px; border: none;"
-        )
-        self._vehicle_placeholder.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._vehicle_card.add_widget(self._vehicle_placeholder)
-
-        self._layout.addWidget(self._vehicle_card)
-
         self._command_card = DataCard("指令状态：")
         self._command_stats: dict[str, StatItem] = {
             "v": StatItem("速度", "m/s"),
@@ -136,11 +106,36 @@ class ControlPanel(QFrame):
         self._command_card.add_layout(command_grid)
         self._layout.addWidget(self._command_card)
 
+        self.CAMERA_NAMES = ("front", "back", "left", "right")
+
+        self.camera_cards: dict[str, DataCard] = {}
+        self.camera_data: dict[str, dict[str, StatItem]] = {}
+        for cam in self.CAMERA_NAMES:
+            card, data = self._add_camera_card(cam)
+            self.camera_cards[cam] = card
+            self.camera_data[cam] = data
+            self._layout.addWidget(card)
+
         # 弹性空间填充剩余高度
         self._layout.addStretch(1)
 
         self._scroll_area.setWidget(self._panel)
         outer_layout.addWidget(self._scroll_area)
+
+    def _add_camera_card(self, key):
+        camera_card = DataCard(key)
+        grid = QGridLayout()
+        grid.setSpacing(16)
+
+        data: dict[str, StatItem] = {
+            "fps": StatItem("帧率", "FPS"),
+            "resolution": StatItem("分辨率", ""),
+        }
+        grid.addWidget(data["fps"], 0, 0)
+        grid.addWidget(data["resolution"], 0, 1)
+        camera_card.add_layout(grid)
+
+        return camera_card, data
 
     def get_widget(self):
         return self
@@ -176,30 +171,28 @@ class ControlPanel(QFrame):
 
         # 卡片样式
         self._conn_card.apply_theme(theme)
-        self._vehicle_card.apply_theme(theme)
 
         # 连接项样式
         for conn in self._connections.values():
             conn.apply_theme(theme)
 
-        # 统计项样式
-        for stat in self._vehicle_stats.values():
-            stat.apply_theme(theme)
+        self._command_card.apply_theme(theme)
+        for item in self._command_stats.values():
+            item.apply_theme(theme)
+
+        for card in self.camera_cards.values():
+            card.apply_theme(theme)
+
+        for data in self.camera_data.values():
+            for item in data.values():
+                item.apply_theme(theme)
 
         # 按钮样式
         self._reconnect_btn.setStyleSheet(theme.get_button_style())
         self._reconnect_btn.setFixedHeight(38)
 
-        # 占位文字
-        self._vehicle_placeholder.setStyleSheet(
-            f"color: {theme.text_muted}; font-size: 11px; padding-top: 8px; border: none;"
-        )
-
     def get_connection_items(self) -> Dict[str, IConnectionItem]:
         return self._connections
-
-    def get_stat_items(self) -> Dict[str, IStatItem]:
-        return {**self._vehicle_stats}
 
     def set_reconnect_callback(self, callback: Callable) -> None:
         self._reconnect_callback = callback
@@ -217,13 +210,13 @@ class ControlPanel(QFrame):
         if name in self._connections:
             self._connections[name].set_status(online, text)
 
-    def set_stat_value(self, name: str, value: str):
-        """设置统计值"""
-        if name in self._vehicle_stats:
-            self._vehicle_stats[name].set_value(value)
-
     def set_conmand_grid(self, v, w, rtt):
         self._command_stats["v"].set_value(v)
         self._command_stats["w"].set_value(w)
         self._command_stats["delay"].set_value(rtt / 2)
         self._command_stats["rtt"].set_value(rtt)
+
+    def set_camera_grid(self, key, fps, w, h):
+        data = self.camera_data[key]
+        data["fps"].set_value(fps)
+        data["resolution"].set_value(f"{w}×{h}")
