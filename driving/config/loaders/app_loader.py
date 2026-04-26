@@ -1,5 +1,15 @@
-
+# app_loader.py
 from dataclasses import dataclass
+from typing import Optional
+from pathlib import Path
+import yaml
+
+from logger import get_logger
+from common.constants import CONFIG_PATH
+
+logger = get_logger(__name__)
+
+APP_CONFIG_PATH = CONFIG_PATH / "app.yaml"
 
 
 @dataclass(frozen=True)
@@ -7,21 +17,62 @@ class AppConfig:
     """应用配置"""
 
     # 应用信息
-    APP_NAME = "远程驾驶控制系统"
-    APP_NAME_EN = "Remote Driving Control"
-    VERSION = "1.0.0"
+    app_name: str
+    app_name_en: str
+    version: str
+
+    # 调试模式
+    debug_mode: bool
 
     # UI 配置
-    WINDOW_MIN_WIDTH = 1200
-    WINDOW_MIN_HEIGHT = 750
-    DEFAULT_THEME = "modern_glass"  # 现代毛玻璃主题 dark_tech、modern_glass
-
-    # 视频配置（超低延迟模式）
-    VIDEO_QUEUE_SIZE = 1  # 最小队列：只保留最新帧
-    VIDEO_FRAME_TIMEOUT = 0.001  # 1ms 超时，最快响应
+    window_min_width: int
+    window_min_height: int
+    theme: str
 
     # 定时器间隔 (ms)
-    FRAME_TIMER_INTERVAL = 5  # ~200fps 轮询，确保最低延迟
-    STATS_TIMER_INTERVAL = 1000  # 1s
-    TIME_TIMER_INTERVAL = 1000  # 1s
-    VEHICLE_STATUS_INTERVAL = 2000  # 2s 车辆状态轮询间隔
+    frame_timer_interval: int
+    stats_timer_interval: int
+    time_timer_interval: int
+
+
+_app_config: Optional[AppConfig] = None
+
+
+def _load_config(config_path: Optional[Path]):
+    global _app_config
+    if _app_config is not None:
+        return
+
+    if config_path is None:
+        config_path = APP_CONFIG_PATH
+
+    logger.info(f"Loading app config from {config_path}")
+    if not config_path.exists():
+        raise FileNotFoundError(f"App config file not found: {config_path}")
+
+    with open(config_path, encoding="utf-8") as f:
+        data = yaml.safe_load(f)
+
+    ui = data.get("ui", {})
+    timers = data.get("timers", {})
+
+    _app_config = AppConfig(
+        app_name=str(data.get("app_name", "远程驾驶控制系统")),
+        app_name_en=str(data.get("app_name_en", "Remote Driving Control")),
+        version=str(data.get("version", "1.0.0")),
+        debug_mode=bool(data.get("debug_mode", False)),
+        window_min_width=int(ui.get("window_min_width", 1200)),
+        window_min_height=int(ui.get("window_min_height", 750)),
+        theme=str(ui.get("theme", "modern_glass")),
+        frame_timer_interval=int(timers.get("frame_interval", 5)),
+        stats_timer_interval=int(timers.get("stats_interval", 1000)),
+        time_timer_interval=int(timers.get("time_interval", 1000)),
+    )
+
+    logger.debug(f"Loaded app config: {_app_config}")
+
+
+def get_app_config(config_path: Optional[Path] = None) -> AppConfig:
+    """获取应用配置"""
+    _load_config(config_path)
+    return _app_config  # type: ignore

@@ -31,7 +31,7 @@ from infrastructure.workers import (
 )
 from infrastructure.video import WebRTCReceiver, FrameBuffer
 from logger import get_logger
-from config.loaders import get_webrtc_config, AppConfig
+from config.loaders import get_webrtc_config, get_app_config
 
 logger = get_logger(__name__)
 
@@ -100,8 +100,9 @@ class MainWindow(QMainWindow):
             self._control_panel.set_connection_status("quic", ok, text)
 
     def _setup_ui(self):
-        self.setWindowTitle(f"{AppConfig.APP_NAME} | {AppConfig.APP_NAME_EN}")
-        self.setMinimumSize(AppConfig.WINDOW_MIN_WIDTH, AppConfig.WINDOW_MIN_HEIGHT)
+        app_config = get_app_config()
+        self.setWindowTitle(f"{app_config.app_name} | {app_config.app_name_en}")
+        self.setMinimumSize(app_config.window_min_width, app_config.window_min_height)
 
         central = QWidget()
         self.setCentralWidget(central)
@@ -190,7 +191,7 @@ class MainWindow(QMainWindow):
         layout = QHBoxLayout(footer)
         layout.setContentsMargins(20, 0, 20, 0)
 
-        version_label = QLabel(f"v{AppConfig.VERSION}")
+        version_label = QLabel(f"v{get_app_config().version}")
         version_label.setStyleSheet(
             f"color: {self._theme.text_muted}; font-size: 11px; border: none;"
         )
@@ -207,17 +208,18 @@ class MainWindow(QMainWindow):
         return footer
 
     def _setup_timers(self):
+        app_config = get_app_config()
         self._frame_timer = QTimer()
         self._frame_timer.timeout.connect(self._multi_video_widget.update)
-        self._frame_timer.start(AppConfig.FRAME_TIMER_INTERVAL)
+        self._frame_timer.start(app_config.frame_timer_interval)
         
         self._stats_timer = QTimer()
         self._stats_timer.timeout.connect(self._update_camera_info)
-        self._stats_timer.start(AppConfig.STATS_TIMER_INTERVAL)
+        self._stats_timer.start(app_config.stats_timer_interval)
         
         self._time_timer = QTimer()
         self._time_timer.timeout.connect(self._update_time)
-        self._time_timer.start(AppConfig.TIME_TIMER_INTERVAL)
+        self._time_timer.start(app_config.time_timer_interval)
         self._time_label.setText(time.strftime("%Y-%m-%d %H:%M:%S"))
 
     def _update_time(self):
@@ -435,22 +437,23 @@ class MainWindow(QMainWindow):
         event.accept()
 
 
-def run_gui(room: str = None):
+def run_gui(session_id=None, room=None):
     """
     启动 GUI
 
     Args:
-        room: 房间号（如果提供则跳过登录）
-        server: WebSocket 服务器地址
+        session_id: QUIC会话号（如果与room一起提供则跳过登录）
+        room: WebRTC房间号（如果与session_id一起提供则跳过登录）
     """
     app = QApplication(sys.argv)
     app.setStyle("Fusion")
-    theme = UIFactory.set_theme(AppConfig.DEFAULT_THEME)
+    app_config = get_app_config()
+    theme = UIFactory.set_theme(app_config.theme)
     app.setFont(QFont(theme.get_font_family(), 9))
 
-    if room:
+    if session_id is not None and room:
         # 直接进入主界面（开发/调试模式）
-        window = MainWindow(session_id=room, room=room)
+        window = MainWindow(session_id=session_id, room=room)
     else:
         # 正常登录流程
         window = MainWindow()
@@ -462,7 +465,19 @@ def run_gui(room: str = None):
 if __name__ == "__main__":
     import argparse
 
-    parser = argparse.ArgumentParser(description=AppConfig.APP_NAME)
-    parser.add_argument("--room", help="房间号（跳过登录）")
+    def session_id_type(value):
+        ivalue = int(value)
+        if ivalue < 0 or ivalue > 65535:
+            raise argparse.ArgumentTypeError(
+                f"session_id 必须在 0–65535 范围内，当前值: {ivalue}"
+            )
+        return ivalue
+
+    parser = argparse.ArgumentParser(description=get_app_config().app_name)
+    parser.add_argument(
+        "--session", type=session_id_type,
+        help="QUIC会话号 (0–65535)，与 --room 一起使用可跳过登录",
+    )
+    parser.add_argument("--room", help="WebRTC房间号，与 --session 一起使用可跳过登录")
     args = parser.parse_args()
-    run_gui(args.room)
+    run_gui(session_id=args.session, room=args.room)

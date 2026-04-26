@@ -24,8 +24,7 @@ from PyQt6.QtCore import Qt, pyqtSignal, QThread, QTimer
 from PyQt6.QtGui import QFont, QColor, QPalette
 
 from interfaces.ui import ITheme
-
-# from config.settings import ServerConfig, AppConfig
+from config.loaders import get_app_config
 
 logger = logging.getLogger("driving")
 
@@ -124,8 +123,8 @@ class LoginPage(QWidget):
         super().__init__(parent)
         self._theme = theme
 
-        # 检查是否启用调试模式
-        self._debug_mode = True
+        # 从配置文件读取调试模式
+        self._debug_mode = get_app_config().debug_mode
 
         self._setup_ui()
 
@@ -238,9 +237,9 @@ class LoginPage(QWidget):
         form_layout.setContentsMargins(32, 32, 32, 32)
         form_layout.setSpacing(20)
 
-        # --- 用户名输入 ---
-        username_label = QLabel("WebRTC房间号")
-        username_label.setStyleSheet(
+        # --- WebRTC 房间号 ---
+        room_label = QLabel("WebRTC房间号")
+        room_label.setStyleSheet(
             f"""
             color: {self._get_color('text_secondary')};
             font-size: 12px;
@@ -249,18 +248,18 @@ class LoginPage(QWidget):
             margin-bottom: 4px;
         """
         )
-        form_layout.addWidget(username_label)
+        form_layout.addWidget(room_label)
 
-        self._username_input = QLineEdit()
-        self._username_input.setPlaceholderText("请输入WebRTC房间号")
-        self._username_input.setFixedHeight(44)
-        self._username_input.setStyleSheet(self._get_input_style())
-        self._username_input.setTextMargins(14, 0, 14, 0)
-        form_layout.addWidget(self._username_input)
+        self._room_input = QLineEdit()
+        self._room_input.setPlaceholderText("请输入WebRTC房间号")
+        self._room_input.setFixedHeight(44)
+        self._room_input.setStyleSheet(self._get_input_style())
+        self._room_input.setTextMargins(14, 0, 14, 0)
+        form_layout.addWidget(self._room_input)
 
-        # --- 密码输入 ---
-        password_label = QLabel("QUIC会话号")
-        password_label.setStyleSheet(
+        # --- QUIC 会话号 ---
+        session_label = QLabel("QUIC会话号")
+        session_label.setStyleSheet(
             f"""
             color: {self._get_color('text_secondary')};
             font-size: 12px;
@@ -269,15 +268,14 @@ class LoginPage(QWidget):
             margin-bottom: 4px;
         """
         )
-        form_layout.addWidget(password_label)
+        form_layout.addWidget(session_label)
 
-        self._password_input = QLineEdit()
-        self._password_input.setPlaceholderText("请输入QUIC会话号")
-        self._password_input.setFixedHeight(44)
-        # self._password_input.setEchoMode(QLineEdit.EchoMode.Password)
-        self._password_input.setStyleSheet(self._get_input_style())
-        self._password_input.setTextMargins(14, 0, 14, 0)
-        form_layout.addWidget(self._password_input)
+        self._session_input = QLineEdit()
+        self._session_input.setPlaceholderText("请输入QUIC会话号 (0–65535)")
+        self._session_input.setFixedHeight(44)
+        self._session_input.setStyleSheet(self._get_input_style())
+        self._session_input.setTextMargins(14, 0, 14, 0)
+        form_layout.addWidget(self._session_input)
 
         form_layout.addSpacing(8)
 
@@ -332,7 +330,7 @@ class LoginPage(QWidget):
 
         # --- 版本信息 ---
         layout.addSpacing(24)
-        version = QLabel(f"Version AppConfig.VERSION ")
+        version = QLabel(f"Version {get_app_config().version}")
         version.setAlignment(Qt.AlignmentFlag.AlignCenter)
         version.setStyleSheet(
             f"color: {self._get_color('text_muted')}; background: transparent; font-size: 11px; opacity: 0.6;"
@@ -340,9 +338,9 @@ class LoginPage(QWidget):
         layout.addWidget(version)
 
         # --- 事件绑定 ---
-        self._password_input.returnPressed.connect(self._on_login)
-        self._username_input.returnPressed.connect(
-            lambda: self._password_input.setFocus()
+        self._session_input.returnPressed.connect(self._on_login)
+        self._room_input.returnPressed.connect(
+            lambda: self._session_input.setFocus()
         )
 
     def _get_input_style(self) -> str:
@@ -440,25 +438,37 @@ class LoginPage(QWidget):
 
     def _on_login(self):
         """处理真实登录逻辑"""
-        username = self._username_input.text().strip()
-        password = self._password_input.text().strip()
+        room = self._room_input.text().strip()
+        session_id_str = self._session_input.text().strip()
 
-        if not username:
+        if not room:
             self._show_error("请输入WebRTC房间号")
-            self._username_input.setFocus()
+            self._room_input.setFocus()
             return
-        if not password:
+        if not session_id_str:
             self._show_error("请输入QUIC会话号")
-            self._password_input.setFocus()
+            self._session_input.setFocus()
             return
-        
+
+        # 校验 session_id 为 0–65535 的整数
+        try:
+            session_id = int(session_id_str)
+        except ValueError:
+            self._show_error("QUIC会话号必须为整数")
+            self._session_input.setFocus()
+            return
+        if session_id < 0 or session_id > 65535:
+            self._show_error("QUIC会话号范围: 0–65535")
+            self._session_input.setFocus()
+            return
+
         self._set_loading(True)
         self._status_label.setText("正在进入...")
         self._status_label.setStyleSheet(
             f"color: {self._get_color('text_muted')}; font-size: 11px;"
         )
 
-        self._on_login_success({"session_id": username, "room": password})
+        self._on_login_success({"session_id": session_id, "room": room})
 
     def _on_login_success(self, data: Dict[str, Any]):
         self._set_loading(False)
@@ -485,16 +495,16 @@ class LoginPage(QWidget):
         self._login_btn.setEnabled(not loading)
         self._login_btn.setText("登录中..." if loading else "登  录")
 
-        self._username_input.setEnabled(not loading)
-        self._password_input.setEnabled(not loading)
+        self._room_input.setEnabled(not loading)
+        self._session_input.setEnabled(not loading)
 
         if loading:
-            self._username_input.setCursor(Qt.CursorShape.WaitCursor)
-            self._password_input.setCursor(Qt.CursorShape.WaitCursor)
+            self._room_input.setCursor(Qt.CursorShape.WaitCursor)
+            self._session_input.setCursor(Qt.CursorShape.WaitCursor)
         else:
-            self._username_input.setCursor(Qt.CursorShape.IBeamCursor)
-            self._password_input.setCursor(Qt.CursorShape.IBeamCursor)
-            self._password_input.setFocus()
+            self._room_input.setCursor(Qt.CursorShape.IBeamCursor)
+            self._session_input.setCursor(Qt.CursorShape.IBeamCursor)
+            self._session_input.setFocus()
 
     def closeEvent(self, event):
         """窗口关闭时清理资源"""

@@ -1,7 +1,7 @@
 import json
 from typing import Dict
 from interfaces import IDataProcessor, IAnalogCalculator, IMessageQueue
-from config.input_config import InputType, InputConfigManager
+from infrastructure.device import InputConfigManager, InputType
 from infrastructure.communication import ControlState
 
 from logger import get_logger
