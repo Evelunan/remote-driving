@@ -1,92 +1,71 @@
-# Vehicle-Unit - 车辆端
+# 车辆端 (Vehicle Unit)
 
-远程驾驶系统的车辆端模块，运行在车辆上，负责视频采集推送和接收控制指令。
+这是远程驾驶系统部署在真实车辆（或仿真车）上的核心应用。它负责采集车载多路摄像头画面，通过 WebRTC 协议推流给驾驶端；同时通过 QUIC Datagram 接收极低延迟的控制指令（如方向盘、油门、刹车），并通过串口或 ROS2 将指令下发给车辆底盘执行。
 
-## 功能
+## 🌟 核心特性
 
-- **视频采集**: 从 USB 摄像头采集视频
-- **视频合成**: 将多路摄像头画面合成为单路视频
-- **视频推流**: 通过 WebRTC 将视频推送到驾驶端
-- **控制接收**: 通过 QUIC 协议接收来自驾驶端的控制指令
-- **车辆控制**: 通过串口将控制指令发送给车辆控制器
+- **多路视频采集与推流**：借助 `opencv-python` 采集多路 USB 摄像头数据，结合 `aiortc` 实现基于 WebRTC 的实时视频流推送。
+- **低延迟指令接收**：使用 `aioquic` 连接到 QUIC 中继服务器，以 Datagram 的形式接收无阻塞的高频控制信号。
+- **灵活的底盘控制接口**：内置 `SerialController` 支持串口直接控制底盘，也预留了 ROS2 (`cmd_vel`) 的接入支持。
+- **多进程与异步架构**：采集与网络推流采用多进程/异步协程混合架构，确保高帧率视频流与高频控制信号的吞吐不受互相阻塞影响。
 
-## 目录结构
+## 📂 项目结构
 
-```
+```text
 vehicle-unit/
-├── main.py              # 程序入口
-├── sender.py            # 视频发送测试脚本
-├── application/         # 应用层
-│   ├── stream_app.py    # 多摄像头流应用
-│   └── vehicle_datagram.py  # QUIC 数据报客户端
-├── config/              # 配置文件
-│   ├── server.yaml      # 服务器配置
-│   ├── media.yaml       # 媒体配置
-│   ├── vehicle.yaml     # 车辆配置
-│   └── loaders/         # 配置加载器
-├── interfaces/          # 接口定义
-│   ├── icamera.py       # 摄像头接口
-│   ├── icompositor.py   # 合成器接口
-│   ├── istream.py       # 流接口
-│   └── icontroller.py   # 控制器接口
-├── infrastructure/      # 基础设施实现
-│   ├── cameras/         # 摄像头
-│   │   └── usb_camera.py    # USB 摄像头
-│   ├── compositors/     # 视频合成
-│   │   └── driving_compositor.py  # 驾驶画面合成器
-│   ├── streams/         # 流推送
-│   │   └── webrtc_streamer.py  # WebRTC 推流器
-│   ├── controller/      # 控制器
-│   │   └── serial_controller.py  # 串口控制器
-│   └── protocol/        # 协议实现
-│       ├── control_codec.py   # 控制指令编解码
-│       └── vehicle_protocol.py # 车辆端协议
-├── common/              # 公共工具
-├── lib/                 # 外部库
-│   ├── CvCameraIndex_x64.dll  # Windows 摄像头索引
-│   └── libcamera_index.so     # Linux 摄像头索引
-└── logger/              # 日志工具
+├── application/          # 核心应用逻辑 (多摄像头管理、QUIC 数据报文处理端)
+├── common/               # 公共工具和辅助函数
+├── config/               # 配置文件 (摄像头参数、WebRTC与QUIC配置、硬件串口配置等)
+├── infrastructure/       # 基础设施层
+│   ├── cameras/          # USB 硬件相机或测试相机的驱动实现
+│   ├── compositors/      # 画面合成器 (可选)
+│   ├── controller/       # 车辆底盘控制器 (SerialController / ROS2 Controller)
+│   ├── protocol/         # QUIC 通信协议实现
+│   └── streams/          # WebRTC 推流器实现
+├── interfaces/           # 各模块间的抽象接口 (依赖倒置)
+├── lib/                  # 第三方库或私有依赖
+├── logger/               # 日志记录模块
+├── main.py               # 车辆端主入口 (启动视频采集与控制接收)
+└── pyproject.toml        # 依赖清单
 ```
 
-## 控制协议
+## 🛠️ 环境依赖
 
-与驾驶端使用相同的二进制编码协议：
+系统要求：**Python >= 3.12**，并确保操作系统支持对应的 USB 驱动或 ROS2 环境。
 
-| 字段 | 类型 | 说明 |
-|------|------|------|
-| msg_type | uint8 | 消息类型 |
-| session_id | uint16 | 会话号 |
-| speed | uint8 | 线速度 (128为中点) |
-| steering | uint8 | 角速度 (128为中点) |
+核心库：
+- `aiortc`, `websockets`：WebRTC 信令与音视频推流。
+- `aioquic`：QUIC 协议栈控制信号接收。
+- `opencv-python`, `numpy`：图像采集与格式转换。
+- `pyserial`：串口通信。
+- `pyyaml`：配置解析。
 
-## 运行
+## 🚀 快速开始
+
+### 1. 安装依赖
+
+车辆端环境推荐使用虚拟环境进行安装：
 
 ```bash
-# 启动车辆端（视频推流 + 控制接收）
-python main.py
-
-# 测试视频发送
-python sender.py --room <room_id> --server <signaling_server_url>
+# 确保在 vehicle-unit 目录下
+pip install .
 ```
+> 如果你在 Linux (如树莓派/Jetson) 上运行，请确保当前用户有权访问 `/dev/video*` 和 `/dev/ttyUSB*` 设备。
 
-## 配置
+### 2. 硬件与网络配置
 
-**server.yaml** - 服务器连接配置:
-- WebRTC 信令服务器地址
-- STUN/TURN 服务器配置
-- QUIC 服务器地址
+- 请检查 `config/` 目录下的相关 YAML 配置文件，确保填入了正确的中继服务器 (QUIC) 和信令服务器 (WebRTC) 的 IP 及端口。
+- 检查并修改摄像头相关的 `vid` 和 `pid` 参数，确保系统能够正确拉起对应的 USB 摄像头。
 
-**media.yaml** - 媒体配置:
-- 摄像头设备列表
-- 分辨率和帧率
+### 3. 运行车辆端程序
 
-**vehicle.yaml** - 车辆配置:
-- 串口设备参数
+启动主程序，开始等待驾驶端的连接：
 
-## 依赖
+```bash
+python main.py
+```
+> 此时程序会连接信令服务器与 QUIC 中继服务器。一旦远端驾驶端发起连接，视频流就会开始推送，底盘也会进入待命受控状态。
 
-- Python 3.12+
-- aiortc (WebRTC)
-- aioquic (QUIC)
-- opencv-python (视频处理)
-- pyserial (串口通信)
+## 📝 许可证
+
+[Add License Here]
