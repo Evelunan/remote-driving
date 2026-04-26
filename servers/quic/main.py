@@ -33,8 +33,14 @@ async def main():
     )
 
     logger.info(f"中继服务器正在监听 {config.host}:{config.port}")
-    await asyncio.Future()  # 永久运行
+    try:
+        await asyncio.Future()  # 永久运行
+    except asyncio.CancelledError:
+        logger.info("中继服务器关闭 (用户终止)")
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        pass
