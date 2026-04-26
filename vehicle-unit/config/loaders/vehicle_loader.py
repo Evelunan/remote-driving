@@ -57,6 +57,7 @@ class VehicleConfig:
     纯粹的数据容器，不包含控制逻辑
     """
 
+    controller_type: str  # "serial" or "ros2"
     motion: MotionConfig
     communication: CommunicationConfig
 
@@ -77,6 +78,7 @@ def _load_config(config_path: Path):
     with open(config_path, encoding="utf8") as f:
         data = yaml.safe_load(f)
     _vehicle = VehicleConfig(
+        controller_type=str(data.get("controller", "serial")),
         motion=MotionConfig(
             max_linear_velocity=float(data["motion"]["max_linear_velocity"]),
             max_angular_velocity=float(data["motion"]["max_angular_velocity"]),

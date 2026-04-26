@@ -2,27 +2,19 @@
 import asyncio
 import os
 import multiprocessing as mp
-import os
 import sys
 
-
 from application import VehicleDatagram, MultiCameraManager
-from common.utils import *
+from common.utils import get_camera_index
 from logger import get_logger
 from config.loaders import (
     get_webrtc_config,
     get_quic_config,
-    get_regist_config,
     get_cameras_config,
-    get_resolution_config,
     get_vehicle_config,
 )
-from infrastructure.cameras import USBCamera, TestCamera
+from infrastructure.cameras import USBCamera
 from infrastructure.streams import WebRTCStreamer
-from infrastructure.compositors import DrivingCompositor
-from infrastructure.controller import SerialController
-
-# from infrastructure.controller import ros2_cmd_vel_controller
 
 os.environ["http_proxy"] = ""
 os.environ["https_proxy"] = ""
@@ -31,54 +23,102 @@ os.environ["all_proxy"] = ""
 logger = get_logger(__name__)
 
 
-async def start_control(session_id: str):
+def _create_controller(vehicle_config):
+    """根据配置动态创建底盘控制器"""
+    ctrl_type = vehicle_config.controller_type
+    if ctrl_type == "none":
+        logger.info("控制器类型为 none，底盘控制已禁用（测试模式）")
+        return None
+    elif ctrl_type == "serial":
+        from infrastructure.controller import SerialController
+        return SerialController(vehicle_config)
+    elif ctrl_type == "ros2":
+        from infrastructure.controller import RCLpyCmdVelController
+        return RCLpyCmdVelController()
+    else:
+        logger.warning(f"未知的控制器类型: {ctrl_type}，将不启用底盘控制")
+        return None
+
+
+async def start_control(session_id: int):
+    """启动 QUIC 控制指令接收服务"""
     quic_config = get_quic_config()
     vehicle_config = get_vehicle_config()
-    # controller = SerialController(vehicle_config)
-    # controller = RCLpyCmdVelController()
+    controller = _create_controller(vehicle_config)
     client = VehicleDatagram(
         config=quic_config,
         session_id=session_id,
-        # controller=controller,
-        controller=None,
+        controller=controller,
     )
+    logger.info(f"控制服务启动 (session={session_id})")
     await client.start()
 
 
-async def test_multi_camera_manager(room="1234"):
+async def start_streaming(room: str):
+    """启动多路摄像头采集与 WebRTC 推流服务"""
     config = get_webrtc_config()
     streamer = WebRTCStreamer(room, config)
     manager = MultiCameraManager(streamer)
+
     cameras = get_cameras_config()
-    resolution = get_resolution_config()
     for c in cameras:
-        id = get_camera_index(vid=c.vid, pid=c.pid)
+        cam_id = get_camera_index(vid=c.vid, pid=c.pid)
         camera = USBCamera(
-            camera_id=id,
+            camera_id=cam_id,
             camera_name=c.name,
-            height=resolution.height,
-            width=resolution.width,
-            fps=resolution.fps,
+            height=c.height,
+            width=c.width,
+            fps=c.fps,
         )
-        # camera = TestCamera(name=c.name)
         manager.add_camera(camera)
 
+    logger.info(f"推流服务启动 (room={room}, cameras={len(cameras)})")
     await manager.start()
     await streamer.start()
-    stop_event = asyncio.Event()
-    await stop_event.wait()
+
+    # manager.start() 内部通过 create_task 启动了推流 worker，
+    # streamer.start() 内部通过 create_task 启动了信令监听，
+    # 两者都是后台任务，需要阻塞当前协程以保持服务运行。
+    await asyncio.Event().wait()
+
+
+def parse_args():
+    import argparse
+
+    def session_id_type(value):
+        ivalue = int(value)
+        if ivalue < 0 or ivalue > 65535:
+            raise argparse.ArgumentTypeError(
+                f"session_id 必须在 0–65535 范围内，当前值: {ivalue}"
+            )
+        return ivalue
+
+    parser = argparse.ArgumentParser(description="车辆端 - 远程驾驶系统")
+    parser.add_argument(
+        "--session", type=session_id_type, required=True,
+        help="会话标识 (0–65535)，用于 QUIC 控制链路的身份绑定",
+    )
+    parser.add_argument(
+        "--room", type=str, default=None,
+        help="WebRTC 信令房间号（默认与 session 相同）",
+    )
+    return parser.parse_args()
 
 
 async def main():
     mp.set_start_method("spawn", force=True)
+    args = parse_args()
+
+    session_id = args.session
+    room = args.room if args.room else str(session_id)
+
+    logger.info("=== 车辆端启动 ===")
+    logger.info(f"session_id={session_id}, room={room}")
+
     try:
-        session_id = 1234
-        room = "1234"
-        logger.info("启动视频推流和控制指令接收...")
         await asyncio.gather(
-            # start_stream(room),
             start_control(session_id),
-            test_multi_camera_manager(),
+            start_streaming(room),
         )
     except KeyboardInterrupt:
         logger.info("用户终止程序")
@@ -89,4 +129,4 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
-    # test_controller()
+

@@ -1,32 +1,50 @@
 # media.yaml
-# 摄像头分辨率
-resolution:
-  width: 640
-  height: 480
-  fps: 30
-
 cameras:
   front:
     vid: "0408"
     pid: "5423"
+    width: 640
+    height: 480
+    fps: 30
   back:
     vid: "a113"
     pid: "b113"
+    width: 640
+    height: 480
+    fps: 30
   right:
     vid: "a114"
     pid: "b114"
+    width: 640
+    height: 480
+    fps: 30
   left:
     vid: "a111"
     pid: "b111"
+    width: 640
+    height: 480
+    fps: 30
   # front:
   #   vid: "1bcf"
   #   pid: "0001"
+  #   width: 640
+  #   height: 480
+  #   fps: 30
   # back:
   #   vid: "1bcf"
   #   pid: "0002"
+  #   width: 640
+  #   height: 480
+  #   fps: 30
   # right:
   #   vid: "1bcf"
   #   pid: "0004"
+  #   width: 640
+  #   height: 480
+  #   fps: 30
   # left:
   #   vid: "1bcf"
   #   pid: "0003"
+  #   width: 640
+  #   height: 480
+  #   fps: 30

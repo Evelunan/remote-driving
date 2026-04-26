@@ -1,4 +1,10 @@
 # ======================
+# 底盘控制器类型 (Controller Type)
+# 可选值: serial | ros2 | none
+# ======================
+controller: none
+
+# ======================
 # 车辆运动控制参数 (Vehicle Motion Control)
 # ======================
 motion:
