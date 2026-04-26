@@ -13,7 +13,7 @@ from config.loaders import (
     get_cameras_config,
     get_vehicle_config,
 )
-from infrastructure.cameras import USBCamera
+from infrastructure.cameras import USBCamera, TestCamera
 from infrastructure.streams import WebRTCStreamer
 
 os.environ["http_proxy"] = ""
@@ -63,23 +63,21 @@ async def start_streaming(room: str):
     cameras = get_cameras_config()
     for c in cameras:
         cam_id = get_camera_index(vid=c.vid, pid=c.pid)
-        camera = USBCamera(
-            camera_id=cam_id,
-            camera_name=c.name,
-            height=c.height,
-            width=c.width,
-            fps=c.fps,
-        )
+        # camera = USBCamera(
+        #     camera_id=cam_id,
+        #     camera_name=c.name,
+        #     height=c.height,
+        #     width=c.width,
+        #     fps=c.fps,
+        # )
+        camera = TestCamera(name=c.name)
         manager.add_camera(camera)
 
     logger.info(f"推流服务启动 (room={room}, cameras={len(cameras)})")
     await manager.start()
-    await streamer.start()
-
     # manager.start() 内部通过 create_task 启动了推流 worker，
-    # streamer.start() 内部通过 create_task 启动了信令监听，
-    # 两者都是后台任务，需要阻塞当前协程以保持服务运行。
-    await asyncio.Event().wait()
+    # streamer.start() 内部包含 while 循环持续运行重连逻辑并阻塞。
+    await streamer.start()
 
 
 def parse_args():
@@ -120,13 +118,16 @@ async def main():
             start_control(session_id),
             start_streaming(room),
         )
-    except KeyboardInterrupt:
-        logger.info("用户终止程序")
+    except asyncio.CancelledError:
+        logger.info("任务被取消 (用户终止)")
     except Exception as e:
         logger.error(f"启动失败: {e}", exc_info=True)
         sys.exit(1)
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        pass
 

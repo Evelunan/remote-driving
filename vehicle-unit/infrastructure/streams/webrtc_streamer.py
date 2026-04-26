@@ -29,18 +29,52 @@ class WebRTCStreamer:
     # 启动
     # =====================================================
     async def start(self):
-        await self.signaling.connect()
+        self._running = True
+        
+        while self._running:
+            try:
+                logger.info("正在连接信令服务器...")
+                await self.signaling.connect()
 
-        # 注册信令回调
-        self.signaling.on("joined", self._on_joined)
-        self.signaling.on("new_peer", self._on_new_peer)
-        self.signaling.on("answer", self._on_answer)
-        self.signaling.on("candidate", self._on_candidate)
-        self.signaling.on("peer_left", self._on_peer_left)
+                # 每次重连后清空旧状态
+                for peer_id, pc in list(self.peers.items()):
+                    await pc.close()
+                self.peers.clear()
 
-        await self.signaling.send({"type": "join", "room": self.room})
+                # 注册信令回调
+                self.signaling.on("joined", self._on_joined)
+                self.signaling.on("new_peer", self._on_new_peer)
+                self.signaling.on("answer", self._on_answer)
+                self.signaling.on("candidate", self._on_candidate)
+                self.signaling.on("peer_left", self._on_peer_left)
 
-        asyncio.create_task(self.signaling.listen())
+                await self.signaling.send({"type": "join", "room": self.room})
+
+                # 阻塞直到断开
+                await self.signaling.listen()
+
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                logger.error(f"信令服务器连接失败或断开: {e}")
+
+            if self._running:
+                logger.info("等待 3 秒后重连信令服务器...")
+                await asyncio.sleep(3)
+
+    async def close(self):
+        self._running = False
+        try:
+            await self.signaling.close()
+        except Exception as e:
+            logger.warning(f"关闭 signaling 异常: {e}")
+
+        for peer_id, pc in self.peers.items():
+            try:
+                await pc.close()
+            except Exception as e:
+                logger.warning(f"关闭 peer 失败: {e}")
+        logger.info("推流端已关闭")
 
     # =====================================================
     # Peer 创建
