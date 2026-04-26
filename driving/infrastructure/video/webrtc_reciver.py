@@ -72,19 +72,37 @@ class WebRTCReceiver:
     # 启动
     # =====================================================
     async def start(self):
-        """启动接收端，连接信令服务器并加入房间"""
-        self._emit_status(VideoStatus.CONNECTING, "正在连接信令服务器...")
-        await self.signaling.connect()
-
-        # 注册信令回调
-        self._register_handlers()
-
-        # 加入房间
-        await self.signaling.send({"type": "join", "room": self.room})
-
-        # 启动信令监听
+        """启动接收端，连接信令服务器并加入房间（包含断线重连机制）"""
         self._running = True
-        self._listen_task = asyncio.create_task(self._listen_loop())
+
+        while self._running:
+            try:
+                self._emit_status(VideoStatus.CONNECTING, "正在连接信令服务器...")
+                await self.signaling.connect()
+
+                # 每次重连后清空旧状态
+                for peer_id, pc in list(self.peers.items()):
+                    await pc.close()
+                self.peers.clear()
+
+                # 注册信令回调
+                self._register_handlers()
+
+                # 加入房间
+                await self.signaling.send({"type": "join", "room": self.room})
+
+                # 启动信令监听（阻塞当前循环，直到断线或手动关闭）
+                await self._listen_loop()
+
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                logger.error(f"信令服务器连接失败或断开: {e}")
+                self._emit_status(VideoStatus.ERROR, "信令服务器异常，3秒后重连...")
+
+            if self._running:
+                logger.info("等待 3 秒后重连信令服务器...")
+                await asyncio.sleep(3)
 
     def on_frame(self, callback: Callable[[str, "np.ndarray"], None]):
         """注册视频帧回调函数
@@ -246,17 +264,8 @@ class WebRTCReceiver:
             await self.signaling.close()
         except Exception as e:
             logger.warning(f"关闭 signaling 异常: {e}")
-        # 等待信令监听循环结束
 
-        if self._listen_task:
-            try:
-                # 等待任务自然结束（因为 _running=False 会导致循环退出）
-                await asyncio.wait_for(self._listen_task, timeout=3.0)
-            except asyncio.TimeoutError:
-                logger.warning("信令监听任务超时，强制取消")
-                self._listen_task.cancel()
-            except Exception as e:
-                logger.error(f"信令监听任务异常退出: {e}")
+        # start 循环会在 _running=False 时自然结束，不需要手动等待/取消 task
 
         for peer_id, pc in self.peers.items():
             logger.info(f"关闭与 {peer_id} 的连接")

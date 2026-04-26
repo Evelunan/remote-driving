@@ -133,12 +133,12 @@ class ControlSystemThread(QThread):
                 break
             except ConnectionError:
                 self._safe_emit("usb_status_changed", False, "未连接")
-                if not await safe_sleep(3):
+                if not await safe_sleep(5):
                     break
             except Exception as e:
                 logger.info(f"[USB ERROR] {e}")
                 self._safe_emit("usb_status_changed", False, "错误")
-                if not await safe_sleep(3):
+                if not await safe_sleep(5):
                     break
             finally:
                 try:

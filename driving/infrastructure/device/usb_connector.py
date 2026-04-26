@@ -129,6 +129,9 @@ class USBConnector(IInputDevice):
                 pass
 
             except usb1.USBError as e:
+                if e.value == usb1.ERROR_NO_DEVICE:
+                    logger.warning("USB device unplugged.")
+                    break
                 logger.error("USBError: %s", e)
                 await asyncio.sleep(0.2)
 
@@ -157,6 +160,9 @@ class USBConnector(IInputDevice):
                 await self._task
             except asyncio.CancelledError:
                 pass
+            self._task = None
+
+        was_connected = self.handle is not None
 
         if self.handle and self.interface_number is not None:
             try:
@@ -166,11 +172,14 @@ class USBConnector(IInputDevice):
 
         if self.handle:
             self.handle.close()
+            self.handle = None
 
         if self.context:
             self.context.close()
+            self.context = None
 
-        logger.info("USB disconnected")
+        if was_connected:
+            logger.info("USB disconnected")
 
     # ==========================
     def is_connected(self) -> bool:

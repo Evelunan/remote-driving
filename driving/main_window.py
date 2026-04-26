@@ -296,7 +296,7 @@ class MainWindow(QMainWindow):
             return
         text = "在线" if connected else "离线"
         self._control_panel.set_connection_status("signal", connected, text)
-        self._control_panel.set_connection_status("webrtc", connected, text)
+
 
     def _on_video_status_changed(self, status: str, message: str):
         if not self._services_running or self._multi_video_widget is None:
