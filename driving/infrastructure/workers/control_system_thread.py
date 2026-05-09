@@ -1,5 +1,7 @@
 import asyncio
+import time
 from typing import Optional
+from common.constants import ROOT_PATH
 from PyQt6.QtCore import QThread
 from aioquic.asyncio import connect
 
@@ -7,7 +9,7 @@ from interfaces import IMessageQueue
 from .signal_bridge import SignalBridge
 from logger import get_logger
 from factories import ControlFactory
-from config.loaders import get_quic_config
+from config.loaders import get_quic_config, get_app_config
 from infrastructure.protocol import DrivingProtocol, ControlCodec
 from app import DrivingDatagram
 
@@ -205,6 +207,15 @@ class ControlSystemThread(QThread):
                 v, w, rtt = ControlCodec.process_state(
                     message, VehicleInfo.max_v, VehicleInfo.max_w
                 )
+                
+                if get_app_config().debug_mode:
+                    try:
+                        log_file = ROOT_PATH / "logs" / "rtt_stats.csv"
+                        with open(log_file, "a") as f:
+                            f.write(f"{time.time()},{rtt}\n")
+                    except Exception as e:
+                        logger.error(f"记录 rtt 失败: {e}")
+
                 if self._state_callback:
                     self._state_callback(v, w, rtt)
             except asyncio.CancelledError:

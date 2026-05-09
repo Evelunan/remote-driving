@@ -76,7 +76,7 @@ class DrivingProtocol(QuicConnectionProtocol):
             message = ControlCodec.decode(data)
             if message["type"] == ControlCodec.MessageType.STATE:
                 if self._state_callback:
-                    logger.info(f"put data {message}")
+                    # logger.info(f"put data {message}")
                     cb = self._state_callback
 
                     if inspect.iscoroutinefunction(cb):

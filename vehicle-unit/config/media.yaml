@@ -3,8 +3,8 @@ cameras:
   front:
     vid: "0408"
     pid: "5423"
-    width: 640
-    height: 480
+    width: 1080
+    height: 720
     fps: 30
   back:
     vid: "a113"

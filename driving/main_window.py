@@ -32,6 +32,7 @@ from infrastructure.workers import (
 from infrastructure.video import WebRTCReceiver, FrameBuffer
 from logger import get_logger
 from config.loaders import get_webrtc_config, get_app_config
+from common.constants import ROOT_PATH
 
 logger = get_logger(__name__)
 
@@ -242,6 +243,15 @@ class MainWindow(QMainWindow):
             fps = display.get_fps()
             w, h = display.get_resolution()
             self._control_panel.set_camera_grid(key, fps, w, h)
+            
+            # # 统计帧数 
+            # if get_app_config().debug_mode:
+            #     try:
+            #         log_file = ROOT_PATH / "logs" / "fps_stats.csv"
+            #         with open(log_file, "a") as f:
+            #             f.write(f"{time.time()},{fps}\n")
+            #     except Exception as e:
+            #         logger.error(f"记录 fps 失败: {e}")
 
     def _start_services(self):
         self._receiver_thread = None

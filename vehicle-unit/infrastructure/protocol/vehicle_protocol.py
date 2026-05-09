@@ -1,7 +1,9 @@
 import asyncio
+import time
 from aioquic.asyncio.protocol import QuicConnectionProtocol
 from aioquic.quic.events import DatagramFrameReceived, ConnectionTerminated
 
+from common.constants import ROOT_PATH
 from interfaces.icontroller import IController
 from logger import get_logger
 
@@ -22,6 +24,9 @@ class VehicleProtocol(QuicConnectionProtocol):
 
         self._last_seq = -1
         self._last_timestamp = -1
+
+        self._batch_start_seq = -1   # 当前批次第一个包的 seq
+        self._received_count = 0       # 当前批次已收到包数
 
     # =========================
     # connection lifecycle
@@ -127,6 +132,32 @@ class VehicleProtocol(QuicConnectionProtocol):
             return
         # 接收端
         seq = message["seq"]
+
+        # 测试使用
+        # # 批次起始：记录第一个包的 seq
+        # if self._batch_start_seq == -1:
+        #     self._batch_start_seq = seq
+
+        # self._received_count += 1
+
+        # if self._received_count == 100:
+        #     # 这批次发送端理论上发了多少个包（seq 跨度）
+        #     expected = (seq - self._batch_start_seq + 1) & 0xFFFF
+        #     loss_rate = max(0.0, (expected - 100) / expected) if expected > 0 else 0.0
+
+        #     logger.info(f"[car] 批次丢包率 - 期望: {expected}, 收到: 100, 丢包率: {loss_rate:.2%}")
+
+        #     try:
+        #         log_file = ROOT_PATH / "logs" / "packet_loss_stats.csv"
+        #         with open(log_file, "a") as f:
+        #             f.write(f"{time.time()},{expected},100,{loss_rate:.4f}\n")
+        #     except Exception as e:
+        #         logger.error(f"记录丢包率失败: {e}")
+
+        #     # 重置批次
+        #     self._batch_start_seq = -1
+        #     self._received_count = 0
+            
         if not ControlCodec.is_newer(seq, self._last_seq):
             return
         self._last_seq = seq

@@ -63,14 +63,14 @@ async def start_streaming(room: str):
     cameras = get_cameras_config()
     for c in cameras:
         cam_id = get_camera_index(vid=c.vid, pid=c.pid)
-        # camera = USBCamera(
-        #     camera_id=cam_id,
-        #     camera_name=c.name,
-        #     height=c.height,
-        #     width=c.width,
-        #     fps=c.fps,
-        # )
-        camera = TestCamera(name=c.name)
+        camera = USBCamera(
+            camera_id=cam_id,
+            camera_name=c.name,
+            height=c.height,
+            width=c.width,
+            fps=c.fps,
+        )
+        # camera = TestCamera(name=c.name)
         manager.add_camera(camera)
 
     logger.info(f"推流服务启动 (room={room}, cameras={len(cameras)})")

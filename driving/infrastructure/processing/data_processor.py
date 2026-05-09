@@ -26,6 +26,7 @@ class DataProcessor(IDataProcessor):
         digital_state = self._process_digital(data)
         # 模拟输入
         analog_values = self.analog.calculate(data)
+        # logger.info(analog_values)
         await self.processed_queue.put(analog_values)
 
         # logger.info(f" v_raw:{data[4]}, w_raw:{data[3]}")
