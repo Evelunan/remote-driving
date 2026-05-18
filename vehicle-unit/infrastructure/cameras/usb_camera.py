@@ -111,7 +111,7 @@ class USBCamera(ICamera):
         with self._lock:
             if self._latest_frame is None:
                 return None
-        return self._latest_frame
+        return self._latest_frame.copy()
 
     def get_frame_count(self) -> int:
         return self._frame_count
@@ -160,21 +160,21 @@ class USBCamera(ICamera):
 
                 if frame.shape[1] != self.width or frame.shape[0] != self.height:
                     frame = cv2.resize(frame, (self.width, self.height))
-                ts = time.time()  # 用真实时间用于显示
-                local_time = time.localtime(ts)
-                time_str = time.strftime("%H:%M:%S", local_time)
-                ms = int((ts % 1) * 1000)
-                text = f"capture: {time_str}.{ms:03d}"
-                cv2.putText(
-                    frame,
-                    text,
-                    (20, 40),
-                    cv2.FONT_HERSHEY_SIMPLEX,
-                    1,
-                    (0, 255, 0),
-                    2,
-                    cv2.LINE_AA,
-                )
+                # ts = time.time()  # 用真实时间用于显示
+                # local_time = time.localtime(ts)
+                # time_str = time.strftime("%H:%M:%S", local_time)
+                # ms = int((ts % 1) * 1000)
+                # text = f"capture: {time_str}.{ms:03d}"
+                # cv2.putText(
+                #     frame,
+                #     text,
+                #     (20, 40),
+                #     cv2.FONT_HERSHEY_SIMPLEX,
+                #     1,
+                #     (0, 255, 0),
+                #     2,
+                #     cv2.LINE_AA,
+                # )
 
                 with self._lock:
                     self._latest_frame = frame

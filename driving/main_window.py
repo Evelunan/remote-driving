@@ -4,6 +4,7 @@
 模块化 UI，使用工厂模式创建组件。
 """
 
+import os
 import sys
 import time
 
@@ -35,7 +36,9 @@ from config.loaders import get_webrtc_config, get_app_config
 from common.constants import ROOT_PATH
 
 logger = get_logger(__name__)
-
+os.environ["http_proxy"] = ""
+os.environ["https_proxy"] = ""
+os.environ["all_proxy"] = ""
 
 class MainWindow(QMainWindow):
     """主窗口 - 包含登录页面和控制页面"""

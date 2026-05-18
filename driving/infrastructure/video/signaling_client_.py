@@ -19,7 +19,7 @@ class SignalingClient:
             self.connected = True
             logger.info(f"连接信令服务器：{self.url}")
         except Exception as e:
-            logger.error(f"信令服务器连接失败: {e}")
+            logger.exception(f"信令服务器{self.url} 连接失败: {e}")
             raise
 
     async def send(self, data: dict):

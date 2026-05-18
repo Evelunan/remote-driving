@@ -46,7 +46,7 @@ class RelayProtocol(QuicConnectionProtocol):
                 if not session_id:
                     continue
                 ping_msg = ControlCodec.encode(
-                    ControlCodec.MessageType.HEARTBEAT, session_id
+                    ControlCodec.MessageType.HEARTBEAT, int(session_id)
                 )
 
                 self._send_datagram(ping_msg)
