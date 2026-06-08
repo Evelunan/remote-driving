@@ -1,7 +1,7 @@
 [project]
 name = "driving"
 version = "0.1.0"
-description = "Add your description here"
+description = "Remote driving desktop control client"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
@@ -17,3 +17,7 @@ dependencies = [
     "pyyaml>=6.0.3",
     "websockets>=16.0",
 ]
+
+[[tool.uv.index]]
+name = "aliyun"
+url = "https://mirrors.aliyun.com/pypi/simple/"

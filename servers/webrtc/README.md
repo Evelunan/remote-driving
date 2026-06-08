@@ -1,67 +1,91 @@
-# WebRTC Signaling Server (WebRTC 信令服务器)
+# WebRTC 信令服务器
 
-轻量级、基于 WebSocket 的 WebRTC 信令服务器。该服务主要用于在远程驾驶系统中为“驾驶端”和“车辆端”提供早期的 WebRTC 握手机制（SDP 和 ICE 候选信息的交换），帮助双端建立点对点（P2P）的视频流连接。
+`servers/webrtc` 是远程驾驶系统的 WebRTC 信令服务，基于 WebSocket 转发驾驶端与车辆端之间的 SDP 和 ICE 消息，帮助双方建立点对点视频连接。
 
-## 🌟 核心特性
+## 功能定位
 
-- **基于房间的隔离机制**：支持将多个连接划分到不同的房间 (`Room`) 中，每个房间内的节点（Peers）可互相广播信令，保障多车的独立控制互不干扰。
-- **纯异步高性能**：基于 `websockets` 和 `asyncio` 构建，轻松处理高并发连接。
-- **安全与配置化**：支持通过 `config/server.yaml` 灵活配置心跳间隔、最大消息大小、房间最大人数等安全与性能参数。
-- **生命周期管理**：提供完整的上线/离线检测与优雅退出（Graceful Shutdown）功能，有效管理僵尸连接。
+- 按房间隔离驾驶端和车辆端连接。
+- 转发 WebRTC offer、answer、ICE candidate 等信令消息。
+- 管理 peer 生命周期，处理断开、清理和心跳。
+- 通过 YAML 配置监听地址、房间人数、心跳和消息大小限制。
 
-## 📂 项目结构
+## 项目结构
 
 ```text
-webrtc/
-├── common/               # 公用的异常或常量定义
-├── config/               # 服务配置目录 (包含 server.yaml 及加载器)
-├── logger/               # 独立日志系统
-├── models/               # 数据模型定义 (如 Peer 状态模型等)
-├── server/               # WebSocket 服务器核心逻辑
-│   └── signaling_server.py # 负责端口监听、生命周期与连接分发
-├── services/             # 业务逻辑服务层
-│   └── room_manager.py   # 房间管理、消息解析分发中心
-├── main.py               # 服务器启动入口
-└── pyproject.toml        # 依赖与项目信息
+servers/webrtc/
+├── common/               # 公共常量
+├── config/               # server、log 配置及加载器
+├── logger/               # 日志模块
+├── models/               # Room、Peer 数据模型
+├── server/               # WebSocket 服务器入口逻辑
+├── services/             # 房间管理和消息分发
+├── main.py               # 服务启动入口
+├── .python-version       # 独立部署时使用的 Python 版本，默认 3.12
+└── pyproject.toml        # 子项目依赖
 ```
 
-## 🛠️ 环境依赖
+## 环境依赖
 
-系统要求：**Python >= 3.12**
+要求 **Python >= 3.12**。核心依赖包括：
 
-核心库：
-- `websockets`：提供底层 WebSocket 服务器支持。
-- `pyyaml`：用于加载服务端配置。
+- `websockets`：WebSocket 服务端。
+- `pyyaml`：配置加载。
 
-## 🚀 快速开始
+## 配置文件
 
-### 1. 安装依赖
+`config/server.yaml` 默认配置：
 
-推荐在虚拟环境中通过 `pyproject.toml` 安装依赖：
+```yaml
+host: "0.0.0.0"
+port: 8765
+max_peers_per_room: 2
+ping_interval: 30.0
+ping_timeout: 10.0
+max_message_size: 1_048_576
+```
 
-```bash
-# 确保在 servers/webrtc 目录下
+`max_peers_per_room` 默认是 `2`，适合一辆车和一个驾驶端配对。如果需要观察端或多端接入，需要调整该值并确认业务逻辑支持。
+
+## 启动方式
+
+推荐在 WebRTC 服务实际部署目录使用 `uv`：
+
+```powershell
+cd servers/webrtc
+uv sync
+uv run python main.py
+```
+
+也可以进入子目录后使用 `pip`：
+
+```powershell
+cd servers/webrtc
 pip install .
-```
-
-### 2. 运行服务器
-
-启动服务器（默认配置参数由 `config/server.yaml` 决定）：
-
-```bash
 python main.py
 ```
 
-> 终端中将提示“信令服务器已启动: ws://[IP]:[PORT]”。此时客户端可以通过该地址进行 WebSocket 连接并发送 JSON 格式的信令消息。
+启动后，客户端应连接到：
 
-## 🔌 信令交互简述
+```text
+ws://<webrtc-signaling-host>:8765
+```
 
-客户端连接后，基本交互流程如下：
-1. **加入房间**：客户端发送 `{"type": "join", "room": "房间号"}` 报文，服务器将其注册到 `RoomManager` 对应的房间。
-2. **SDP 交换**：客户端将生成的 WebRTC `offer` 或 `answer` 通过服务器转发给同房间内的目标节点。
-3. **ICE 交换**：客户端将发现的网络打洞候选路径（ICE candidates）通过服务器进行互换，直到两端完成 P2P 建立。
-4. **断开清理**：连接丢失或退出时，服务器自动清理房间内的失效节点。
+如果部署到其他机器，请同步修改驾驶端和车辆端 `config/server.yaml` 中的 `webrtc.signaling.host` / `port`。
 
-## 📝 许可证
+## 信令流程
 
-[Add License Here]
+1. 驾驶端和车辆端连接 WebSocket 信令服务器。
+2. 双方加入同一个房间。
+3. 车辆端和驾驶端通过服务器交换 WebRTC SDP。
+4. 双方继续交换 ICE candidate。
+5. P2P 连接建立后，视频流由 WebRTC 通道传输，信令服务仅负责连接协调。
+
+## 常见问题
+
+- 客户端连不上：检查 `host` / `port`、防火墙和客户端配置。
+- 一直等待对端：确认双方加入同一个房间，且 `max_peers_per_room` 足够。
+- WebRTC 无法建立：信令服务只负责转发，仍需检查客户端 STUN / TURN 配置和网络可达性。
+
+## 许可证
+
+仓库当前未声明许可证。

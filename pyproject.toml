@@ -1,7 +1,7 @@
 [project]
 name = "remote-driving"
 version = "0.1.0"
-description = "Add your description here"
+description = "Remote driving system workspace"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = []

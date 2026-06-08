@@ -1,90 +1,113 @@
 # 驾驶端 (Driving Unit)
 
-基于 WebRTC 与 QUIC 协议的高性能远程驾驶系统。该项目旨在提供低延迟的多路视频传输以及可靠的控制信号下发机制，支持 USB 驾驶外设（方向盘、踏板等）接入，并具备完善的多线程异步处理架构。
+`driving` 是远程驾驶系统的驾驶端应用，提供 PyQt6 控制台、多路视频显示、驾驶外设读取、QUIC 控制指令发送和 WebRTC 视频接收能力。
 
-## 🌟 核心特性
+## 功能定位
 
-- **低延迟视频流**：基于 `aiortc` (WebRTC) 实现多路摄像头视频的实时传输。
-- **低延迟控制信令**：基于 QUIC Datagram 扩展 (`aioquic`) 实现控制信号的高频、低延迟下发，有效避免 TCP 队头阻塞问题，同时结合 WebSocket 辅助连接握手。
-- **多摄像机视图**：基于 PyQt6 自定义组件实现，其中使用 `multi_video_widget` 进行多视角的网格布局，由 `video_display` 负责接收并渲染实际的视频帧数据。
-- **外设接入支持**：内置 `libusb1` 支持，读取真实驾驶端外设数据（如方向盘转向角、油门制动踏板等）。
-- **异步与多线程架构**：控制系统与视频接收分离，保障高频实时交互的流畅性，避免主线程阻塞，且具备完善的优雅退出机制。
-- **现代化 UI**：基于 PyQt6 构建的用户交互界面。
+- 通过 WebRTC 接收车辆端推送的多路摄像头视频。
+- 通过 QUIC Datagram 向车辆端发送低延迟控制指令。
+- 读取 USB 驾驶外设数据，并转换为统一控制状态。
+- 使用 PyQt6 展示登录页、视频网格、连接状态和控制状态。
 
-## 📂 项目结构
+## 项目结构
 
 ```text
 driving/
-├── app/                  # 应用层核心逻辑与数据报文定义 (如 driving_datagram)
-├── common/               # 公共工具类与辅助函数
-├── config/               # 配置文件目录 (日志配置 log.yaml、服务器配置 server.yaml、输入配置等)
-├── factories/            # 各种工厂类，用于组件实例化
-├── infrastructure/       # 基础设施层 (WebRTC 视频流、控制指令通信、USB 设备接入、工作线程等)
-├── interfaces/           # 接口定义层，保障各模块解耦
-├── logger/               # 日志记录模块，支持灵活的格式与输出
-├── logs/                 # 运行时日志输出目录
-├── ui/                   # 基于 PyQt6 的用户界面 (组件、主题、控件)
-├── main.py               # 项目的主入口 (启动多线程与主控循环)
-├── main_window.py        # 主界面入口文件
-├── receiver.py           # 独立的 WebRTC 接收端测试/实现脚手架
-└── pyproject.toml        # Python 项目配置及依赖清单
+├── app/                  # 驾驶端应用层报文定义
+├── common/               # 公共常量
+├── config/               # app、server、log 配置及加载器
+├── factories/            # UI、视频、控制组件工厂
+├── infrastructure/       # 通信、设备、协议、视频、工作线程等实现
+├── interfaces/           # 抽象接口
+├── logger/               # 日志模块
+├── test/                 # FPS / RTT 数据与统计脚本
+├── ui/                   # PyQt6 组件、主题和窗口控件
+├── main_window.py        # GUI 主入口
+├── receiver.py           # WebRTC 接收相关实验脚本
+├── test.py               # QUIC 控制链路调试脚本
+├── .python-version       # 独立部署时使用的 Python 版本，默认 3.12
+└── pyproject.toml        # 子项目依赖
 ```
 
-## 🛠️ 环境依赖
+## 环境依赖
 
-本项目要求 **Python >= 3.12**。
-核心依赖如下：
+要求 **Python >= 3.12**。核心依赖包括：
 
-- `aiohttp`, `aioquic`, `websockets` (网络通信)
-- `aiortc` (WebRTC 协议栈)
-- `opencv-python`, `numpy` (图像处理与矩阵运算)
-- `pyqt6` (图形用户界面)
-- `libusb1` (硬件设备通信)
-- `pyopengl` (硬件加速与渲染)
-- `pyyaml` (配置解析)
+- `pyqt6`：桌面 GUI。
+- `aiortc`、`websockets`：WebRTC 视频接收与信令。
+- `aioquic`：QUIC Datagram 控制链路。
+- `opencv-python`、`numpy`：视频帧处理。
+- `libusb1`：USB 驾驶外设接入。
+- `pyopengl`、`pyopengl-accelerate`：可选 OpenGL 渲染组件。
+- `pyyaml`：配置加载。
 
-## 🚀 快速开始
+## 配置文件
 
-### 1. 安装依赖
+- `config/app.yaml`：应用名称、版本、窗口尺寸、主题和刷新定时器。
+- `config/server.yaml`：注册接口、WebRTC 信令地址、STUN / TURN、QUIC 中继地址。
+- `config/log.yaml`：日志格式、级别与输出。
 
-建议使用虚拟环境，通过 `pyproject.toml` 安装相关依赖，或直接使用 pip：
+驾驶端需要在 `config/server.yaml` 中配置两个实际部署的服务地址：
 
-```bash
-# 确保在 driving 目录下
+| 服务 | 地址 |
+| --- | --- |
+| WebRTC 信令服务器 | `ws://<webrtc-signaling-host>:8765` |
+| QUIC 中继服务器 | `<quic-relay-host>:4433` |
+
+请按服务分别修改 `config/server.yaml` 中的 `webrtc.signaling.host` / `port` 和 `quic.host` / `port`。如果 WebRTC 需要公网穿透，再按部署环境配置 `webrtc.ice.stun` / `webrtc.ice.turn`。`regist` 配置目前未在驾驶端启动流程中使用。
+
+## 启动方式
+
+推荐在驾驶端实际部署目录使用 `uv`：
+
+```powershell
+cd driving
+uv sync
+uv run python main_window.py
+```
+
+正常启动后会进入登录页。开发调试时可以跳过登录：
+
+```powershell
+uv run python main_window.py --session 1234 --room 1234
+```
+
+参数说明：
+
+- `--session`：QUIC 会话号，范围 `0-65535`，需要与车辆端一致。
+- `--room`：WebRTC 房间号，需要与车辆端一致。
+
+也可以进入子目录后使用 `pip`：
+
+```powershell
+cd driving
 pip install .
+python main_window.py --session 1234 --room 1234
 ```
 
-### 2. 运行主控程序
+## 调试与测试
 
-通过启动主程序，将自动拉起控制系统与视频流线程：
+统计已有 FPS / RTT 数据：
 
-```bash
-python main.py
+```powershell
+cd driving
+uv run python test/test_data_process.py
 ```
 
-如果你希望启动完整的 GUI 界面：
+单独调试 QUIC 控制链路：
 
-```bash
-python main_window.py
+```powershell
+cd driving
+uv run python test.py
 ```
 
-### 3. 运行视频接收端 (调试/独立模块)
+## 常见问题
 
-如果需要单独测试或运行 WebRTC 的接收端逻辑：
+- GUI 无法启动：确认当前环境支持桌面显示，并已安装 PyQt6。
+- 一直等待车辆端：确认车辆端已启动，且 `room` 完全一致。
+- QUIC 未连接：确认 QUIC 中继地址、端口、证书校验配置和防火墙规则。
+- 无驾驶外设数据：确认 USB 设备权限、驱动和 `libusb1` 环境。
 
-```bash
-# 替换为指定的房间号
-python receiver.py --room 1234
-```
+## 许可证
 
-## 🔌 架构说明
-
-系统主要分为两个核心线程：
-1. **视频接收线程 (`WebRTCReceiverThread`)**：负责通过 WebRTC 建立点对点连接，并源源不断将解析到的帧推入 `FrameBuffer`，由主线程的 OpenCV 或 Qt 界面负责渲染。
-2. **控制系统线程 (`ControlSystemThread`)**：负责轮询或监听本地 USB 驾驶外设数据，打包为统一的协议报文（Datagram），并发送至车辆端，具备防阻塞机制。
-
-所有模块通过 `interfaces` 进行解耦，网络配置信息在 `config` 内集中管理。系统的退出采用了安全回收机制（Graceful Shutdown），保证各底层连接能够被正确关闭。
-
-## 📝 许可证
-
-[Add License Here]
+仓库当前未声明许可证。

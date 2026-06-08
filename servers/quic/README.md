@@ -1,74 +1,112 @@
-# QUIC Relay Server (QUIC 中继服务器)
+# QUIC 中继服务器
 
-专为远程驾驶系统设计的 QUIC Datagram 中继服务器，基于 `aioquic` 构建。该服务用于在“驾驶端（Driving）”与“车辆端（Car）”之间建立低延迟、高频的控制信号与状态数据传输通道。
+`servers/quic` 是远程驾驶系统的 QUIC Datagram 中继服务，负责在驾驶端和车辆端之间按 `session` 转发低延迟控制指令与车辆状态数据。
 
-## 🌟 核心特性
+## 功能定位
 
-- **低延迟数据报中继**：利用 QUIC Datagram 扩展，丢弃了传统流式传输的可靠性限制，避免队头阻塞，实现极低延迟的控制信号透传。
-- **灵活的会话管理**：基于 `Session ID` 动态绑定配对的驾驶端与车辆端点，提供双向消息路由 (`session_manager`)。
-- **内建心跳检测**：中继协议 (`RelayProtocol`) 自带心跳保活机制，能自动检测并清理异常断开的连接。
-- **安全加密机制**：强制要求使用 TLS 证书，保障车云/端云链路的数据安全。
+- 使用 `aioquic` 提供 QUIC Datagram 服务。
+- 按 `session_id` 绑定驾驶端和车辆端。
+- 转发控制指令、车辆状态和心跳报文。
+- 使用 TLS 证书启动 QUIC 服务。
 
-## 📂 项目结构
+## 项目结构
 
 ```text
-quic/
-├── certs/                # TLS 证书目录 (需要放置 cert.pem 和 key.pem)
-├── common/               # 公共常量和路径定义
-├── config/               # 配置文件，如服务监听地址及 QUIC 参数 (server.yaml)
-├── logger/               # 独立的日志记录模块
-├── services/             # 核心服务逻辑实现
-│   ├── relay_protocol.py # QUIC 数据报解析与处理中枢
-│   ├── session_manager.py# 维护车辆端与驾驶端对等连接关系的管理器
-│   └── codec.py          # 控制报文与网络数据间的编解码器
-├── main.py               # 中继服务主启动入口
-└── pyproject.toml        # 依赖与项目信息
+servers/quic/
+├── certs/                # TLS 证书，默认读取 cert.pem 和 key.pem
+├── common/               # 公共常量和路径
+├── config/               # server、log 配置及加载器
+├── logger/               # 日志模块
+├── services/             # RelayProtocol、SessionManager、Codec
+├── main.py               # 服务启动入口
+├── .python-version       # 独立部署时使用的 Python 版本，默认 3.12
+└── pyproject.toml        # 子项目依赖
 ```
 
-## 🛠️ 环境依赖
+## 环境依赖
 
-系统要求：**Python >= 3.12**
+要求 **Python >= 3.12**。核心依赖包括：
 
-核心库：
-- `aioquic`：异步 QUIC 协议栈。
-- `pyyaml`：配置文件解析。
+- `aioquic`：QUIC 协议栈。
+- `pyyaml`：配置加载。
 
-## 🚀 快速开始
+## 配置文件
 
-### 1. 准备 TLS 证书
+`config/server.yaml` 默认配置：
 
-QUIC 强制要求加密传输，因此在启动服务器前，你必须在 `certs` 目录下准备好对应的证书文件：
+```yaml
+quic:
+  host: "0.0.0.0"
+  port: 4433
+  enable_datagrams: true
+  max_datagram_frame_size: 65536
+  idle_timeout: 3600
+```
 
-```bash
-mkdir -p certs
-# 生成用于本地测试的自签名证书
+驾驶端和车辆端都需要把各自 `config/server.yaml` 中的 `quic.host` 与 `quic.port` 指向该服务。
+
+客户端连接地址应按实际部署环境填写，例如：
+
+```text
+<quic-relay-host>:4433
+```
+
+## TLS 证书
+
+QUIC 必须使用 TLS。服务启动时会读取：
+
+- `certs/cert.pem`
+- `certs/key.pem`
+
+仓库中已有一组证书文件。需要重新生成本地测试证书时，可以在 `servers/quic` 目录执行：
+
+```powershell
+New-Item -ItemType Directory -Force certs
 openssl req -x509 -newkey rsa:2048 -keyout certs/key.pem -out certs/cert.pem -days 365 -nodes
 ```
 
-### 2. 安装依赖
+本地自签名证书联调时，客户端配置里的 `quic.options.verify_mode` 可保持 `false`。
 
-通过 `pyproject.toml` 安装依赖：
+## 启动方式
 
-```bash
-pip install .
+推荐在 QUIC 服务实际部署目录使用 `uv`：
+
+```powershell
+cd servers/quic
+uv sync
+uv run python main.py
 ```
 
-### 3. 运行服务器
+也可以进入子目录后使用 `pip`：
 
-启动并监听配置好的端口（由 `config/server.yaml` 指定）：
-
-```bash
+```powershell
+cd servers/quic
+pip install .
 python main.py
 ```
-> 默认情况下，日志将提示“中继服务器正在监听 [主机IP]:[端口]”。
 
-## 🔌 报文交互流程
+启动后默认监听：
 
-中继服务器依靠 Datagram 的消息类型 (`msg_type`) 和身份 (`role`) 决定路由：
-1. **握手与绑定 (HELLO)**：端点发送 `HELLO_CAR` 或 `HELLO_DRIVING` 报文以及对应的会话号，服务器将在 `SessionManager` 中进行登记。
-2. **数据转发 (FORWARD)**：端点发送 `CONTROL` (控制指令) 或 `STATE` (车辆端状态)，服务器识别出对端绑定的 Protocol 后进行透传。
-3. **心跳保活 (HEARTBEAT)**：定期进行 Ping 探测维持连接的活跃性。
+```text
+0.0.0.0:4433
+```
 
-## 📝 许可证
+## 报文流程
 
-[Add License Here]
+1. 车辆端以车辆身份连接 QUIC 中继，并发送自己的 `session_id`。
+2. 驾驶端以驾驶端身份连接 QUIC 中继，并发送相同的 `session_id`。
+3. 中继服务在 `SessionManager` 中完成配对。
+4. 驾驶端发送控制指令，中继服务转发给车辆端。
+5. 车辆端发送状态数据，中继服务转发给驾驶端。
+6. 心跳报文用于维持连接和清理失效端点。
+
+## 常见问题
+
+- 服务启动失败：检查 `certs/cert.pem` 和 `certs/key.pem` 是否存在。
+- 客户端连不上：检查 UDP 端口 `4433` 是否开放，客户端 `quic.host` 是否正确。
+- 已连接但不转发：确认驾驶端和车辆端使用相同 `session_id`。
+- 证书校验失败：本地自签名测试时确认客户端 `verify_mode: false`。
+
+## 许可证
+
+仓库当前未声明许可证。
