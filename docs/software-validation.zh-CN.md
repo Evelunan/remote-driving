@@ -39,7 +39,7 @@ uv run --no-sync python scripts/verify_wheels.py --wheels artifacts/wheels --out
 
 | 环境 | 状态和边界 |
 | --- | --- |
-| 本机 Linux/WSL2，x86_64，Python 3.12.16 | 以 `--locked` 建立全新开发环境，最新全量 283 项回归通过；独立安装重复检查通过，B19 首次车辆退出失败尚待定位（详见下文） |
+| 本机 Linux/WSL2，x86_64，Python 3.12.16 | 以 `--locked` 建立全新开发环境，最新全量 294 项回归通过；独立安装重复检查通过，B19 首次车辆退出失败尚待定位（详见下文） |
 | GitHub 托管 Ubuntu 24.04，x86_64，Python 3.12.16 | 工作流已配置；本次仅本地提交，尚未推送或执行远端 Actions。远端 apt/包源及 runner 的执行结果仍需首次运行确认 |
 | 车辆 ROS2 + Python 3.12 | 用户已确认技术路线；ROS2 发行版、系统依赖、实际底盘停车接口仍待实机验证 |
 | 真实桌面 / GPU / 摄像头 / USB | offscreen 与合成设备通过不能代替对应验收 |
@@ -66,5 +66,7 @@ B23 的[独立安装记录](validation/wheel-acceptance-b23.json)额外验证正
 本批全量回归 284 passed（55.66s），B21→B23→B21 的[新一轮回退记录](validation/release-rollback-b23.json)同时保留旧版直接退出和新版正常清理退出的差异。
 
 B24 清理废弃文件后，全量回归为 283 passed（51.07s）：仅移除了未接入正式入口的 OpenGL 实验所对应的 1 项测试，其余运行路径覆盖保留。独立安装校验使用清理后的锁文件（减少 10 个不再使用的包），新 wheel 已确认不带回已删除源码或 DLL。
+
+B25 全量回归为 294 passed（60.48s），新增两种正式车辆拓扑的四路链路/进程资源/控制关联校准，以及比较条件变化和退出不完整的拒绝检查。控制接口按需导入修复已重新构建六个 wheel，并通过[三角色独立安装验收](validation/wheel-acceptance-b25.json)。四路正式尺寸的两组各三轮性能记录见[进程拓扑测量](video-performance.zh-CN.md#b25-正式车辆进程拓扑的测量)；不将短时正常退出作为 B19 首次退出失败已修复的证明。
 
 最终[安装报告](validation/wheel-acceptance-b24.json)三角色均通过，包含车辆三种运行模式和驾驶端 SIGINT/SIGTERM 检查。

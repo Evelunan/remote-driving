@@ -1,0 +1,5330 @@
+{
+  "schema": "rd-process-benchmark/1",
+  "valid": true,
+  "scope": "same-host loopback WSS/WebRTC/QUIC; synthetic read completion to Qt offscreen paint; mock actuator",
+  "resource_scope": "harness plus complete vehicle subtree; RSS sums double-count shared pages, PSS apportions them; multiprocessing resource tracker excluded",
+  "physical_display_or_stop_verified": false,
+  "python": "3.12.16",
+  "platform": "Linux-6.18.58.1-microsoft-standard-WSL2-x86_64-with-glibc2.43",
+  "cpu_model": "11th Gen Intel(R) Core(TM) i7-11800H @ 2.30GHz",
+  "cpu_count": 16,
+  "qt_platform": "offscreen",
+  "versions": {
+    "aiortc": "1.14.0",
+    "av": "16.1.0",
+    "numpy": "2.4.4",
+    "opencv-python": "4.13.0.92",
+    "PyQt6": "6.11.0",
+    "aioquic": "1.3.0",
+    "websockets": "16.0"
+  },
+  "workload": {
+    "views": 4,
+    "profile": "production",
+    "seconds_per_phase": 10.0,
+    "warmup_seconds": 2.0,
+    "capture_fps": 30,
+    "scene": "moving-texture",
+    "seed": 42,
+    "ui_poll_ms": 16,
+    "widget_size": [
+      1280,
+      720
+    ],
+    "encoder_workers": null
+  },
+  "git_commit": "e0a9cebc5f8010910e06db12c9e3bf6c12c58e3c",
+  "git_dirty": true,
+  "source_sha256": {
+    "apps/driving/src/rd_driving/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "apps/driving/src/rd_driving/app/__init__.py": "f8bb0ec1954cadd26d7beb3432da798a7f28e6c8519c939120d30fc859e335dd",
+    "apps/driving/src/rd_driving/app/control_client.py": "a2225adca04bd2e7b77f0300a0a547d7ea96dc9413381a4b8eb52917384e9872",
+    "apps/driving/src/rd_driving/app/input_service.py": "dedbdc4d35f0456b0d07707c58900c7c0a779f632d6e60d4712eea72b29d11bd",
+    "apps/driving/src/rd_driving/branding.py": "7a3eb0a50c3c9dcf33e446d5eb7a9c4151fb933d191ad85cc17b73e032cd58d3",
+    "apps/driving/src/rd_driving/cli.py": "c6bf7fe93f596b114599832848ccb2eb785e564f1bb0ca293353085bf207f28c",
+    "apps/driving/src/rd_driving/factories/__init__.py": "135138e998ab1e0f3e71124a9d1d11ca91852289d245701db93ba2ec93dd8114",
+    "apps/driving/src/rd_driving/factories/ui_factory.py": "2c64197d203439aa4906aec74584b49ee3ede4fb342e1d210dcbc534913c6762",
+    "apps/driving/src/rd_driving/infrastructure/communication/__init__.py": "a32bded8e3e78cdc512dd8be48db952764ba97288b6e94ea8e27954e3c064b5c",
+    "apps/driving/src/rd_driving/infrastructure/communication/latest_value_queue.py": "1a27fe957c8721573a0d012a82f0aafbf848ee95591f1d7411c77d60270cfeb2",
+    "apps/driving/src/rd_driving/infrastructure/device/__init__.py": "96f27e80c0593692d41d53477dcee469f62b8c5a329a6cc035523e3e9abbf748",
+    "apps/driving/src/rd_driving/infrastructure/device/input_config.py": "12115d36acb1d16bb4796cef826633a7d37ecef191f38c5033f55e7eb7e4ab11",
+    "apps/driving/src/rd_driving/infrastructure/device/usb_connector.py": "0a2acef9a62eef000305791e4bd1cd3dac5fb8cb84219ca3011b06fc0ba34e84",
+    "apps/driving/src/rd_driving/infrastructure/processing/__init__.py": "29cb97edf889f3dde90d203c78fcd07a576d39f523cfbffee2a6eb6e5180e833",
+    "apps/driving/src/rd_driving/infrastructure/processing/analog_calculator.py": "a379b12813a8aba8b9c2cea8c469ec9a2fddec33cdd0bc005ee5d1493a3c786c",
+    "apps/driving/src/rd_driving/infrastructure/processing/data_processor.py": "12996b5c4f18858a9558354fdad3c2dd41b912ff46e7c01d313445451853ed02",
+    "apps/driving/src/rd_driving/infrastructure/protocol/__init__.py": "50e5dc004a146f6d5f90701ecc57b4d5d67f55133c996a421b4f40d61de4726a",
+    "apps/driving/src/rd_driving/infrastructure/protocol/codec.py": "c8740399549e1ce70aafe0635c6750c6a96979af6b31a88382be5ff81eabea90",
+    "apps/driving/src/rd_driving/infrastructure/protocol/driving_protocol.py": "265866cb5c5d301e7754f5202ddce4972239761c9549635587d9b1ea795f9dc8",
+    "apps/driving/src/rd_driving/infrastructure/video/__init__.py": "b64563279a133bc05b7896b6a3996ae5602edbff37ac499c31d6c3c993dfd267",
+    "apps/driving/src/rd_driving/infrastructure/video/frame_buffer.py": "cc0912686e30c479f02b185fbf52860a590311353cb3980b4ebc58afb205f620",
+    "apps/driving/src/rd_driving/infrastructure/video/webrtc_reciver.py": "960922559f9efc5c51ab3f6293f3dbe6a22342b3bb96f29341b62155b7d88482",
+    "apps/driving/src/rd_driving/infrastructure/workers/__init__.py": "3cddd9a066a2069a6d6150678b3461fa9372f912ee8bdf6c314a05360d02ac83",
+    "apps/driving/src/rd_driving/infrastructure/workers/control_system_thread.py": "489f39ffb186ffe9ec6dbda3902459616aa254e467e1e251f0d9a80c9a0223ea",
+    "apps/driving/src/rd_driving/infrastructure/workers/signal_bridge.py": "10fc8a2298fffe502eaf224780386cd75897899cdeb918c1fcdb9994851c3651",
+    "apps/driving/src/rd_driving/infrastructure/workers/video_reciver_thread.py": "3fc53cd8b2a43ff4e95c6f6c99d991064d6fb39e70601d21381bf58abe97ab7a",
+    "apps/driving/src/rd_driving/interfaces/__init__.py": "91bfc3921fdaf5685f96c7352082e45d86ff434a526a980796db4c70e0854793",
+    "apps/driving/src/rd_driving/interfaces/communication.py": "1a3e29dc85b632fcb0cb6261b80135d098f6ebe22b00e136dfad8a6aa27adcdc",
+    "apps/driving/src/rd_driving/interfaces/device.py": "a2320e620f159c3a6cbfcc94a45b27dedbb01b2e7849babd76f082b8e30135f3",
+    "apps/driving/src/rd_driving/interfaces/processor.py": "ea16419b6bcfe4bd3b8d7c2144440d8b527977369c09aac845de8d35d5a57d70",
+    "apps/driving/src/rd_driving/interfaces/ui.py": "c014055f17500282ce4f571a94d1df73a4e243ef68e608a22e14ce3fcb519db0",
+    "apps/driving/src/rd_driving/main_window.py": "591f1013325950883ef43f787734d2828ee8b48613b91d9676c2fb91dbd89eb2",
+    "apps/driving/src/rd_driving/shutdown.py": "4c1aa3fbc7fbe1cd5b617ab7e6f427585f93d00fd8b05e3f4f75b9ef959867e7",
+    "apps/driving/src/rd_driving/ui/components/__init__.py": "68d21b9035e181a3ab8901b9e8feab4d88a35eb7a5ec1196a655b43a9f6f7d34",
+    "apps/driving/src/rd_driving/ui/components/connection_item.py": "bc4663c5f271bd01e139dbc70b8310f07d220f0fa29663c32d95c784329103bb",
+    "apps/driving/src/rd_driving/ui/components/data_card.py": "e2bf182dcd34cca13a507538e9823102926673c4b522e1395b0d91e5142fb7b6",
+    "apps/driving/src/rd_driving/ui/components/stat_item.py": "c857ff06682663a83fbcf4543d165908bcd4ff59410ebb11e0f6b176b103309f",
+    "apps/driving/src/rd_driving/ui/components/status_indicator.py": "1e46182779a871b7d332efe469c10efa63b0f14e326315e3231ef1835c98be22",
+    "apps/driving/src/rd_driving/ui/components/video_display.py": "b32bd9701ce97404bc2ecf0dcb0839883896067c51eec0cb8bd2282ff3df87f8",
+    "apps/driving/src/rd_driving/ui/themes/__init__.py": "d941de5ebfe4b8fc7795b143d8c4ffdb08df1bb6c93c5b32e49e2a9ceb8adab2",
+    "apps/driving/src/rd_driving/ui/themes/base_theme.py": "39aa8d20ccfade183aa8281138e51bbfcaf719b77db945cbdb982632ed6e00bd",
+    "apps/driving/src/rd_driving/ui/themes/dark_tech_theme.py": "72e72ca2222d046beaefc8359351ab3ba18cf82da4050d72fb6e4b56889526b7",
+    "apps/driving/src/rd_driving/ui/themes/modern_glass_theme.py": "7beb34647547af348d7d2468c8a03b79fdb0018947d65a12b1d3d1d427d83201",
+    "apps/driving/src/rd_driving/ui/widgets/__init__.py": "0d54299b314566aa5fe84e4162b09dede780ac3753e3fbae7691909d52800eeb",
+    "apps/driving/src/rd_driving/ui/widgets/control_panel.py": "49602322e37d78fe1973a877d01fd13c9cdc01b17bb57fc3264bf86b35452fc7",
+    "apps/driving/src/rd_driving/ui/widgets/login_window.py": "245e8b0496a62479e7940aeda5f82f038d04b8662b4b9f2f3e583e75e49d7002",
+    "apps/driving/src/rd_driving/ui/widgets/multi_video_widget.py": "03b241e8e401e6387f97deb15018acd152bdef08c58359c558252df8c35e01f9",
+    "apps/driving/src/rd_driving/ui/widgets/navbar.py": "e5355bf1f8631dfe84f6205b3cc25a09098f6c30c51ff849c70a261d74a49688",
+    "apps/server/src/rd_server/__init__.py": "e2c584dae1124a19e14a7368ec485cc4f3194794e35dd8917c381efc407206b7",
+    "apps/server/src/rd_server/main.py": "0b49e97b9b1a40dd18db8f9e94ab2fad40793eef854ef3c33a1bfe19b410cfef",
+    "apps/server/src/rd_server/relay/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "apps/server/src/rd_server/relay/control_service.py": "8f6371ea1213f50f73ac354a059df93d4f7dccdd2bcab8164ce1cee7470d4345",
+    "apps/server/src/rd_server/relay/registry.py": "7576ad15029256fcb4845f7351a8d83fd1efb0a10ffffc463ad634a90c367e70",
+    "apps/server/src/rd_server/relay/service.py": "0cfad0617d03f73e461667c46989bbcfa275848a4f2c1021984a128bf50e0e5f",
+    "apps/server/src/rd_server/relay/services/__init__.py": "95df8071f063640d3de7246b99b5813c4ec2ca6f5a554444fef10600fc6164df",
+    "apps/server/src/rd_server/relay/services/codec.py": "c8740399549e1ce70aafe0635c6750c6a96979af6b31a88382be5ff81eabea90",
+    "apps/server/src/rd_server/relay/services/relay_protocol.py": "121a71c91fc0bfd89830b4e4e85542c1e660d7533deb6329e434be1594ca73ca",
+    "apps/server/src/rd_server/relay/services/session_manager.py": "d907d830c0dda9cb6a33892b8538749a0347f73d4ec1326e9cf338ec41367b85",
+    "apps/server/src/rd_server/runtime.py": "37418180a361ef2a9588727ce438884157a5dee26dd154ee7a4eba1d0c3ac568",
+    "apps/server/src/rd_server/signaling/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "apps/server/src/rd_server/signaling/models/__init__.py": "a98d8ea6db48fedfa0817dd6f9909db8068892d26d0b9d0619853ed783ea73d3",
+    "apps/server/src/rd_server/signaling/models/peer.py": "f91485e614bd3f42da6cb3e578e1406df4cf13c743f64aa6feb1325cf5036c3b",
+    "apps/server/src/rd_server/signaling/models/room.py": "274304138d435d87c5d36c39516210c90f0d2ed1f901caa448fc11f214465c1c",
+    "apps/server/src/rd_server/signaling/server/__init__.py": "0fdd9b2cd045db2fd93684111aef0ff246f9b34f588ca672fb80f69519f84c91",
+    "apps/server/src/rd_server/signaling/server/signaling_server.py": "360cb26f1a473f91e9a3aecef283aac2139ab974685a0f382bd3ef2575698e75",
+    "apps/server/src/rd_server/signaling/services/__init__.py": "58f824dd41b56b6568d876a767e9aa99f682c03875f225ba3cac4c8e8de79898",
+    "apps/server/src/rd_server/signaling/services/room_manager.py": "9187c87a00069f7dda02b9e96d31a416f01add50fb0d5b05313f3e87e8d8f315",
+    "apps/vehicle/src/rd_vehicle/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "apps/vehicle/src/rd_vehicle/application/__init__.py": "7e714803b2bbd4a989ff3fae7c908a2e3fe2a70005d97f932d41bb4b616f5183",
+    "apps/vehicle/src/rd_vehicle/application/control_client.py": "7b1e7dfda822361882c2a1cea7ffe4fa93b1acf5d172697378fcb4bfe5e1efb5",
+    "apps/vehicle/src/rd_vehicle/application/multi_camera_manager.py": "54a21de8e43d8af256d694b1afad9925775edcc22162ecffd15ed679b32ae3d4",
+    "apps/vehicle/src/rd_vehicle/infrastructure/cameras/__init__.py": "4d4838d7d99aa1aea1a8b3196a870ee80c732462e596489105e87caf02629442",
+    "apps/vehicle/src/rd_vehicle/infrastructure/cameras/buffer.py": "c4db65fcb1db00495d5a95b9ccfe10c13b34f799c150b726a2f9b53f2ea74d07",
+    "apps/vehicle/src/rd_vehicle/infrastructure/cameras/test_camera.py": "9cf6c1a53ee94b085dd2df0aa609a631b4b921174ed70ba1db2aa74abb8843e5",
+    "apps/vehicle/src/rd_vehicle/infrastructure/cameras/thread_camera.py": "4f8eeb61374f9fb2d1a4708c7d7c4c1e9fe793a2e098091a4b04ac0dd7f64971",
+    "apps/vehicle/src/rd_vehicle/infrastructure/cameras/usb_camera.py": "73d79e2773dbf34b2437965960419d36ca435257595f10ba7f20d6d9414671f6",
+    "apps/vehicle/src/rd_vehicle/infrastructure/controller/__init__.py": "df3c950ea4cfbd999756cf1725d3510630defe8b034d93afbfea545c7771ef68",
+    "apps/vehicle/src/rd_vehicle/infrastructure/controller/mock_controller.py": "3ec941e3295660bbad0287841eea953fb1f106633c056db5b6fc9945bc2f5879",
+    "apps/vehicle/src/rd_vehicle/infrastructure/controller/motion.py": "617c2bb34bbda99e72d80ed8e816e3811a89e09df646788bb1b2d6c0934ed82d",
+    "apps/vehicle/src/rd_vehicle/infrastructure/controller/ros2_cmd_vel_controller.py": "a4762b98e066b776a1325c36ccb7c259e496d1fe5d4ab8bddb314d5384ec5a2e",
+    "apps/vehicle/src/rd_vehicle/infrastructure/controller/serial_controller.py": "1b8490c7925118e5f3e8aa0f2498bd7ceb206df4bf083145a8ff8d54dd30af41",
+    "apps/vehicle/src/rd_vehicle/infrastructure/protocol/__init__.py": "5e496dcf7e4291a903aeb9ea5288d3d1fe85c4b3922b6b85d0f789458ec8ab5b",
+    "apps/vehicle/src/rd_vehicle/infrastructure/protocol/codec.py": "c8740399549e1ce70aafe0635c6750c6a96979af6b31a88382be5ff81eabea90",
+    "apps/vehicle/src/rd_vehicle/infrastructure/protocol/vehicle_protocol.py": "80b64df5f39aea3ce7674d56565df57c5f95bbb6d4424f1606304c78044caeac",
+    "apps/vehicle/src/rd_vehicle/infrastructure/streams/__init__.py": "3497f4484896c0528e35f9a6a1276e2b02882a1832307bca62e2b8c8e5578c2e",
+    "apps/vehicle/src/rd_vehicle/infrastructure/streams/track_manager.py": "1271ecb9e9eba903b3221f54606b4fb3421983fac0eea65bfa3d2a667b379438",
+    "apps/vehicle/src/rd_vehicle/infrastructure/streams/webrtc_streamer.py": "793dcee5543fbc5cfdbcad452ca9c37badb03100c478706f305a32eddf3895b0",
+    "apps/vehicle/src/rd_vehicle/interfaces/__init__.py": "7bbac1c8428f0a5445a0fa00bc83d69ec3fa2d225f56aea6a2b4bd2b8a7ba94b",
+    "apps/vehicle/src/rd_vehicle/interfaces/icamera.py": "3340bce3c5e837494bd0d6fa4e7f842e5ddd5c369bfe55d5706452030eaaeb87",
+    "apps/vehicle/src/rd_vehicle/interfaces/icontroller.py": "8342b34ac2f1496aadcdc3e72ac9acf6f3f1134f0c7a097894b119a7be206c9c",
+    "apps/vehicle/src/rd_vehicle/main.py": "fd101713847681ce5998ae7efec4aed440df6de572571dede08d508780dae3aa",
+    "apps/vehicle/src/rd_vehicle/processes.py": "7c30b3df399c0193607117a39171c5ba80894299842ddde20ff5a03ea7393d15",
+    "packages/rd-core/src/rd_core/__init__.py": "578e18de95ebbd8f10a2189a653851a5707c3c1a6d547a4876c9c6c444556966",
+    "packages/rd-core/src/rd_core/auth.py": "ea2902f3a56e611360b6750f2cd3987020a40537f7939285aba1471d21a3df12",
+    "packages/rd-core/src/rd_core/cli.py": "5d48dd20b6932d4a317a0d44c3fbb8bf8dbc61adc328df4929502954dfbad53b",
+    "packages/rd-core/src/rd_core/configuration.py": "ca93c702f1aef0ae4f66d67067fc7355a2f0ee10c966e8daf1684fdf05287abc",
+    "packages/rd-core/src/rd_core/control.py": "9e282d3014448d080a9720f8f7985af7bdd50a2eab1ff404eab73ff4ab0268d8",
+    "packages/rd-core/src/rd_core/legacy_codec.py": "84e1dbb7b053470e7b45d64082af3b43031be6fd82b39d4b04b4bcfdab70d60e",
+    "packages/rd-core/src/rd_core/logging.py": "85ab26e2b23c444768b1b1bbf272f013bf2df0f8046605f7cd6f910accf5a0a2",
+    "packages/rd-core/src/rd_core/samples.py": "cb87aa74a2234d38400c08440f8ac0a34d371057480bebbef7d54c38935e24bc",
+    "packages/rd-core/src/rd_core/settings.py": "485b46997d161a27e09922c8dccec75fa0ba4552a821237661df601f7bd9f1a2",
+    "packages/rd-core/src/rd_core/video_safety.py": "4761247cd1d5102f04dc4907e5e367bb8ba03f470c9749254cb61f45cacf42c9",
+    "packages/rd-core/src/rd_core/wire.py": "9ef7f340d3d0e401f429f6bb71d59853809ad16aa7f71ea30b22b107830f8971",
+    "packages/rd-quic/src/rd_quic/__init__.py": "dc0a34d00580a1c4fc1dd73717ab0b87e4311f287de3ea05b35755f2541396fa",
+    "packages/rd-quic/src/rd_quic/client.py": "7eb32f7d926683d244693b8c10d8de31514eee38a46de02bdef0b958aefddd59",
+    "packages/rd-quic/src/rd_quic/compat.py": "5c4ee161919a45916a74e81f6d6076e39cbf182f31f9c101cb864d7c918e2b37",
+    "packages/rd-quic/src/rd_quic/framing.py": "ccbc4b0175218193219e437e0aacc541823a88b0bdf99a7881f505d7ecac211c",
+    "packages/rd-quic/src/rd_quic/protocol.py": "e705237631a2b8fec29a91cd6f247bb967265a743bf1ed45df52bd1f753c13d7",
+    "packages/rd-webrtc/src/rd_webrtc/__init__.py": "e1ca1c281a22df76e1764579d5cd8a30ddba88322ecab3afedcadc749b8bd747",
+    "packages/rd-webrtc/src/rd_webrtc/encoding.py": "0efcce933bc56fe7cf0c4cef03e67c1363f348d35a19d0a01188a99645d3c917",
+    "packages/rd-webrtc/src/rd_webrtc/opencv.py": "4d17df46a8ff23ab1d15c005b001660651e724f26d9254c52b4e8e0730385db0",
+    "packages/rd-webrtc/src/rd_webrtc/peer.py": "e9415a299c997dde6b1af4628d9b3cdcc4a833f362afe0ca0b3bf4e79d0fa44b",
+    "packages/rd-webrtc/src/rd_webrtc/session.py": "cb849e9eab1e1a3c1d96fd754682a583a2f25240b352986fe13821914904432c",
+    "packages/rd-webrtc/src/rd_webrtc/signaling.py": "8034dd8f4f014e0897c2e4602d8d719c37a1a5dafc02e612de2ce0cce77ecc8b",
+    "packages/rd-webrtc/src/rd_webrtc/video.py": "ec53ad9c69bcfa3dc8167a2061a9cbfe0b391a722ad98c1d7ffbfb4b98bb580d",
+    "scripts/benchmark_frame_buffer.py": "7b582dde6d14ae17a8389e9ffa99ad8d030341f3ce09362dfd92bdcd4d43ac03",
+    "scripts/benchmark_media.py": "ea13dd9a6653c092cc8997512b6b3da57401d220938970c9ea79b9d72a18110b",
+    "scripts/benchmark_processes.py": "afd384f3c8173a915ee63641b28f29bfbd42d7ddbaf17bd641f83a4d3e6ce6f9",
+    "scripts/build_wheels.py": "4c040808ccc61dddc2ff63264f280f5e3d6aa1a1300fc85cfbbaba160c429ac4",
+    "scripts/check_installed.py": "a2cd89cd11ba785c6402df5fa093c1e5ec2c6ab19df3b17b51b431414d74c426",
+    "scripts/compare_media.py": "36d6988979b3c129becf69444ca78fa149a80046a16fd07fd491d03c8469a23f",
+    "scripts/compare_processes.py": "45888485aefbe6066fe0d7cca5de7fe06361139a9b561ad71a6e0ec569c3ed5e",
+    "scripts/diagnose_media_memory.py": "79e572c24c7fd3a4b0a46774a45e32a0b36d4d00f5381fcda3df0a084416e2c9",
+    "scripts/manage_release.py": "1ed2706915724dba1ab64bf8d53b3214883427ed1b36f722b3f6e6f2d8d879ca",
+    "scripts/media_probe.py": "d49be944ce423f76a538c7d0508b80f23175fc84a40ecd7b5f7dbc0f34ac979c",
+    "scripts/process_probe.py": "02abf7314dd7fa720f7f9b7d6d19f28f1b9d986b6c3a41588b50a1c772546c82",
+    "scripts/simulate_control.py": "a714d703781d7b874d3b66b87a81fea1f2125702c9e9e5f291281feb6cef1e25",
+    "scripts/smoke_driving_signals.py": "02f02b40eb93418d438528eb4bb2057ad6ff2d70d083810a0b1a362903cf6ab0",
+    "scripts/smoke_release_rollback.py": "37d9e57037a8c89dbf2711ee8e5373d80dc6083b80892f9b4d544bea1fe62fbb",
+    "scripts/smoke_vehicle_processes.py": "13a9e164b7a3d19999234fb85715941621853b0fc7d3038b18f3667858880e88",
+    "scripts/soak_media.py": "85c1b4f9edd8694059409448a7bbc80333010748d3d78e779c9939e6cd8fe0c0",
+    "scripts/verify_wheels.py": "f213b6152f9f58464c9c21e0a7c0a0740f61232c0d228b5fbedb2dfdd65a904e"
+  },
+  "measurement_errors": {},
+  "topology": "combined",
+  "startup_ready_ms": 1147.4172929883935,
+  "network": {
+    "steady": {
+      "seconds": 10.01119553000899,
+      "streams": [
+        {
+          "id": "inbound-rtp_134832114913056",
+          "packets_received": 751,
+          "packets_lost_delta": 0,
+          "jitter_ms_at_end": 1.011111111111111
+        },
+        {
+          "id": "inbound-rtp_134831970266016",
+          "packets_received": 762,
+          "packets_lost_delta": 0,
+          "jitter_ms_at_end": 1.288888888888889
+        },
+        {
+          "id": "inbound-rtp_134831970349856",
+          "packets_received": 768,
+          "packets_lost_delta": 0,
+          "jitter_ms_at_end": 0.9333333333333333
+        },
+        {
+          "id": "inbound-rtp_134831970433792",
+          "packets_received": 763,
+          "packets_lost_delta": 0,
+          "jitter_ms_at_end": 1.2666666666666666
+        }
+      ],
+      "selected_paths": [
+        {
+          "role": "receiver",
+          "local": "127.0.0.1",
+          "remote": "127.0.0.1",
+          "local_type": "host",
+          "remote_type": "host"
+        }
+      ]
+    },
+    "recovered": {
+      "seconds": 10.011941520002438,
+      "streams": [
+        {
+          "id": "inbound-rtp_134830976621296",
+          "packets_received": 756,
+          "packets_lost_delta": 0,
+          "jitter_ms_at_end": 1.0444444444444445
+        },
+        {
+          "id": "inbound-rtp_134830976740400",
+          "packets_received": 769,
+          "packets_lost_delta": 0,
+          "jitter_ms_at_end": 1.3222222222222222
+        },
+        {
+          "id": "inbound-rtp_134830976824240",
+          "packets_received": 762,
+          "packets_lost_delta": 0,
+          "jitter_ms_at_end": 1.288888888888889
+        },
+        {
+          "id": "inbound-rtp_134830976940848",
+          "packets_received": 764,
+          "packets_lost_delta": 0,
+          "jitter_ms_at_end": 1.0222222222222221
+        }
+      ],
+      "selected_paths": [
+        {
+          "role": "receiver",
+          "local": "127.0.0.1",
+          "remote": "127.0.0.1",
+          "local_type": "host",
+          "remote_type": "host"
+        }
+      ]
+    }
+  },
+  "reconnect_all_views_painted_ms": 224.24471998238005,
+  "reconnect_new_control_epoch_ms": 779.6379030041862,
+  "host_exitcode": 0,
+  "shutdown_ms": 168.26429599313997,
+  "forced_cleanup": false,
+  "process_roles": {
+    "653464": "harness",
+    "653498": "combined"
+  },
+  "child_outcomes": [],
+  "component_cleanup": [
+    {
+      "role": "combined",
+      "pid": 653498,
+      "forbidden_control_imports": [],
+      "remaining_threads": [],
+      "camera_threads_closed": true
+    }
+  ],
+  "encoder_instances": [
+    {
+      "mime_type": "video/VP8",
+      "clock_rate": 90000,
+      "implementation": "Vp8Encoder",
+      "view": "front",
+      "codec": "libvpx",
+      "thread_count": 2,
+      "pixel_format": "yuv420p"
+    },
+    {
+      "mime_type": "video/VP8",
+      "clock_rate": 90000,
+      "implementation": "Vp8Encoder",
+      "view": "back",
+      "codec": "libvpx",
+      "thread_count": 1,
+      "pixel_format": "yuv420p"
+    },
+    {
+      "mime_type": "video/VP8",
+      "clock_rate": 90000,
+      "implementation": "Vp8Encoder",
+      "view": "left",
+      "codec": "libvpx",
+      "thread_count": 1,
+      "pixel_format": "yuv420p"
+    },
+    {
+      "mime_type": "video/VP8",
+      "clock_rate": 90000,
+      "implementation": "Vp8Encoder",
+      "view": "right",
+      "codec": "libvpx",
+      "thread_count": 1,
+      "pixel_format": "yuv420p"
+    },
+    {
+      "mime_type": "video/VP8",
+      "clock_rate": 90000,
+      "implementation": "Vp8Encoder",
+      "view": "front",
+      "codec": "libvpx",
+      "thread_count": 2,
+      "pixel_format": "yuv420p"
+    },
+    {
+      "mime_type": "video/VP8",
+      "clock_rate": 90000,
+      "implementation": "Vp8Encoder",
+      "view": "back",
+      "codec": "libvpx",
+      "thread_count": 1,
+      "pixel_format": "yuv420p"
+    },
+    {
+      "mime_type": "video/VP8",
+      "clock_rate": 90000,
+      "implementation": "Vp8Encoder",
+      "view": "left",
+      "codec": "libvpx",
+      "thread_count": 1,
+      "pixel_format": "yuv420p"
+    },
+    {
+      "mime_type": "video/VP8",
+      "clock_rate": 90000,
+      "implementation": "Vp8Encoder",
+      "view": "right",
+      "codec": "libvpx",
+      "thread_count": 1,
+      "pixel_format": "yuv420p"
+    }
+  ],
+  "resource_observations": [
+    {
+      "timestamp": 133494.931208949,
+      "processes": {
+        "653464": {
+          "pid": 653464,
+          "start_ticks": 13349320,
+          "cpu_s": 4.37,
+          "rss_mib": 213.53515625,
+          "pss_mib": 176.2431640625,
+          "native_threads": 84,
+          "file_descriptors": 23
+        },
+        "653498": {
+          "pid": 653498,
+          "start_ticks": 13349377,
+          "cpu_s": 4.46,
+          "rss_mib": 228.65234375,
+          "pss_mib": 192.0361328125,
+          "native_threads": 58,
+          "file_descriptors": 14
+        }
+      }
+    },
+    {
+      "timestamp": 133495.138370738,
+      "processes": {
+        "653464": {
+          "pid": 653464,
+          "start_ticks": 13349320,
+          "cpu_s": 4.47,
+          "rss_mib": 211.76953125,
+          "pss_mib": 174.4775390625,
+          "native_threads": 84,
+          "file_descriptors": 23
+        },
+        "653498": {
+          "pid": 653498,
+          "start_ticks": 13349377,
+          "cpu_s": 4.61,
+          "rss_mib": 230.33984375,
+          "pss_mib": 193.7236328125,
+          "native_threads": 58,
+          "file_descriptors": 14
+        }
+      }
+    },
+    {
+      "timestamp": 133495.34610057,
+      "processes": {
+        "653464": {
+          "pid": 653464,
+          "start_ticks": 13349320,
+          "cpu_s": 4.58,
+          "rss_mib": 210.9375,
+          "pss_mib": 173.6455078125,
+          "native_threads": 84,
+          "file_descriptors": 23
+        },
+        "653498": {
+          "pid": 653498,
+          "start_ticks": 13349377,
+          "cpu_s": 4.75,
+          "rss_mib": 236.44921875,
+          "pss_mib": 199.8330078125,
+          "native_threads": 58,
+          "file_descriptors": 14
+        }
+      }
+    },
+    {
+      "timestamp": 133495.552637599,
+      "processes": {
+        "653464": {
+          "pid": 653464,
+          "start_ticks": 13349320,
+          "cpu_s": 4.69,
+          "rss_mib": 213.20703125,
+          "pss_mib": 175.9150390625,
+          "native_threads": 84,
+          "file_descriptors": 23
+        },
+        "653498": {
+          "pid": 653498,
+          "start_ticks": 13349377,
+          "cpu_s": 4.92,
+          "rss_mib": 233.80859375,
+          "pss_mib": 197.1923828125,
+          "native_threads": 58,
+          "file_descriptors": 14
+        }
+      }
+    },
+    {
+      "timestamp": 133495.759772253,
+      "processes": {
+        "653464": {
+          "pid": 653464,
+          "start_ticks": 13349320,
+          "cpu_s": 4.8,
+          "rss_mib": 213.2421875,
+          "pss_mib": 175.9501953125,
+          "native_threads": 84,
+          "file_descriptors": 23
+        },
+        "653498": {
+          "pid": 653498,
+          "start_ticks": 13349377,
+          "cpu_s": 5.07,
+          "rss_mib": 233.8671875,
+          "pss_mib": 197.2509765625,
+          "native_threads": 58,
+          "file_descriptors": 14
+        }
+      }
+    },
+    {
+      "timestamp": 133495.960907474,
+      "processes": {
+        "653464": {
+          "pid": 653464,
+          "start_ticks": 13349320,
+          "cpu_s": 4.9,
+          "rss_mib": 213.28515625,
+          "pss_mib": 175.9931640625,
+          "native_threads": 84,
+          "file_descriptors": 23
+        },
+        "653498": {
+          "pid": 653498,
+          "start_ticks": 13349377,
+          "cpu_s": 5.22,
+          "rss_mib": 233.91796875,
+          "pss_mib": 197.3017578125,
+          "native_threads": 58,
+          "file_descriptors": 14
+        }
+      }
+    },
+    {
+      "timestamp": 133496.169796391,
+      "processes": {
+        "653464": {
+          "pid": 653464,
+          "start_ticks": 13349320,
+          "cpu_s": 5.01,
+          "rss_mib": 215.55078125,
+          "pss_mib": 178.2587890625,
+          "native_threads": 84,
+          "file_descriptors": 23
+        },
+        "653498": {
+          "pid": 653498,
+          "start_ticks": 13349377,
+          "cpu_s": 5.36,
+          "rss_mib": 229.609375,
+          "pss_mib": 192.9931640625,
+          "native_threads": 58,
+          "file_descriptors": 14
+        }
+      }
+    },
+    {
+      "timestamp": 133496.374948104,
+      "processes": {
+        "653464": {
+          "pid": 653464,
+          "start_ticks": 13349320,
+          "cpu_s": 5.12,
+          "rss_mib": 213.37109375,
+          "pss_mib": 176.0791015625,
+          "native_threads": 84,
+          "file_descriptors": 23
+        },
+        "653498": {
+          "pid": 653498,
+          "start_ticks": 13349377,
+          "cpu_s": 5.52,
+          "rss_mib": 229.65625,
+          "pss_mib": 193.0400390625,
+          "native_threads": 58,
+          "file_descriptors": 14
+        }
+      }
+    },
+    {
+      "timestamp": 133496.57906108,
+      "processes": {
+        "653464": {
+          "pid": 653464,
+          "start_ticks": 13349320,
+          "cpu_s": 5.22,
+          "rss_mib": 214.2890625,
+          "pss_mib": 176.9970703125,
+          "native_threads": 84,
+          "file_descriptors": 23
+        },
+        "653498": {
+          "pid": 653498,
+          "start_ticks": 13349377,
+          "cpu_s": 5.66,
+          "rss_mib": 229.6875,
+          "pss_mib": 193.0712890625,
+          "native_threads": 58,
+          "file_descriptors": 14
+        }
+      }
+    },
+    {
+      "timestamp": 133496.783812983,
+      "processes": {
+        "653464": {
+          "pid": 653464,
+          "start_ticks": 13349320,
+          "cpu_s": 5.32,
+          "rss_mib": 215.1953125,
+          "pss_mib": 177.9033203125,
+          "native_threads": 84,
+          "file_descriptors": 23
+        },
+        "653498": {
+          "pid": 653498,
+          "start_ticks": 13349377,
+          "cpu_s": 5.81,
+          "rss_mib": 234.30859375,
+          "pss_mib": 197.6923828125,
+          "native_threads": 58,
+          "file_descriptors": 14
+        }
+      }
+    },
+    {
+      "timestamp": 133496.988436247,
+      "processes": {
+        "653464": {
+          "pid": 653464,
+          "start_ticks": 13349320,
+          "cpu_s": 5.43,
+          "rss_mib": 215.25390625,
+          "pss_mib": 177.9619140625,
+          "native_threads": 84,
+          "file_descriptors": 23
+        },
+        "653498": {
+          "pid": 653498,
+          "start_ticks": 13349377,
+          "cpu_s": 5.97,
+          "rss_mib": 234.5703125,
+          "pss_mib": 197.9541015625,
+          "native_threads": 58,
+          "file_descriptors": 14
+        }
+      }
+    },
+    {
+      "timestamp": 133497.189200198,
+      "processes": {
+        "653464": {
+          "pid": 653464,
+          "start_ticks": 13349320,
+          "cpu_s": 5.53,
+          "rss_mib": 215.29296875,
+          "pss_mib": 178.0009765625,
+          "native_threads": 84,
+          "file_descriptors": 23
+        },
+        "653498": {
+          "pid": 653498,
+          "start_ticks": 13349377,
+          "cpu_s": 6.12,
+          "rss_mib": 234.60546875,
+          "pss_mib": 197.9892578125,
+          "native_threads": 58,
+          "file_descriptors": 14
+        }
+      }
+    },
+    {
+      "timestamp": 133497.396900412,
+      "processes": {
+        "653464": {
+          "pid": 653464,
+          "start_ticks": 13349320,
+          "cpu_s": 5.64,
+          "rss_mib": 215.328125,
+          "pss_mib": 178.0361328125,
+          "native_threads": 84,
+          "file_descriptors": 23
+        },
+        "653498": {
+          "pid": 653498,
+          "start_ticks": 13349377,
+          "cpu_s": 6.27,
+          "rss_mib": 231.94140625,
+          "pss_mib": 195.3251953125,
+          "native_threads": 58,
+          "file_descriptors": 14
+        }
+      }
+    },
+    {
+      "timestamp": 133497.60206475,
+      "processes": {
+        "653464": {
+          "pid": 653464,
+          "start_ticks": 13349320,
+          "cpu_s": 5.74,
+          "rss_mib": 215.359375,
+          "pss_mib": 178.0673828125,
+          "native_threads": 84,
+          "file_descriptors": 23
+        },
+        "653498": {
+          "pid": 653498,
+          "start_ticks": 13349377,
+          "cpu_s": 6.43,
+          "rss_mib": 231.96875,
+          "pss_mib": 195.3525390625,
+          "native_threads": 58,
+          "file_descriptors": 14
+        }
+      }
+    },
+    {
+      "timestamp": 133497.808660094,
+      "processes": {
+        "653464": {
+          "pid": 653464,
+          "start_ticks": 13349320,
+          "cpu_s": 5.85,
+          "rss_mib": 215.38671875,
+          "pss_mib": 178.0947265625,
+          "native_threads": 84,
+          "file_descriptors": 23
+        },
+        "653498": {
+          "pid": 653498,
+          "start_ticks": 13349377,
+          "cpu_s": 6.58,
+          "rss_mib": 235.09765625,
+          "pss_mib": 198.4814453125,
+          "native_threads": 58,
+          "file_descriptors": 14
+        }
+      }
+    },
+    {
+      "timestamp": 133498.011483215,
+      "processes": {
+        "653464": {
+          "pid": 653464,
+          "start_ticks": 13349320,
+          "cpu_s": 5.95,
+          "rss_mib": 215.421875,
+          "pss_mib": 178.1298828125,
+          "native_threads": 84,
+          "file_descriptors": 23
+        },
+        "653498": {
+          "pid": 653498,
+          "start_ticks": 13349377,
+          "cpu_s": 6.73,
+          "rss_mib": 235.1171875,
+          "pss_mib": 198.5009765625,
+          "native_threads": 58,
+          "file_descriptors": 14
+        }
+      }
+    },
+    {
+      "timestamp": 133498.217802914,
+      "processes": {
+        "653464": {
+          "pid": 653464,
+          "start_ticks": 13349320,
+          "cpu_s": 6.05,
+          "rss_mib": 215.453125,
+          "pss_mib": 178.1611328125,
+          "native_threads": 84,
+          "file_descriptors": 23
+        },
+        "653498": {
+          "pid": 653498,
+          "start_ticks": 13349377,
+          "cpu_s": 6.87,
+          "rss_mib": 235.140625,
+          "pss_mib": 198.5244140625,
+          "native_threads": 58,
+          "file_descriptors": 14
+        }
+      }
+    },
+    {
+      "timestamp": 133498.421699347,
+      "processes": {
+        "653464": {
+          "pid": 653464,
+          "start_ticks": 13349320,
+          "cpu_s": 6.16,
+          "rss_mib": 216.359375,
+          "pss_mib": 179.0654296875,
+          "native_threads": 84,
+          "file_descriptors": 23
+        },
+        "653498": {
+          "pid": 653498,
+          "start_ticks": 13349377,
+          "cpu_s": 7.02,
+          "rss_mib": 235.1640625,
+          "pss_mib": 198.5458984375,
+          "native_threads": 58,
+          "file_descriptors": 14
+        }
+      }
+    },
+    {
+      "timestamp": 133498.62758148,
+      "processes": {
+        "653464": {
+          "pid": 653464,
+          "start_ticks": 13349320,
+          "cpu_s": 6.25,
+          "rss_mib": 216.390625,
+          "pss_mib": 179.0966796875,
+          "native_threads": 84,
+          "file_descriptors": 23
+        },
+        "653498": {
+          "pid": 653498,
+          "start_ticks": 13349377,
+          "cpu_s": 7.18,
+          "rss_mib": 237.01171875,
+          "pss_mib": 200.3935546875,
+          "native_threads": 58,
+          "file_descriptors": 14
+        }
+      }
+    },
+    {
+      "timestamp": 133498.832670482,
+      "processes": {
+        "653464": {
+          "pid": 653464,
+          "start_ticks": 13349320,
+          "cpu_s": 6.36,
+          "rss_mib": 213.3203125,
+          "pss_mib": 176.0263671875,
+          "native_threads": 84,
+          "file_descriptors": 23
+        },
+        "653498": {
+          "pid": 653498,
+          "start_ticks": 13349377,
+          "cpu_s": 7.34,
+          "rss_mib": 232.69921875,
+          "pss_mib": 196.0810546875,
+          "native_threads": 58,
+          "file_descriptors": 14
+        }
+      }
+    },
+    {
+      "timestamp": 133499.040348317,
+      "processes": {
+        "653464": {
+          "pid": 653464,
+          "start_ticks": 13349320,
+          "cpu_s": 6.48,
+          "rss_mib": 213.5390625,
+          "pss_mib": 176.1826171875,
+          "native_threads": 84,
+          "file_descriptors": 23
+        },
+        "653498": {
+          "pid": 653498,
+          "start_ticks": 13349377,
+          "cpu_s": 7.51,
+          "rss_mib": 262.15625,
+          "pss_mib": 225.4755859375,
+          "native_threads": 58,
+          "file_descriptors": 14
+        }
+      }
+    },
+    {
+      "timestamp": 133499.24850074,
+      "processes": {
+        "653464": {
+          "pid": 653464,
+          "start_ticks": 13349320,
+          "cpu_s": 6.59,
+          "rss_mib": 213.9140625,
+          "pss_mib": 176.5576171875,
+          "native_threads": 84,
+          "file_descriptors": 23
+        },
+        "653498": {
+          "pid": 653498,
+          "start_ticks": 13349377,
+          "cpu_s": 7.64,
+          "rss_mib": 264.96484375,
+          "pss_mib": 228.2841796875,
+          "native_threads": 58,
+          "file_descriptors": 14
+        }
+      }
+    },
+    {
+      "timestamp": 133499.454697503,
+      "processes": {
+        "653464": {
+          "pid": 653464,
+          "start_ticks": 13349320,
+          "cpu_s": 6.7,
+          "rss_mib": 214.8515625,
+          "pss_mib": 177.4951171875,
+          "native_threads": 84,
+          "file_descriptors": 23
+        },
+        "653498": {
+          "pid": 653498,
+          "start_ticks": 13349377,
+          "cpu_s": 7.8,
+          "rss_mib": 268.83203125,
+          "pss_mib": 232.0908203125,
+          "native_threads": 58,
+          "file_descriptors": 14
+        }
+      }
+    },
+    {
+      "timestamp": 133499.660777311,
+      "processes": {
+        "653464": {
+          "pid": 653464,
+          "start_ticks": 13349320,
+          "cpu_s": 6.81,
+          "rss_mib": 216.640625,
+          "pss_mib": 179.2841796875,
+          "native_threads": 84,
+          "file_descriptors": 23
+        },
+        "653498": {
+          "pid": 653498,
+          "start_ticks": 13349377,
+          "cpu_s": 7.94,
+          "rss_mib": 269.77734375,
+          "pss_mib": 233.0361328125,
+          "native_threads": 58,
+          "file_descriptors": 14
+        }
+      }
+    },
+    {
+      "timestamp": 133499.870034804,
+      "processes": {
+        "653464": {
+          "pid": 653464,
+          "start_ticks": 13349320,
+          "cpu_s": 6.92,
+          "rss_mib": 216.265625,
+          "pss_mib": 178.9091796875,
+          "native_threads": 84,
+          "file_descriptors": 23
+        },
+        "653498": {
+          "pid": 653498,
+          "start_ticks": 13349377,
+          "cpu_s": 8.09,
+          "rss_mib": 269.80078125,
+          "pss_mib": 233.0595703125,
+          "native_threads": 58,
+          "file_descriptors": 14
+        }
+      }
+    },
+    {
+      "timestamp": 133500.077065772,
+      "processes": {
+        "653464": {
+          "pid": 653464,
+          "start_ticks": 13349320,
+          "cpu_s": 7.02,
+          "rss_mib": 217.1796875,
+          "pss_mib": 179.8232421875,
+          "native_threads": 84,
+          "file_descriptors": 23
+        },
+        "653498": {
+          "pid": 653498,
+          "start_ticks": 13349377,
+          "cpu_s": 8.23,
+          "rss_mib": 269.84765625,
+          "pss_mib": 233.1064453125,
+          "native_threads": 58,
+          "file_descriptors": 14
+        }
+      }
+    },
+    {
+      "timestamp": 133500.281958689,
+      "processes": {
+        "653464": {
+          "pid": 653464,
+          "start_ticks": 13349320,
+          "cpu_s": 7.13,
+          "rss_mib": 218.9609375,
+          "pss_mib": 181.6044921875,
+          "native_threads": 84,
+          "file_descriptors": 23
+        },
+        "653498": {
+          "pid": 653498,
+          "start_ticks": 13349377,
+          "cpu_s": 8.38,
+          "rss_mib": 269.87890625,
+          "pss_mib": 233.1376953125,
+          "native_threads": 58,
+          "file_descriptors": 14
+        }
+      }
+    },
+    {
+      "timestamp": 133500.48856652,
+      "processes": {
+        "653464": {
+          "pid": 653464,
+          "start_ticks": 13349320,
+          "cpu_s": 7.24,
+          "rss_mib": 217.25,
+          "pss_mib": 179.8935546875,
+          "native_threads": 84,
+          "file_descriptors": 23
+        },
+        "653498": {
+          "pid": 653498,
+          "start_ticks": 13349377,
+          "cpu_s": 8.53,
+          "rss_mib": 280.62109375,
+          "pss_mib": 243.8798828125,
+          "native_threads": 58,
+          "file_descriptors": 14
+        }
+      }
+    },
+    {
+      "timestamp": 133500.694095276,
+      "processes": {
+        "653464": {
+          "pid": 653464,
+          "start_ticks": 13349320,
+          "cpu_s": 7.34,
+          "rss_mib": 210.7265625,
+          "pss_mib": 173.3701171875,
+          "native_threads": 84,
+          "file_descriptors": 23
+        },
+        "653498": {
+          "pid": 653498,
+          "start_ticks": 13349377,
+          "cpu_s": 8.66,
+          "rss_mib": 289.4296875,
+          "pss_mib": 252.6884765625,
+          "native_threads": 58,
+          "file_descriptors": 14
+        }
+      }
+    },
+    {
+      "timestamp": 133500.898753226,
+      "processes": {
+        "653464": {
+          "pid": 653464,
+          "start_ticks": 13349320,
+          "cpu_s": 7.46,
+          "rss_mib": 209.87109375,
+          "pss_mib": 172.5146484375,
+          "native_threads": 84,
+          "file_descriptors": 23
+        },
+        "653498": {
+          "pid": 653498,
+          "start_ticks": 13349377,
+          "cpu_s": 8.8,
+          "rss_mib": 289.44921875,
+          "pss_mib": 252.7080078125,
+          "native_threads": 58,
+          "file_descriptors": 14
+        }
+      }
+    },
+    {
+      "timestamp": 133501.102473618,
+      "processes": {
+        "653464": {
+          "pid": 653464,
+          "start_ticks": 13349320,
+          "cpu_s": 7.56,
+          "rss_mib": 214.62890625,
+          "pss_mib": 177.2724609375,
+          "native_threads": 84,
+          "file_descriptors": 23
+        },
+        "653498": {
+          "pid": 653498,
+          "start_ticks": 13349377,
+          "cpu_s": 8.97,
+          "rss_mib": 330.71484375,
+          "pss_mib": 293.9736328125,
+          "native_threads": 59,
+          "file_descriptors": 14
+        }
+      }
+    },
+    {
+      "timestamp": 133501.311485514,
+      "processes": {
+        "653464": {
+          "pid": 653464,
+          "start_ticks": 13349320,
+          "cpu_s": 7.67,
+          "rss_mib": 211.671875,
+          "pss_mib": 174.3154296875,
+          "native_threads": 84,
+          "file_descriptors": 23
+        },
+        "653498": {
+          "pid": 653498,
+          "start_ticks": 13349377,
+          "cpu_s": 9.12,
+          "rss_mib": 332.1484375,
+          "pss_mib": 295.4072265625,
+          "native_threads": 59,
+          "file_descriptors": 14
+        }
+      }
+    },
+    {
+      "timestamp": 133501.520598475,
+      "processes": {
+        "653464": {
+          "pid": 653464,
+          "start_ticks": 13349320,
+          "cpu_s": 7.79,
+          "rss_mib": 212.04296875,
+          "pss_mib": 174.6865234375,
+          "native_threads": 84,
+          "file_descriptors": 23
+        },
+        "653498": {
+          "pid": 653498,
+          "start_ticks": 13349377,
+          "cpu_s": 9.26,
+          "rss_mib": 332.16796875,
+          "pss_mib": 295.4267578125,
+          "native_threads": 59,
+          "file_descriptors": 14
+        }
+      }
+    },
+    {
+      "timestamp": 133501.727672651,
+      "processes": {
+        "653464": {
+          "pid": 653464,
+          "start_ticks": 13349320,
+          "cpu_s": 7.9,
+          "rss_mib": 218.28515625,
+          "pss_mib": 180.9287109375,
+          "native_threads": 84,
+          "file_descriptors": 23
+        },
+        "653498": {
+          "pid": 653498,
+          "start_ticks": 13349377,
+          "cpu_s": 9.39,
+          "rss_mib": 332.1953125,
+          "pss_mib": 295.4541015625,
+          "native_threads": 59,
+          "file_descriptors": 14
+        }
+      }
+    },
+    {
+      "timestamp": 133501.933699353,
+      "processes": {
+        "653464": {
+          "pid": 653464,
+          "start_ticks": 13349320,
+          "cpu_s": 8.0,
+          "rss_mib": 215.20703125,
+          "pss_mib": 177.8505859375,
+          "native_threads": 84,
+          "file_descriptors": 23
+        },
+        "653498": {
+          "pid": 653498,
+          "start_ticks": 13349377,
+          "cpu_s": 9.54,
+          "rss_mib": 343.34765625,
+          "pss_mib": 306.6064453125,
+          "native_threads": 59,
+          "file_descriptors": 14
+        }
+      }
+    },
+    {
+      "timestamp": 133502.141623736,
+      "processes": {
+        "653464": {
+          "pid": 653464,
+          "start_ticks": 13349320,
+          "cpu_s": 8.13,
+          "rss_mib": 214.36328125,
+          "pss_mib": 177.0068359375,
+          "native_threads": 84,
+          "file_descriptors": 23
+        },
+        "653498": {
+          "pid": 653498,
+          "start_ticks": 13349377,
+          "cpu_s": 9.71,
+          "rss_mib": 362.86328125,
+          "pss_mib": 326.1220703125,
+          "native_threads": 59,
+          "file_descriptors": 14
+        }
+      }
+    },
+    {
+      "timestamp": 133502.350944411,
+      "processes": {
+        "653464": {
+          "pid": 653464,
+          "start_ticks": 13349320,
+          "cpu_s": 8.24,
+          "rss_mib": 215.28125,
+          "pss_mib": 177.9248046875,
+          "native_threads": 84,
+          "file_descriptors": 23
+        },
+        "653498": {
+          "pid": 653498,
+          "start_ticks": 13349377,
+          "cpu_s": 9.85,
+          "rss_mib": 362.8828125,
+          "pss_mib": 326.1416015625,
+          "native_threads": 59,
+          "file_descriptors": 14
+        }
+      }
+    },
+    {
+      "timestamp": 133502.559446122,
+      "processes": {
+        "653464": {
+          "pid": 653464,
+          "start_ticks": 13349320,
+          "cpu_s": 8.36,
+          "rss_mib": 217.54296875,
+          "pss_mib": 180.1865234375,
+          "native_threads": 84,
+          "file_descriptors": 23
+        },
+        "653498": {
+          "pid": 653498,
+          "start_ticks": 13349377,
+          "cpu_s": 9.99,
+          "rss_mib": 322.61328125,
+          "pss_mib": 285.8720703125,
+          "native_threads": 59,
+          "file_descriptors": 14
+        }
+      }
+    },
+    {
+      "timestamp": 133502.766375946,
+      "processes": {
+        "653464": {
+          "pid": 653464,
+          "start_ticks": 13349320,
+          "cpu_s": 8.46,
+          "rss_mib": 216.6796875,
+          "pss_mib": 179.3232421875,
+          "native_threads": 84,
+          "file_descriptors": 23
+        },
+        "653498": {
+          "pid": 653498,
+          "start_ticks": 13349377,
+          "cpu_s": 10.14,
+          "rss_mib": 322.65234375,
+          "pss_mib": 285.9111328125,
+          "native_threads": 59,
+          "file_descriptors": 14
+        }
+      }
+    },
+    {
+      "timestamp": 133502.971760732,
+      "processes": {
+        "653464": {
+          "pid": 653464,
+          "start_ticks": 13349320,
+          "cpu_s": 8.57,
+          "rss_mib": 217.12109375,
+          "pss_mib": 179.7646484375,
+          "native_threads": 84,
+          "file_descriptors": 23
+        },
+        "653498": {
+          "pid": 653498,
+          "start_ticks": 13349377,
+          "cpu_s": 10.28,
+          "rss_mib": 322.67578125,
+          "pss_mib": 285.9345703125,
+          "native_threads": 59,
+          "file_descriptors": 14
+        }
+      }
+    },
+    {
+      "timestamp": 133503.179466607,
+      "processes": {
+        "653464": {
+          "pid": 653464,
+          "start_ticks": 13349320,
+          "cpu_s": 8.68,
+          "rss_mib": 219.38671875,
+          "pss_mib": 182.0302734375,
+          "native_threads": 84,
+          "file_descriptors": 23
+        },
+        "653498": {
+          "pid": 653498,
+          "start_ticks": 13349377,
+          "cpu_s": 10.43,
+          "rss_mib": 322.69921875,
+          "pss_mib": 285.9580078125,
+          "native_threads": 59,
+          "file_descriptors": 14
+        }
+      }
+    },
+    {
+      "timestamp": 133503.388273759,
+      "processes": {
+        "653464": {
+          "pid": 653464,
+          "start_ticks": 13349320,
+          "cpu_s": 8.8,
+          "rss_mib": 219.421875,
+          "pss_mib": 182.0654296875,
+          "native_threads": 84,
+          "file_descriptors": 23
+        },
+        "653498": {
+          "pid": 653498,
+          "start_ticks": 13349377,
+          "cpu_s": 10.58,
+          "rss_mib": 322.7265625,
+          "pss_mib": 285.9853515625,
+          "native_threads": 59,
+          "file_descriptors": 14
+        }
+      }
+    },
+    {
+      "timestamp": 133503.597859361,
+      "processes": {
+        "653464": {
+          "pid": 653464,
+          "start_ticks": 13349320,
+          "cpu_s": 8.91,
+          "rss_mib": 219.44921875,
+          "pss_mib": 182.0927734375,
+          "native_threads": 84,
+          "file_descriptors": 23
+        },
+        "653498": {
+          "pid": 653498,
+          "start_ticks": 13349377,
+          "cpu_s": 10.73,
+          "rss_mib": 324.6796875,
+          "pss_mib": 287.9384765625,
+          "native_threads": 59,
+          "file_descriptors": 14
+        }
+      }
+    },
+    {
+      "timestamp": 133503.805641388,
+      "processes": {
+        "653464": {
+          "pid": 653464,
+          "start_ticks": 13349320,
+          "cpu_s": 9.01,
+          "rss_mib": 219.47265625,
+          "pss_mib": 182.1162109375,
+          "native_threads": 84,
+          "file_descriptors": 23
+        },
+        "653498": {
+          "pid": 653498,
+          "start_ticks": 13349377,
+          "cpu_s": 10.87,
+          "rss_mib": 324.7109375,
+          "pss_mib": 287.9697265625,
+          "native_threads": 59,
+          "file_descriptors": 14
+        }
+      }
+    },
+    {
+      "timestamp": 133504.011401735,
+      "processes": {
+        "653464": {
+          "pid": 653464,
+          "start_ticks": 13349320,
+          "cpu_s": 9.12,
+          "rss_mib": 219.515625,
+          "pss_mib": 182.1591796875,
+          "native_threads": 84,
+          "file_descriptors": 23
+        },
+        "653498": {
+          "pid": 653498,
+          "start_ticks": 13349377,
+          "cpu_s": 11.02,
+          "rss_mib": 318.99609375,
+          "pss_mib": 282.2548828125,
+          "native_threads": 59,
+          "file_descriptors": 14
+        }
+      }
+    },
+    {
+      "timestamp": 133504.218899402,
+      "processes": {
+        "653464": {
+          "pid": 653464,
+          "start_ticks": 13349320,
+          "cpu_s": 9.23,
+          "rss_mib": 219.53125,
+          "pss_mib": 182.1748046875,
+          "native_threads": 84,
+          "file_descriptors": 23
+        },
+        "653498": {
+          "pid": 653498,
+          "start_ticks": 13349377,
+          "cpu_s": 11.18,
+          "rss_mib": 320.3125,
+          "pss_mib": 283.5712890625,
+          "native_threads": 59,
+          "file_descriptors": 14
+        }
+      }
+    },
+    {
+      "timestamp": 133504.426254806,
+      "processes": {
+        "653464": {
+          "pid": 653464,
+          "start_ticks": 13349320,
+          "cpu_s": 9.34,
+          "rss_mib": 219.55078125,
+          "pss_mib": 182.1943359375,
+          "native_threads": 84,
+          "file_descriptors": 23
+        },
+        "653498": {
+          "pid": 653498,
+          "start_ticks": 13349377,
+          "cpu_s": 11.33,
+          "rss_mib": 320.33203125,
+          "pss_mib": 283.5908203125,
+          "native_threads": 59,
+          "file_descriptors": 14
+        }
+      }
+    },
+    {
+      "timestamp": 133504.633240569,
+      "processes": {
+        "653464": {
+          "pid": 653464,
+          "start_ticks": 13349320,
+          "cpu_s": 9.45,
+          "rss_mib": 219.56640625,
+          "pss_mib": 182.2099609375,
+          "native_threads": 84,
+          "file_descriptors": 23
+        },
+        "653498": {
+          "pid": 653498,
+          "start_ticks": 13349377,
+          "cpu_s": 11.47,
+          "rss_mib": 320.35546875,
+          "pss_mib": 283.6142578125,
+          "native_threads": 59,
+          "file_descriptors": 14
+        }
+      }
+    },
+    {
+      "timestamp": 133504.839859464,
+      "processes": {
+        "653464": {
+          "pid": 653464,
+          "start_ticks": 13349320,
+          "cpu_s": 9.56,
+          "rss_mib": 219.60546875,
+          "pss_mib": 182.2490234375,
+          "native_threads": 84,
+          "file_descriptors": 23
+        },
+        "653498": {
+          "pid": 653498,
+          "start_ticks": 13349377,
+          "cpu_s": 11.61,
+          "rss_mib": 320.3828125,
+          "pss_mib": 283.6416015625,
+          "native_threads": 59,
+          "file_descriptors": 14
+        }
+      }
+    },
+    {
+      "timestamp": 133505.046087275,
+      "processes": {
+        "653464": {
+          "pid": 653464,
+          "start_ticks": 13349320,
+          "cpu_s": 9.67,
+          "rss_mib": 219.640625,
+          "pss_mib": 182.2841796875,
+          "native_threads": 84,
+          "file_descriptors": 23
+        },
+        "653498": {
+          "pid": 653498,
+          "start_ticks": 13349377,
+          "cpu_s": 11.78,
+          "rss_mib": 334.125,
+          "pss_mib": 297.3837890625,
+          "native_threads": 59,
+          "file_descriptors": 14
+        }
+      }
+    },
+    {
+      "timestamp": 133505.253675001,
+      "processes": {
+        "653464": {
+          "pid": 653464,
+          "start_ticks": 13349320,
+          "cpu_s": 9.78,
+          "rss_mib": 217.03125,
+          "pss_mib": 179.6748046875,
+          "native_threads": 84,
+          "file_descriptors": 23
+        },
+        "653498": {
+          "pid": 653498,
+          "start_ticks": 13349377,
+          "cpu_s": 11.92,
+          "rss_mib": 341.375,
+          "pss_mib": 304.6337890625,
+          "native_threads": 59,
+          "file_descriptors": 14
+        }
+      }
+    },
+    {
+      "timestamp": 133505.460789399,
+      "processes": {
+        "653464": {
+          "pid": 653464,
+          "start_ticks": 13349320,
+          "cpu_s": 9.89,
+          "rss_mib": 219.2890625,
+          "pss_mib": 181.9326171875,
+          "native_threads": 84,
+          "file_descriptors": 23
+        },
+        "653498": {
+          "pid": 653498,
+          "start_ticks": 13349377,
+          "cpu_s": 12.07,
+          "rss_mib": 352.84765625,
+          "pss_mib": 316.1064453125,
+          "native_threads": 58,
+          "file_descriptors": 14
+        }
+      }
+    },
+    {
+      "timestamp": 133505.66597734,
+      "processes": {
+        "653464": {
+          "pid": 653464,
+          "start_ticks": 13349320,
+          "cpu_s": 10.01,
+          "rss_mib": 219.328125,
+          "pss_mib": 181.9716796875,
+          "native_threads": 84,
+          "file_descriptors": 23
+        },
+        "653498": {
+          "pid": 653498,
+          "start_ticks": 13349377,
+          "cpu_s": 12.24,
+          "rss_mib": 379.71875,
+          "pss_mib": 342.9775390625,
+          "native_threads": 60,
+          "file_descriptors": 14
+        }
+      }
+    },
+    {
+      "timestamp": 133505.871925343,
+      "processes": {
+        "653464": {
+          "pid": 653464,
+          "start_ticks": 13349320,
+          "cpu_s": 10.11,
+          "rss_mib": 219.35546875,
+          "pss_mib": 181.9990234375,
+          "native_threads": 84,
+          "file_descriptors": 23
+        },
+        "653498": {
+          "pid": 653498,
+          "start_ticks": 13349377,
+          "cpu_s": 12.39,
+          "rss_mib": 379.796875,
+          "pss_mib": 343.0556640625,
+          "native_threads": 60,
+          "file_descriptors": 14
+        }
+      }
+    },
+    {
+      "timestamp": 133506.078979196,
+      "processes": {
+        "653464": {
+          "pid": 653464,
+          "start_ticks": 13349320,
+          "cpu_s": 10.22,
+          "rss_mib": 219.3828125,
+          "pss_mib": 182.0263671875,
+          "native_threads": 84,
+          "file_descriptors": 23
+        },
+        "653498": {
+          "pid": 653498,
+          "start_ticks": 13349377,
+          "cpu_s": 12.54,
+          "rss_mib": 379.81640625,
+          "pss_mib": 343.0751953125,
+          "native_threads": 60,
+          "file_descriptors": 14
+        }
+      }
+    },
+    {
+      "timestamp": 133506.284611209,
+      "processes": {
+        "653464": {
+          "pid": 653464,
+          "start_ticks": 13349320,
+          "cpu_s": 10.34,
+          "rss_mib": 220.29296875,
+          "pss_mib": 182.9365234375,
+          "native_threads": 84,
+          "file_descriptors": 23
+        },
+        "653498": {
+          "pid": 653498,
+          "start_ticks": 13349377,
+          "cpu_s": 12.69,
+          "rss_mib": 379.83984375,
+          "pss_mib": 343.0986328125,
+          "native_threads": 60,
+          "file_descriptors": 14
+        }
+      }
+    },
+    {
+      "timestamp": 133506.493169337,
+      "processes": {
+        "653464": {
+          "pid": 653464,
+          "start_ticks": 13349320,
+          "cpu_s": 10.46,
+          "rss_mib": 219.44921875,
+          "pss_mib": 182.0927734375,
+          "native_threads": 84,
+          "file_descriptors": 23
+        },
+        "653498": {
+          "pid": 653498,
+          "start_ticks": 13349377,
+          "cpu_s": 12.85,
+          "rss_mib": 334.203125,
+          "pss_mib": 297.4619140625,
+          "native_threads": 60,
+          "file_descriptors": 14
+        }
+      }
+    },
+    {
+      "timestamp": 133506.698991197,
+      "processes": {
+        "653464": {
+          "pid": 653464,
+          "start_ticks": 13349320,
+          "cpu_s": 10.57,
+          "rss_mib": 219.46484375,
+          "pss_mib": 182.1083984375,
+          "native_threads": 84,
+          "file_descriptors": 23
+        },
+        "653498": {
+          "pid": 653498,
+          "start_ticks": 13349377,
+          "cpu_s": 13.0,
+          "rss_mib": 336.0546875,
+          "pss_mib": 299.3134765625,
+          "native_threads": 60,
+          "file_descriptors": 14
+        }
+      }
+    },
+    {
+      "timestamp": 133506.905743573,
+      "processes": {
+        "653464": {
+          "pid": 653464,
+          "start_ticks": 13349320,
+          "cpu_s": 10.67,
+          "rss_mib": 219.5,
+          "pss_mib": 182.1435546875,
+          "native_threads": 84,
+          "file_descriptors": 23
+        },
+        "653498": {
+          "pid": 653498,
+          "start_ticks": 13349377,
+          "cpu_s": 13.14,
+          "rss_mib": 336.640625,
+          "pss_mib": 299.8994140625,
+          "native_threads": 60,
+          "file_descriptors": 14
+        }
+      }
+    },
+    {
+      "timestamp": 133507.113499397,
+      "processes": {
+        "653464": {
+          "pid": 653464,
+          "start_ticks": 13349320,
+          "cpu_s": 10.72,
+          "rss_mib": 207.1328125,
+          "pss_mib": 169.6728515625,
+          "native_threads": 56,
+          "file_descriptors": 22
+        },
+        "653498": {
+          "pid": 653498,
+          "start_ticks": 13349377,
+          "cpu_s": 13.25,
+          "rss_mib": 318.69140625,
+          "pss_mib": 281.9072265625,
+          "native_threads": 61,
+          "file_descriptors": 14
+        }
+      }
+    },
+    {
+      "timestamp": 133507.31871727,
+      "processes": {
+        "653464": {
+          "pid": 653464,
+          "start_ticks": 13349320,
+          "cpu_s": 10.84,
+          "rss_mib": 221.66015625,
+          "pss_mib": 184.2001953125,
+          "native_threads": 84,
+          "file_descriptors": 23
+        },
+        "653498": {
+          "pid": 653498,
+          "start_ticks": 13349377,
+          "cpu_s": 13.37,
+          "rss_mib": 327.23046875,
+          "pss_mib": 290.4462890625,
+          "native_threads": 61,
+          "file_descriptors": 14
+        }
+      }
+    },
+    {
+      "timestamp": 133507.522116982,
+      "processes": {
+        "653464": {
+          "pid": 653464,
+          "start_ticks": 13349320,
+          "cpu_s": 10.93,
+          "rss_mib": 218.57421875,
+          "pss_mib": 181.1142578125,
+          "native_threads": 84,
+          "file_descriptors": 23
+        },
+        "653498": {
+          "pid": 653498,
+          "start_ticks": 13349377,
+          "cpu_s": 13.51,
+          "rss_mib": 328.66796875,
+          "pss_mib": 291.8837890625,
+          "native_threads": 61,
+          "file_descriptors": 14
+        }
+      }
+    },
+    {
+      "timestamp": 133507.727671198,
+      "processes": {
+        "653464": {
+          "pid": 653464,
+          "start_ticks": 13349320,
+          "cpu_s": 11.02,
+          "rss_mib": 220.828125,
+          "pss_mib": 183.3681640625,
+          "native_threads": 84,
+          "file_descriptors": 23
+        },
+        "653498": {
+          "pid": 653498,
+          "start_ticks": 13349377,
+          "cpu_s": 13.66,
+          "rss_mib": 328.71875,
+          "pss_mib": 291.9345703125,
+          "native_threads": 61,
+          "file_descriptors": 14
+        }
+      }
+    },
+    {
+      "timestamp": 133507.934884385,
+      "processes": {
+        "653464": {
+          "pid": 653464,
+          "start_ticks": 13349320,
+          "cpu_s": 11.13,
+          "rss_mib": 220.86328125,
+          "pss_mib": 183.4033203125,
+          "native_threads": 84,
+          "file_descriptors": 23
+        },
+        "653498": {
+          "pid": 653498,
+          "start_ticks": 13349377,
+          "cpu_s": 13.8,
+          "rss_mib": 328.765625,
+          "pss_mib": 291.9814453125,
+          "native_threads": 61,
+          "file_descriptors": 14
+        }
+      }
+    },
+    {
+      "timestamp": 133508.142255705,
+      "processes": {
+        "653464": {
+          "pid": 653464,
+          "start_ticks": 13349320,
+          "cpu_s": 11.23,
+          "rss_mib": 220.890625,
+          "pss_mib": 183.4306640625,
+          "native_threads": 84,
+          "file_descriptors": 23
+        },
+        "653498": {
+          "pid": 653498,
+          "start_ticks": 13349377,
+          "cpu_s": 13.93,
+          "rss_mib": 328.8203125,
+          "pss_mib": 292.0361328125,
+          "native_threads": 61,
+          "file_descriptors": 14
+        }
+      }
+    },
+    {
+      "timestamp": 133508.347056985,
+      "processes": {
+        "653464": {
+          "pid": 653464,
+          "start_ticks": 13349320,
+          "cpu_s": 11.33,
+          "rss_mib": 220.91796875,
+          "pss_mib": 183.4580078125,
+          "native_threads": 84,
+          "file_descriptors": 23
+        },
+        "653498": {
+          "pid": 653498,
+          "start_ticks": 13349377,
+          "cpu_s": 14.07,
+          "rss_mib": 328.86328125,
+          "pss_mib": 292.0791015625,
+          "native_threads": 61,
+          "file_descriptors": 14
+        }
+      }
+    },
+    {
+      "timestamp": 133508.55444107,
+      "processes": {
+        "653464": {
+          "pid": 653464,
+          "start_ticks": 13349320,
+          "cpu_s": 11.44,
+          "rss_mib": 220.95703125,
+          "pss_mib": 183.4970703125,
+          "native_threads": 84,
+          "file_descriptors": 23
+        },
+        "653498": {
+          "pid": 653498,
+          "start_ticks": 13349377,
+          "cpu_s": 14.22,
+          "rss_mib": 328.91796875,
+          "pss_mib": 292.1337890625,
+          "native_threads": 61,
+          "file_descriptors": 14
+        }
+      }
+    },
+    {
+      "timestamp": 133508.761402,
+      "processes": {
+        "653464": {
+          "pid": 653464,
+          "start_ticks": 13349320,
+          "cpu_s": 11.54,
+          "rss_mib": 220.98046875,
+          "pss_mib": 183.5205078125,
+          "native_threads": 84,
+          "file_descriptors": 23
+        },
+        "653498": {
+          "pid": 653498,
+          "start_ticks": 13349377,
+          "cpu_s": 14.36,
+          "rss_mib": 330.88671875,
+          "pss_mib": 294.1025390625,
+          "native_threads": 63,
+          "file_descriptors": 14
+        }
+      }
+    },
+    {
+      "timestamp": 133508.967773593,
+      "processes": {
+        "653464": {
+          "pid": 653464,
+          "start_ticks": 13349320,
+          "cpu_s": 11.64,
+          "rss_mib": 221.015625,
+          "pss_mib": 183.5556640625,
+          "native_threads": 84,
+          "file_descriptors": 23
+        },
+        "653498": {
+          "pid": 653498,
+          "start_ticks": 13349377,
+          "cpu_s": 14.51,
+          "rss_mib": 335.484375,
+          "pss_mib": 298.7001953125,
+          "native_threads": 63,
+          "file_descriptors": 14
+        }
+      }
+    },
+    {
+      "timestamp": 133509.175577107,
+      "processes": {
+        "653464": {
+          "pid": 653464,
+          "start_ticks": 13349320,
+          "cpu_s": 11.75,
+          "rss_mib": 221.9296875,
+          "pss_mib": 184.4697265625,
+          "native_threads": 84,
+          "file_descriptors": 23
+        },
+        "653498": {
+          "pid": 653498,
+          "start_ticks": 13349377,
+          "cpu_s": 14.65,
+          "rss_mib": 335.93359375,
+          "pss_mib": 299.1494140625,
+          "native_threads": 63,
+          "file_descriptors": 14
+        }
+      }
+    },
+    {
+      "timestamp": 133509.379623867,
+      "processes": {
+        "653464": {
+          "pid": 653464,
+          "start_ticks": 13349320,
+          "cpu_s": 11.86,
+          "rss_mib": 219.7265625,
+          "pss_mib": 182.2666015625,
+          "native_threads": 84,
+          "file_descriptors": 23
+        },
+        "653498": {
+          "pid": 653498,
+          "start_ticks": 13349377,
+          "cpu_s": 14.78,
+          "rss_mib": 335.95703125,
+          "pss_mib": 299.1728515625,
+          "native_threads": 63,
+          "file_descriptors": 14
+        }
+      }
+    },
+    {
+      "timestamp": 133509.583180112,
+      "processes": {
+        "653464": {
+          "pid": 653464,
+          "start_ticks": 13349320,
+          "cpu_s": 11.96,
+          "rss_mib": 221.10546875,
+          "pss_mib": 183.6455078125,
+          "native_threads": 84,
+          "file_descriptors": 23
+        },
+        "653498": {
+          "pid": 653498,
+          "start_ticks": 13349377,
+          "cpu_s": 14.91,
+          "rss_mib": 335.98828125,
+          "pss_mib": 299.2041015625,
+          "native_threads": 63,
+          "file_descriptors": 14
+        }
+      }
+    },
+    {
+      "timestamp": 133509.790277396,
+      "processes": {
+        "653464": {
+          "pid": 653464,
+          "start_ticks": 13349320,
+          "cpu_s": 12.07,
+          "rss_mib": 221.14453125,
+          "pss_mib": 183.6845703125,
+          "native_threads": 84,
+          "file_descriptors": 23
+        },
+        "653498": {
+          "pid": 653498,
+          "start_ticks": 13349377,
+          "cpu_s": 15.05,
+          "rss_mib": 336.015625,
+          "pss_mib": 299.2314453125,
+          "native_threads": 63,
+          "file_descriptors": 14
+        }
+      }
+    },
+    {
+      "timestamp": 133509.995678193,
+      "processes": {
+        "653464": {
+          "pid": 653464,
+          "start_ticks": 13349320,
+          "cpu_s": 12.18,
+          "rss_mib": 221.1796875,
+          "pss_mib": 183.7197265625,
+          "native_threads": 84,
+          "file_descriptors": 23
+        },
+        "653498": {
+          "pid": 653498,
+          "start_ticks": 13349377,
+          "cpu_s": 15.21,
+          "rss_mib": 336.03125,
+          "pss_mib": 299.2470703125,
+          "native_threads": 63,
+          "file_descriptors": 14
+        }
+      }
+    },
+    {
+      "timestamp": 133510.20233809,
+      "processes": {
+        "653464": {
+          "pid": 653464,
+          "start_ticks": 13349320,
+          "cpu_s": 12.29,
+          "rss_mib": 221.20703125,
+          "pss_mib": 183.7470703125,
+          "native_threads": 84,
+          "file_descriptors": 23
+        },
+        "653498": {
+          "pid": 653498,
+          "start_ticks": 13349377,
+          "cpu_s": 15.35,
+          "rss_mib": 336.05859375,
+          "pss_mib": 299.2744140625,
+          "native_threads": 63,
+          "file_descriptors": 14
+        }
+      }
+    },
+    {
+      "timestamp": 133510.408720425,
+      "processes": {
+        "653464": {
+          "pid": 653464,
+          "start_ticks": 13349320,
+          "cpu_s": 12.4,
+          "rss_mib": 221.2421875,
+          "pss_mib": 183.7822265625,
+          "native_threads": 84,
+          "file_descriptors": 23
+        },
+        "653498": {
+          "pid": 653498,
+          "start_ticks": 13349377,
+          "cpu_s": 15.5,
+          "rss_mib": 336.0859375,
+          "pss_mib": 299.3017578125,
+          "native_threads": 63,
+          "file_descriptors": 14
+        }
+      }
+    },
+    {
+      "timestamp": 133510.616459708,
+      "processes": {
+        "653464": {
+          "pid": 653464,
+          "start_ticks": 13349320,
+          "cpu_s": 12.53,
+          "rss_mib": 221.265625,
+          "pss_mib": 183.8056640625,
+          "native_threads": 84,
+          "file_descriptors": 23
+        },
+        "653498": {
+          "pid": 653498,
+          "start_ticks": 13349377,
+          "cpu_s": 15.64,
+          "rss_mib": 336.09765625,
+          "pss_mib": 299.3134765625,
+          "native_threads": 63,
+          "file_descriptors": 14
+        }
+      }
+    },
+    {
+      "timestamp": 133510.824707115,
+      "processes": {
+        "653464": {
+          "pid": 653464,
+          "start_ticks": 13349320,
+          "cpu_s": 12.62,
+          "rss_mib": 221.30078125,
+          "pss_mib": 183.8408203125,
+          "native_threads": 84,
+          "file_descriptors": 23
+        },
+        "653498": {
+          "pid": 653498,
+          "start_ticks": 13349377,
+          "cpu_s": 15.78,
+          "rss_mib": 336.11328125,
+          "pss_mib": 299.3291015625,
+          "native_threads": 63,
+          "file_descriptors": 14
+        }
+      }
+    },
+    {
+      "timestamp": 133511.03144617,
+      "processes": {
+        "653464": {
+          "pid": 653464,
+          "start_ticks": 13349320,
+          "cpu_s": 12.75,
+          "rss_mib": 219.0859375,
+          "pss_mib": 181.6259765625,
+          "native_threads": 84,
+          "file_descriptors": 23
+        },
+        "653498": {
+          "pid": 653498,
+          "start_ticks": 13349377,
+          "cpu_s": 15.94,
+          "rss_mib": 336.13671875,
+          "pss_mib": 299.3525390625,
+          "native_threads": 63,
+          "file_descriptors": 14
+        }
+      }
+    },
+    {
+      "timestamp": 133511.234930503,
+      "processes": {
+        "653464": {
+          "pid": 653464,
+          "start_ticks": 13349320,
+          "cpu_s": 12.86,
+          "rss_mib": 221.3359375,
+          "pss_mib": 183.8759765625,
+          "native_threads": 84,
+          "file_descriptors": 23
+        },
+        "653498": {
+          "pid": 653498,
+          "start_ticks": 13349377,
+          "cpu_s": 16.09,
+          "rss_mib": 336.16015625,
+          "pss_mib": 299.3759765625,
+          "native_threads": 63,
+          "file_descriptors": 14
+        }
+      }
+    },
+    {
+      "timestamp": 133511.441632228,
+      "processes": {
+        "653464": {
+          "pid": 653464,
+          "start_ticks": 13349320,
+          "cpu_s": 12.96,
+          "rss_mib": 221.359375,
+          "pss_mib": 183.8994140625,
+          "native_threads": 84,
+          "file_descriptors": 23
+        },
+        "653498": {
+          "pid": 653498,
+          "start_ticks": 13349377,
+          "cpu_s": 16.23,
+          "rss_mib": 336.1796875,
+          "pss_mib": 299.3955078125,
+          "native_threads": 63,
+          "file_descriptors": 14
+        }
+      }
+    },
+    {
+      "timestamp": 133511.648889372,
+      "processes": {
+        "653464": {
+          "pid": 653464,
+          "start_ticks": 13349320,
+          "cpu_s": 13.08,
+          "rss_mib": 221.390625,
+          "pss_mib": 183.9306640625,
+          "native_threads": 84,
+          "file_descriptors": 23
+        },
+        "653498": {
+          "pid": 653498,
+          "start_ticks": 13349377,
+          "cpu_s": 16.36,
+          "rss_mib": 336.19921875,
+          "pss_mib": 299.4150390625,
+          "native_threads": 63,
+          "file_descriptors": 14
+        }
+      }
+    },
+    {
+      "timestamp": 133511.853948487,
+      "processes": {
+        "653464": {
+          "pid": 653464,
+          "start_ticks": 13349320,
+          "cpu_s": 13.19,
+          "rss_mib": 221.42578125,
+          "pss_mib": 183.9658203125,
+          "native_threads": 84,
+          "file_descriptors": 23
+        },
+        "653498": {
+          "pid": 653498,
+          "start_ticks": 13349377,
+          "cpu_s": 16.52,
+          "rss_mib": 357.26171875,
+          "pss_mib": 320.4775390625,
+          "native_threads": 63,
+          "file_descriptors": 14
+        }
+      }
+    },
+    {
+      "timestamp": 133512.06186806,
+      "processes": {
+        "653464": {
+          "pid": 653464,
+          "start_ticks": 13349320,
+          "cpu_s": 13.29,
+          "rss_mib": 221.4453125,
+          "pss_mib": 183.9853515625,
+          "native_threads": 84,
+          "file_descriptors": 23
+        },
+        "653498": {
+          "pid": 653498,
+          "start_ticks": 13349377,
+          "cpu_s": 16.64,
+          "rss_mib": 357.27734375,
+          "pss_mib": 320.4931640625,
+          "native_threads": 63,
+          "file_descriptors": 14
+        }
+      }
+    },
+    {
+      "timestamp": 133512.271514475,
+      "processes": {
+        "653464": {
+          "pid": 653464,
+          "start_ticks": 13349320,
+          "cpu_s": 13.4,
+          "rss_mib": 221.46875,
+          "pss_mib": 184.0087890625,
+          "native_threads": 84,
+          "file_descriptors": 23
+        },
+        "653498": {
+          "pid": 653498,
+          "start_ticks": 13349377,
+          "cpu_s": 16.81,
+          "rss_mib": 346.7421875,
+          "pss_mib": 309.9580078125,
+          "native_threads": 63,
+          "file_descriptors": 14
+        }
+      }
+    },
+    {
+      "timestamp": 133512.478291951,
+      "processes": {
+        "653464": {
+          "pid": 653464,
+          "start_ticks": 13349320,
+          "cpu_s": 13.51,
+          "rss_mib": 221.50390625,
+          "pss_mib": 184.0439453125,
+          "native_threads": 84,
+          "file_descriptors": 23
+        },
+        "653498": {
+          "pid": 653498,
+          "start_ticks": 13349377,
+          "cpu_s": 16.94,
+          "rss_mib": 352.0234375,
+          "pss_mib": 315.2392578125,
+          "native_threads": 63,
+          "file_descriptors": 14
+        }
+      }
+    },
+    {
+      "timestamp": 133512.684899357,
+      "processes": {
+        "653464": {
+          "pid": 653464,
+          "start_ticks": 13349320,
+          "cpu_s": 13.61,
+          "rss_mib": 221.5234375,
+          "pss_mib": 184.0634765625,
+          "native_threads": 84,
+          "file_descriptors": 23
+        },
+        "653498": {
+          "pid": 653498,
+          "start_ticks": 13349377,
+          "cpu_s": 17.08,
+          "rss_mib": 353.1796875,
+          "pss_mib": 316.3955078125,
+          "native_threads": 63,
+          "file_descriptors": 14
+        }
+      }
+    },
+    {
+      "timestamp": 133512.894909137,
+      "processes": {
+        "653464": {
+          "pid": 653464,
+          "start_ticks": 13349320,
+          "cpu_s": 13.72,
+          "rss_mib": 221.5546875,
+          "pss_mib": 184.0947265625,
+          "native_threads": 84,
+          "file_descriptors": 23
+        },
+        "653498": {
+          "pid": 653498,
+          "start_ticks": 13349377,
+          "cpu_s": 17.23,
+          "rss_mib": 353.20703125,
+          "pss_mib": 316.4228515625,
+          "native_threads": 63,
+          "file_descriptors": 14
+        }
+      }
+    },
+    {
+      "timestamp": 133513.099693172,
+      "processes": {
+        "653464": {
+          "pid": 653464,
+          "start_ticks": 13349320,
+          "cpu_s": 13.83,
+          "rss_mib": 221.58203125,
+          "pss_mib": 184.1220703125,
+          "native_threads": 84,
+          "file_descriptors": 23
+        },
+        "653498": {
+          "pid": 653498,
+          "start_ticks": 13349377,
+          "cpu_s": 17.36,
+          "rss_mib": 353.2265625,
+          "pss_mib": 316.4423828125,
+          "native_threads": 63,
+          "file_descriptors": 14
+        }
+      }
+    },
+    {
+      "timestamp": 133513.30785691,
+      "processes": {
+        "653464": {
+          "pid": 653464,
+          "start_ticks": 13349320,
+          "cpu_s": 13.94,
+          "rss_mib": 221.62109375,
+          "pss_mib": 184.1611328125,
+          "native_threads": 84,
+          "file_descriptors": 23
+        },
+        "653498": {
+          "pid": 653498,
+          "start_ticks": 13349377,
+          "cpu_s": 17.53,
+          "rss_mib": 379.8515625,
+          "pss_mib": 343.0673828125,
+          "native_threads": 63,
+          "file_descriptors": 14
+        }
+      }
+    },
+    {
+      "timestamp": 133513.513464762,
+      "processes": {
+        "653464": {
+          "pid": 653464,
+          "start_ticks": 13349320,
+          "cpu_s": 14.04,
+          "rss_mib": 221.64453125,
+          "pss_mib": 184.1845703125,
+          "native_threads": 84,
+          "file_descriptors": 23
+        },
+        "653498": {
+          "pid": 653498,
+          "start_ticks": 13349377,
+          "cpu_s": 17.66,
+          "rss_mib": 379.875,
+          "pss_mib": 343.0908203125,
+          "native_threads": 63,
+          "file_descriptors": 14
+        }
+      }
+    },
+    {
+      "timestamp": 133513.717929716,
+      "processes": {
+        "653464": {
+          "pid": 653464,
+          "start_ticks": 13349320,
+          "cpu_s": 14.16,
+          "rss_mib": 221.66796875,
+          "pss_mib": 184.2080078125,
+          "native_threads": 84,
+          "file_descriptors": 23
+        },
+        "653498": {
+          "pid": 653498,
+          "start_ticks": 13349377,
+          "cpu_s": 17.79,
+          "rss_mib": 379.89453125,
+          "pss_mib": 343.1103515625,
+          "native_threads": 63,
+          "file_descriptors": 14
+        }
+      }
+    },
+    {
+      "timestamp": 133513.923747391,
+      "processes": {
+        "653464": {
+          "pid": 653464,
+          "start_ticks": 13349320,
+          "cpu_s": 14.26,
+          "rss_mib": 222.1171875,
+          "pss_mib": 184.6572265625,
+          "native_threads": 84,
+          "file_descriptors": 23
+        },
+        "653498": {
+          "pid": 653498,
+          "start_ticks": 13349377,
+          "cpu_s": 17.95,
+          "rss_mib": 367.046875,
+          "pss_mib": 330.2626953125,
+          "native_threads": 63,
+          "file_descriptors": 14
+        }
+      }
+    },
+    {
+      "timestamp": 133514.129449346,
+      "processes": {
+        "653464": {
+          "pid": 653464,
+          "start_ticks": 13349320,
+          "cpu_s": 14.37,
+          "rss_mib": 222.1484375,
+          "pss_mib": 184.6884765625,
+          "native_threads": 84,
+          "file_descriptors": 23
+        },
+        "653498": {
+          "pid": 653498,
+          "start_ticks": 13349377,
+          "cpu_s": 18.1,
+          "rss_mib": 367.078125,
+          "pss_mib": 330.2939453125,
+          "native_threads": 63,
+          "file_descriptors": 14
+        }
+      }
+    },
+    {
+      "timestamp": 133514.334358483,
+      "processes": {
+        "653464": {
+          "pid": 653464,
+          "start_ticks": 13349320,
+          "cpu_s": 14.48,
+          "rss_mib": 222.16796875,
+          "pss_mib": 184.7080078125,
+          "native_threads": 84,
+          "file_descriptors": 23
+        },
+        "653498": {
+          "pid": 653498,
+          "start_ticks": 13349377,
+          "cpu_s": 18.24,
+          "rss_mib": 367.09765625,
+          "pss_mib": 330.3134765625,
+          "native_threads": 63,
+          "file_descriptors": 14
+        }
+      }
+    },
+    {
+      "timestamp": 133514.537692471,
+      "processes": {
+        "653464": {
+          "pid": 653464,
+          "start_ticks": 13349320,
+          "cpu_s": 14.59,
+          "rss_mib": 222.19140625,
+          "pss_mib": 184.7314453125,
+          "native_threads": 84,
+          "file_descriptors": 23
+        },
+        "653498": {
+          "pid": 653498,
+          "start_ticks": 13349377,
+          "cpu_s": 18.37,
+          "rss_mib": 367.12109375,
+          "pss_mib": 330.3369140625,
+          "native_threads": 63,
+          "file_descriptors": 14
+        }
+      }
+    },
+    {
+      "timestamp": 133514.74741828,
+      "processes": {
+        "653464": {
+          "pid": 653464,
+          "start_ticks": 13349320,
+          "cpu_s": 14.7,
+          "rss_mib": 222.2265625,
+          "pss_mib": 184.7666015625,
+          "native_threads": 84,
+          "file_descriptors": 23
+        },
+        "653498": {
+          "pid": 653498,
+          "start_ticks": 13349377,
+          "cpu_s": 18.53,
+          "rss_mib": 380.3828125,
+          "pss_mib": 343.5986328125,
+          "native_threads": 63,
+          "file_descriptors": 14
+        }
+      }
+    },
+    {
+      "timestamp": 133514.956348147,
+      "processes": {
+        "653464": {
+          "pid": 653464,
+          "start_ticks": 13349320,
+          "cpu_s": 14.81,
+          "rss_mib": 222.24609375,
+          "pss_mib": 184.7861328125,
+          "native_threads": 84,
+          "file_descriptors": 23
+        },
+        "653498": {
+          "pid": 653498,
+          "start_ticks": 13349377,
+          "cpu_s": 18.66,
+          "rss_mib": 382.24609375,
+          "pss_mib": 345.4619140625,
+          "native_threads": 63,
+          "file_descriptors": 14
+        }
+      }
+    },
+    {
+      "timestamp": 133515.163743949,
+      "processes": {
+        "653464": {
+          "pid": 653464,
+          "start_ticks": 13349320,
+          "cpu_s": 14.92,
+          "rss_mib": 222.26171875,
+          "pss_mib": 184.8017578125,
+          "native_threads": 84,
+          "file_descriptors": 23
+        },
+        "653498": {
+          "pid": 653498,
+          "start_ticks": 13349377,
+          "cpu_s": 18.8,
+          "rss_mib": 382.28125,
+          "pss_mib": 345.4970703125,
+          "native_threads": 63,
+          "file_descriptors": 14
+        }
+      }
+    },
+    {
+      "timestamp": 133515.37249543,
+      "processes": {
+        "653464": {
+          "pid": 653464,
+          "start_ticks": 13349320,
+          "cpu_s": 15.03,
+          "rss_mib": 222.296875,
+          "pss_mib": 184.8369140625,
+          "native_threads": 84,
+          "file_descriptors": 23
+        },
+        "653498": {
+          "pid": 653498,
+          "start_ticks": 13349377,
+          "cpu_s": 18.97,
+          "rss_mib": 407.77734375,
+          "pss_mib": 370.9931640625,
+          "native_threads": 63,
+          "file_descriptors": 14
+        }
+      }
+    },
+    {
+      "timestamp": 133515.580241205,
+      "processes": {
+        "653464": {
+          "pid": 653464,
+          "start_ticks": 13349320,
+          "cpu_s": 15.14,
+          "rss_mib": 222.32421875,
+          "pss_mib": 184.8642578125,
+          "native_threads": 84,
+          "file_descriptors": 23
+        },
+        "653498": {
+          "pid": 653498,
+          "start_ticks": 13349377,
+          "cpu_s": 19.12,
+          "rss_mib": 408.9140625,
+          "pss_mib": 372.1298828125,
+          "native_threads": 63,
+          "file_descriptors": 14
+        }
+      }
+    },
+    {
+      "timestamp": 133515.79019286,
+      "processes": {
+        "653464": {
+          "pid": 653464,
+          "start_ticks": 13349320,
+          "cpu_s": 15.25,
+          "rss_mib": 222.3515625,
+          "pss_mib": 184.8916015625,
+          "native_threads": 84,
+          "file_descriptors": 23
+        },
+        "653498": {
+          "pid": 653498,
+          "start_ticks": 13349377,
+          "cpu_s": 19.27,
+          "rss_mib": 408.9296875,
+          "pss_mib": 372.1455078125,
+          "native_threads": 63,
+          "file_descriptors": 14
+        }
+      }
+    },
+    {
+      "timestamp": 133515.99582407,
+      "processes": {
+        "653464": {
+          "pid": 653464,
+          "start_ticks": 13349320,
+          "cpu_s": 15.36,
+          "rss_mib": 222.37109375,
+          "pss_mib": 184.9111328125,
+          "native_threads": 84,
+          "file_descriptors": 23
+        },
+        "653498": {
+          "pid": 653498,
+          "start_ticks": 13349377,
+          "cpu_s": 19.41,
+          "rss_mib": 408.953125,
+          "pss_mib": 372.1689453125,
+          "native_threads": 63,
+          "file_descriptors": 14
+        }
+      }
+    },
+    {
+      "timestamp": 133516.205438625,
+      "processes": {
+        "653464": {
+          "pid": 653464,
+          "start_ticks": 13349320,
+          "cpu_s": 15.46,
+          "rss_mib": 222.40234375,
+          "pss_mib": 184.9423828125,
+          "native_threads": 84,
+          "file_descriptors": 23
+        },
+        "653498": {
+          "pid": 653498,
+          "start_ticks": 13349377,
+          "cpu_s": 19.56,
+          "rss_mib": 380.796875,
+          "pss_mib": 344.0126953125,
+          "native_threads": 63,
+          "file_descriptors": 14
+        }
+      }
+    },
+    {
+      "timestamp": 133516.411941193,
+      "processes": {
+        "653464": {
+          "pid": 653464,
+          "start_ticks": 13349320,
+          "cpu_s": 15.59,
+          "rss_mib": 222.44140625,
+          "pss_mib": 184.9814453125,
+          "native_threads": 84,
+          "file_descriptors": 23
+        },
+        "653498": {
+          "pid": 653498,
+          "start_ticks": 13349377,
+          "cpu_s": 19.71,
+          "rss_mib": 402.08203125,
+          "pss_mib": 365.2978515625,
+          "native_threads": 63,
+          "file_descriptors": 14
+        }
+      }
+    },
+    {
+      "timestamp": 133516.622638749,
+      "processes": {
+        "653464": {
+          "pid": 653464,
+          "start_ticks": 13349320,
+          "cpu_s": 15.7,
+          "rss_mib": 222.45703125,
+          "pss_mib": 184.9970703125,
+          "native_threads": 84,
+          "file_descriptors": 23
+        },
+        "653498": {
+          "pid": 653498,
+          "start_ticks": 13349377,
+          "cpu_s": 19.85,
+          "rss_mib": 402.09765625,
+          "pss_mib": 365.3134765625,
+          "native_threads": 63,
+          "file_descriptors": 14
+        }
+      }
+    },
+    {
+      "timestamp": 133516.828861637,
+      "processes": {
+        "653464": {
+          "pid": 653464,
+          "start_ticks": 13349320,
+          "cpu_s": 15.81,
+          "rss_mib": 222.48828125,
+          "pss_mib": 185.0283203125,
+          "native_threads": 84,
+          "file_descriptors": 23
+        },
+        "653498": {
+          "pid": 653498,
+          "start_ticks": 13349377,
+          "cpu_s": 20.0,
+          "rss_mib": 414.26171875,
+          "pss_mib": 377.4775390625,
+          "native_threads": 63,
+          "file_descriptors": 14
+        }
+      }
+    },
+    {
+      "timestamp": 133517.035279154,
+      "processes": {
+        "653464": {
+          "pid": 653464,
+          "start_ticks": 13349320,
+          "cpu_s": 15.91,
+          "rss_mib": 222.515625,
+          "pss_mib": 185.0556640625,
+          "native_threads": 84,
+          "file_descriptors": 23
+        },
+        "653498": {
+          "pid": 653498,
+          "start_ticks": 13349377,
+          "cpu_s": 20.15,
+          "rss_mib": 415.40234375,
+          "pss_mib": 378.6181640625,
+          "native_threads": 63,
+          "file_descriptors": 14
+        }
+      }
+    },
+    {
+      "timestamp": 133517.244135781,
+      "processes": {
+        "653464": {
+          "pid": 653464,
+          "start_ticks": 13349320,
+          "cpu_s": 16.03,
+          "rss_mib": 222.54296875,
+          "pss_mib": 185.0830078125,
+          "native_threads": 84,
+          "file_descriptors": 23
+        },
+        "653498": {
+          "pid": 653498,
+          "start_ticks": 13349377,
+          "cpu_s": 20.29,
+          "rss_mib": 415.52734375,
+          "pss_mib": 378.7431640625,
+          "native_threads": 63,
+          "file_descriptors": 14
+        }
+      }
+    },
+    {
+      "timestamp": 133517.453333428,
+      "processes": {
+        "653464": {
+          "pid": 653464,
+          "start_ticks": 13349320,
+          "cpu_s": 16.14,
+          "rss_mib": 222.5703125,
+          "pss_mib": 185.1103515625,
+          "native_threads": 84,
+          "file_descriptors": 23
+        },
+        "653498": {
+          "pid": 653498,
+          "start_ticks": 13349377,
+          "cpu_s": 20.44,
+          "rss_mib": 415.55078125,
+          "pss_mib": 378.7666015625,
+          "native_threads": 63,
+          "file_descriptors": 14
+        }
+      }
+    },
+    {
+      "timestamp": 133517.661970461,
+      "processes": {
+        "653464": {
+          "pid": 653464,
+          "start_ticks": 13349320,
+          "cpu_s": 16.25,
+          "rss_mib": 222.6015625,
+          "pss_mib": 185.1416015625,
+          "native_threads": 84,
+          "file_descriptors": 23
+        },
+        "653498": {
+          "pid": 653498,
+          "start_ticks": 13349377,
+          "cpu_s": 20.59,
+          "rss_mib": 415.57421875,
+          "pss_mib": 378.7900390625,
+          "native_threads": 63,
+          "file_descriptors": 14
+        }
+      }
+    },
+    {
+      "timestamp": 133517.86774228,
+      "processes": {
+        "653464": {
+          "pid": 653464,
+          "start_ticks": 13349320,
+          "cpu_s": 16.4,
+          "rss_mib": 222.6875,
+          "pss_mib": 185.2275390625,
+          "native_threads": 84,
+          "file_descriptors": 23
+        },
+        "653498": {
+          "pid": 653498,
+          "start_ticks": 13349377,
+          "cpu_s": 20.75,
+          "rss_mib": 375.93359375,
+          "pss_mib": 339.1494140625,
+          "native_threads": 63,
+          "file_descriptors": 14
+        }
+      }
+    },
+    {
+      "timestamp": 133518.075647385,
+      "processes": {
+        "653464": {
+          "pid": 653464,
+          "start_ticks": 13349320,
+          "cpu_s": 16.52,
+          "rss_mib": 222.6875,
+          "pss_mib": 185.2275390625,
+          "native_threads": 84,
+          "file_descriptors": 23
+        },
+        "653498": {
+          "pid": 653498,
+          "start_ticks": 13349377,
+          "cpu_s": 20.89,
+          "rss_mib": 375.953125,
+          "pss_mib": 339.1689453125,
+          "native_threads": 63,
+          "file_descriptors": 14
+        }
+      }
+    },
+    {
+      "timestamp": 133518.28431761,
+      "processes": {
+        "653464": {
+          "pid": 653464,
+          "start_ticks": 13349320,
+          "cpu_s": 16.62,
+          "rss_mib": 221.7734375,
+          "pss_mib": 184.3134765625,
+          "native_threads": 84,
+          "file_descriptors": 23
+        },
+        "653498": {
+          "pid": 653498,
+          "start_ticks": 13349377,
+          "cpu_s": 21.07,
+          "rss_mib": 407.43359375,
+          "pss_mib": 370.6494140625,
+          "native_threads": 63,
+          "file_descriptors": 14
+        }
+      }
+    },
+    {
+      "timestamp": 133518.4922482,
+      "processes": {
+        "653464": {
+          "pid": 653464,
+          "start_ticks": 13349320,
+          "cpu_s": 16.76,
+          "rss_mib": 224.875,
+          "pss_mib": 187.4150390625,
+          "native_threads": 84,
+          "file_descriptors": 23
+        },
+        "653498": {
+          "pid": 653498,
+          "start_ticks": 13349377,
+          "cpu_s": 21.23,
+          "rss_mib": 412.66015625,
+          "pss_mib": 375.8759765625,
+          "native_threads": 63,
+          "file_descriptors": 14
+        }
+      }
+    },
+    {
+      "timestamp": 133518.701392309,
+      "processes": {
+        "653464": {
+          "pid": 653464,
+          "start_ticks": 13349320,
+          "cpu_s": 16.87,
+          "rss_mib": 223.99609375,
+          "pss_mib": 186.5361328125,
+          "native_threads": 84,
+          "file_descriptors": 23
+        },
+        "653498": {
+          "pid": 653498,
+          "start_ticks": 13349377,
+          "cpu_s": 21.38,
+          "rss_mib": 412.68359375,
+          "pss_mib": 375.8994140625,
+          "native_threads": 63,
+          "file_descriptors": 14
+        }
+      }
+    },
+    {
+      "timestamp": 133518.909573863,
+      "processes": {
+        "653464": {
+          "pid": 653464,
+          "start_ticks": 13349320,
+          "cpu_s": 16.99,
+          "rss_mib": 223.99609375,
+          "pss_mib": 186.5361328125,
+          "native_threads": 84,
+          "file_descriptors": 23
+        },
+        "653498": {
+          "pid": 653498,
+          "start_ticks": 13349377,
+          "cpu_s": 21.53,
+          "rss_mib": 412.703125,
+          "pss_mib": 375.9189453125,
+          "native_threads": 63,
+          "file_descriptors": 14
+        }
+      }
+    },
+    {
+      "timestamp": 133519.116995084,
+      "processes": {
+        "653464": {
+          "pid": 653464,
+          "start_ticks": 13349320,
+          "cpu_s": 17.1,
+          "rss_mib": 221.77734375,
+          "pss_mib": 184.244140625,
+          "native_threads": 84,
+          "file_descriptors": 23
+        },
+        "653498": {
+          "pid": 653498,
+          "start_ticks": 13349377,
+          "cpu_s": 21.69,
+          "rss_mib": 412.71875,
+          "pss_mib": 375.9150390625,
+          "native_threads": 63,
+          "file_descriptors": 14
+        }
+      }
+    },
+    {
+      "timestamp": 133519.325910656,
+      "processes": {
+        "653464": {
+          "pid": 653464,
+          "start_ticks": 13349320,
+          "cpu_s": 17.24,
+          "rss_mib": 219.55859375,
+          "pss_mib": 182.0986328125,
+          "native_threads": 84,
+          "file_descriptors": 23
+        },
+        "653498": {
+          "pid": 653498,
+          "start_ticks": 13349377,
+          "cpu_s": 21.85,
+          "rss_mib": 397.1875,
+          "pss_mib": 360.4033203125,
+          "native_threads": 63,
+          "file_descriptors": 14
+        }
+      }
+    },
+    {
+      "timestamp": 133519.533317437,
+      "processes": {
+        "653464": {
+          "pid": 653464,
+          "start_ticks": 13349320,
+          "cpu_s": 17.34,
+          "rss_mib": 221.79296875,
+          "pss_mib": 184.3330078125,
+          "native_threads": 84,
+          "file_descriptors": 23
+        },
+        "653498": {
+          "pid": 653498,
+          "start_ticks": 13349377,
+          "cpu_s": 22.0,
+          "rss_mib": 398.0078125,
+          "pss_mib": 361.2236328125,
+          "native_threads": 63,
+          "file_descriptors": 14
+        }
+      }
+    }
+  ],
+  "steady": {
+    "seconds": 10.005111399979796,
+    "views": {
+      "front": {
+        "rates": {
+          "capture": {
+            "count": 299,
+            "fps": 29.884724721866043,
+            "per_second_fps": [
+              30.0,
+              29.0,
+              30.0,
+              30.0,
+              30.0,
+              30.0,
+              30.0,
+              30.0,
+              30.0,
+              29.0,
+              195.64111671023244
+            ]
+          },
+          "encoder_input": {
+            "count": 299,
+            "fps": 29.884724721866043,
+            "per_second_fps": [
+              30.0,
+              29.0,
+              30.0,
+              30.0,
+              30.0,
+              30.0,
+              30.0,
+              30.0,
+              30.0,
+              29.0,
+              195.64111671023244
+            ]
+          },
+          "encode_end": {
+            "count": 298,
+            "fps": 29.78477580975278,
+            "per_second_fps": [
+              29.0,
+              30.0,
+              30.0,
+              30.0,
+              30.0,
+              30.0,
+              30.0,
+              30.0,
+              29.0,
+              30.0,
+              0.0
+            ]
+          },
+          "decode_end": {
+            "count": 299,
+            "fps": 29.884724721866043,
+            "per_second_fps": [
+              30.0,
+              30.0,
+              30.0,
+              30.0,
+              30.0,
+              30.0,
+              30.0,
+              29.0,
+              30.0,
+              30.0,
+              0.0
+            ]
+          },
+          "callback": {
+            "count": 299,
+            "fps": 29.884724721866043,
+            "per_second_fps": [
+              30.0,
+              30.0,
+              30.0,
+              30.0,
+              30.0,
+              30.0,
+              30.0,
+              29.0,
+              30.0,
+              30.0,
+              0.0
+            ]
+          },
+          "paint": {
+            "count": 299,
+            "fps": 29.884724721866043,
+            "per_second_fps": [
+              30.0,
+              30.0,
+              30.0,
+              29.0,
+              30.0,
+              31.0,
+              29.0,
+              30.0,
+              30.0,
+              30.0,
+              0.0
+            ]
+          }
+        },
+        "latency_ms": {
+          "capture_to_encoder_input": {
+            "count": 299,
+            "p50": 0.5382070085033774,
+            "p95": 1.3176627981010824,
+            "p99": 1.4023557654581948,
+            "max": 2.43390302057378
+          },
+          "encoder_queue": {
+            "count": 299,
+            "p50": 0.12018301640637219,
+            "p95": 0.2551039186073466,
+            "p99": 0.42988804809283426,
+            "max": 0.6623310036957264
+          },
+          "encode_including_color_conversion": {
+            "count": 298,
+            "p50": 4.684094004915096,
+            "p95": 5.6364245188888145,
+            "p99": 17.36723881243956,
+            "max": 27.621405984973535
+          },
+          "encode_end_to_decode_start": {
+            "count": 299,
+            "p50": 34.535254002548754,
+            "p95": 36.35459420911502,
+            "p99": 48.43598428589757,
+            "max": 58.291772002121434
+          },
+          "decode": {
+            "count": 299,
+            "p50": 1.5425820020027459,
+            "p95": 1.9695525930728748,
+            "p99": 2.7616156474687132,
+            "max": 3.1320909911300987
+          },
+          "decode_to_track_recv": {
+            "count": 299,
+            "p50": 0.17171399667859077,
+            "p95": 0.564368191407993,
+            "p99": 4.821194390533491,
+            "max": 6.498369009932503
+          },
+          "receive_bgr_conversion": {
+            "count": 299,
+            "p50": 0.5890709871891886,
+            "p95": 1.8023097014520315,
+            "p99": 2.574926448869518,
+            "max": 2.999143995111808
+          },
+          "watermark_probe": {
+            "count": 299,
+            "p50": 0.09328802116215229,
+            "p95": 0.19131010631099338,
+            "p99": 0.25610713171772626,
+            "max": 0.3165520029142499
+          },
+          "cache_publication": {
+            "count": 299,
+            "p50": 0.1362790062557906,
+            "p95": 0.23167408944573126,
+            "p99": 0.7462451810715711,
+            "max": 0.9332069894298911
+          },
+          "cache_to_render": {
+            "count": 299,
+            "p50": 7.574501010822132,
+            "p95": 15.179129218449814,
+            "p99": 15.728488234453833,
+            "max": 16.21462998446077
+          },
+          "qt_scale_pixmap": {
+            "count": 299,
+            "p50": 0.5730800039600581,
+            "p95": 0.8436543983407312,
+            "p99": 1.0308277449803416,
+            "max": 1.3514439924620092
+          },
+          "render_to_paint": {
+            "count": 299,
+            "p50": 0.8489979954902083,
+            "p95": 1.6544237878406418,
+            "p99": 1.9395195477409282,
+            "max": 2.165397978387773
+          },
+          "capture_to_receive": {
+            "count": 299,
+            "p50": 42.6306500157807,
+            "p95": 45.75751160446087,
+            "p99": 56.98847451887558,
+            "max": 65.76342397602275
+          },
+          "capture_to_qt_paint": {
+            "count": 299,
+            "p50": 52.15994900208898,
+            "p95": 60.083586405380615,
+            "p99": 67.64403607521666,
+            "max": 80.66689199768007
+          }
+        },
+        "presentation_gap_ms": {
+          "count": 300,
+          "p50": 32.12446748511866,
+          "p95": 47.94748246349627,
+          "p99": 49.101393661112525,
+          "max": 65.18958898959681
+        },
+        "gaps_over_500ms": 0
+      },
+      "back": {
+        "rates": {
+          "capture": {
+            "count": 298,
+            "fps": 29.78477580975278,
+            "per_second_fps": [
+              29.0,
+              30.0,
+              30.0,
+              30.0,
+              29.0,
+              30.0,
+              30.0,
+              30.0,
+              30.0,
+              30.0,
+              0.0
+            ]
+          },
+          "encoder_input": {
+            "count": 299,
+            "fps": 29.884724721866043,
+            "per_second_fps": [
+              30.0,
+              30.0,
+              30.0,
+              30.0,
+              29.0,
+              30.0,
+              30.0,
+              30.0,
+              30.0,
+              30.0,
+              0.0
+            ]
+          },
+          "encode_end": {
+            "count": 299,
+            "fps": 29.884724721866043,
+            "per_second_fps": [
+              30.0,
+              30.0,
+              30.0,
+              30.0,
+              29.0,
+              30.0,
+              30.0,
+              30.0,
+              30.0,
+              29.0,
+              195.64111671023244
+            ]
+          },
+          "decode_end": {
+            "count": 299,
+            "fps": 29.884724721866043,
+            "per_second_fps": [
+              30.0,
+              30.0,
+              30.0,
+              30.0,
+              29.0,
+              30.0,
+              30.0,
+              30.0,
+              30.0,
+              29.0,
+              195.64111671023244
+            ]
+          },
+          "callback": {
+            "count": 299,
+            "fps": 29.884724721866043,
+            "per_second_fps": [
+              30.0,
+              30.0,
+              30.0,
+              30.0,
+              29.0,
+              30.0,
+              30.0,
+              30.0,
+              30.0,
+              29.0,
+              195.64111671023244
+            ]
+          },
+          "paint": {
+            "count": 298,
+            "fps": 29.78477580975278,
+            "per_second_fps": [
+              30.0,
+              30.0,
+              29.0,
+              30.0,
+              30.0,
+              30.0,
+              30.0,
+              30.0,
+              29.0,
+              30.0,
+              0.0
+            ]
+          }
+        },
+        "latency_ms": {
+          "capture_to_encoder_input": {
+            "count": 299,
+            "p50": 0.3715400234796107,
+            "p95": 9.639408293878645,
+            "p99": 12.32206669053994,
+            "max": 12.650479999138042
+          },
+          "encoder_queue": {
+            "count": 299,
+            "p50": 0.11459400411695242,
+            "p95": 0.32131970510818014,
+            "p99": 0.8449704758822909,
+            "max": 6.655708973994479
+          },
+          "encode_including_color_conversion": {
+            "count": 299,
+            "p50": 3.2080590026453137,
+            "p95": 4.072544877999456,
+            "p99": 9.720167379709874,
+            "max": 13.457979977829382
+          },
+          "encode_end_to_decode_start": {
+            "count": 299,
+            "p50": 34.49476999230683,
+            "p95": 37.24970909534022,
+            "p99": 42.7407872508047,
+            "max": 45.3099450096488
+          },
+          "decode": {
+            "count": 299,
+            "p50": 0.7038559997454286,
+            "p95": 1.4790376095334068,
+            "p99": 2.3496110900305154,
+            "max": 4.07473900122568
+          },
+          "decode_to_track_recv": {
+            "count": 299,
+            "p50": 0.17840700456872582,
+            "p95": 0.7688512152526523,
+            "p99": 1.167371521587483,
+            "max": 5.74605300789699
+          },
+          "receive_bgr_conversion": {
+            "count": 299,
+            "p50": 0.1760140003170818,
+            "p95": 0.3702670044731342,
+            "p99": 0.5733664199942712,
+            "max": 0.9107469813898206
+          },
+          "watermark_probe": {
+            "count": 299,
+            "p50": 0.06306800059974194,
+            "p95": 0.13977029884699727,
+            "p99": 0.2007322909776114,
+            "max": 0.5200069863349199
+          },
+          "cache_publication": {
+            "count": 299,
+            "p50": 0.06521400064229965,
+            "p95": 0.13586987624876193,
+            "p99": 0.22825927997473627,
+            "max": 0.27199499891139567
+          },
+          "cache_to_render": {
+            "count": 298,
+            "p50": 7.654532993910834,
+            "p95": 14.595081891457085,
+            "p99": 15.384052276494911,
+            "max": 16.947794007137418
+          },
+          "qt_scale_pixmap": {
+            "count": 298,
+            "p50": 0.32337851007469,
+            "p95": 0.4613194294506683,
+            "p99": 0.7432710993452921,
+            "max": 1.3763949973508716
+          },
+          "render_to_paint": {
+            "count": 298,
+            "p50": 1.0245489975204691,
+            "p95": 1.6974385929643176,
+            "p99": 1.9914886489277668,
+            "max": 2.491482999175787
+          },
+          "capture_to_receive": {
+            "count": 299,
+            "p50": 39.90162198897451,
+            "p95": 49.0476970851887,
+            "p99": 51.0449261823669,
+            "max": 52.558580006007105
+          },
+          "capture_to_qt_paint": {
+            "count": 298,
+            "p50": 50.91573049139697,
+            "p95": 60.91977597825461,
+            "p99": 64.10689725656992,
+            "max": 66.72521898872219
+          }
+        },
+        "presentation_gap_ms": {
+          "count": 299,
+          "p50": 32.13395198690705,
+          "p95": 47.99820661719423,
+          "p99": 49.227886060252786,
+          "max": 50.36142599419691
+        },
+        "gaps_over_500ms": 0
+      },
+      "left": {
+        "rates": {
+          "capture": {
+            "count": 298,
+            "fps": 29.78477580975278,
+            "per_second_fps": [
+              29.0,
+              30.0,
+              30.0,
+              30.0,
+              29.0,
+              30.0,
+              30.0,
+              30.0,
+              30.0,
+              30.0,
+              0.0
+            ]
+          },
+          "encoder_input": {
+            "count": 298,
+            "fps": 29.78477580975278,
+            "per_second_fps": [
+              29.0,
+              30.0,
+              30.0,
+              30.0,
+              29.0,
+              30.0,
+              30.0,
+              30.0,
+              30.0,
+              30.0,
+              0.0
+            ]
+          },
+          "encode_end": {
+            "count": 299,
+            "fps": 29.884724721866043,
+            "per_second_fps": [
+              30.0,
+              30.0,
+              30.0,
+              30.0,
+              29.0,
+              30.0,
+              30.0,
+              30.0,
+              30.0,
+              30.0,
+              0.0
+            ]
+          },
+          "decode_end": {
+            "count": 299,
+            "fps": 29.884724721866043,
+            "per_second_fps": [
+              30.0,
+              30.0,
+              30.0,
+              30.0,
+              29.0,
+              30.0,
+              30.0,
+              30.0,
+              30.0,
+              30.0,
+              0.0
+            ]
+          },
+          "callback": {
+            "count": 299,
+            "fps": 29.884724721866043,
+            "per_second_fps": [
+              30.0,
+              30.0,
+              30.0,
+              30.0,
+              29.0,
+              30.0,
+              30.0,
+              30.0,
+              30.0,
+              30.0,
+              0.0
+            ]
+          },
+          "paint": {
+            "count": 298,
+            "fps": 29.78477580975278,
+            "per_second_fps": [
+              30.0,
+              30.0,
+              29.0,
+              30.0,
+              30.0,
+              30.0,
+              30.0,
+              30.0,
+              29.0,
+              30.0,
+              0.0
+            ]
+          }
+        },
+        "latency_ms": {
+          "capture_to_encoder_input": {
+            "count": 298,
+            "p50": 0.30126799538265914,
+            "p95": 0.6930883027962408,
+            "p99": 0.9665769574348796,
+            "max": 1.2345389986876398
+          },
+          "encoder_queue": {
+            "count": 298,
+            "p50": 0.11213149991817772,
+            "p95": 0.3996869112597777,
+            "p99": 0.646421189594546,
+            "max": 0.9676159825176001
+          },
+          "encode_including_color_conversion": {
+            "count": 299,
+            "p50": 3.219334001187235,
+            "p95": 4.323842804296871,
+            "p99": 9.502983933198221,
+            "max": 15.738663001684472
+          },
+          "encode_end_to_decode_start": {
+            "count": 299,
+            "p50": 34.53862702008337,
+            "p95": 37.38287400628906,
+            "p99": 43.49164955725426,
+            "max": 47.1155850100331
+          },
+          "decode": {
+            "count": 299,
+            "p50": 0.7293289818335325,
+            "p95": 1.3833096949383616,
+            "p99": 2.484866816666908,
+            "max": 2.7065399917773902
+          },
+          "decode_to_track_recv": {
+            "count": 299,
+            "p50": 0.19579098443500698,
+            "p95": 0.9686860110377893,
+            "p99": 3.067216108902356,
+            "max": 6.1033740057609975
+          },
+          "receive_bgr_conversion": {
+            "count": 299,
+            "p50": 0.19034600700251758,
+            "p95": 0.364389907917939,
+            "p99": 0.5736633174819847,
+            "max": 0.77861497993581
+          },
+          "watermark_probe": {
+            "count": 299,
+            "p50": 0.07183599518612027,
+            "p95": 0.14145390305202435,
+            "p99": 0.1861579972319301,
+            "max": 0.33220398472622037
+          },
+          "cache_publication": {
+            "count": 299,
+            "p50": 0.06786899757571518,
+            "p95": 0.11929729953408234,
+            "p99": 0.1764393202029163,
+            "max": 0.2677400188986212
+          },
+          "cache_to_render": {
+            "count": 298,
+            "p50": 7.982550989254378,
+            "p95": 15.366418503981546,
+            "p99": 16.307190929073833,
+            "max": 17.657574004260823
+          },
+          "qt_scale_pixmap": {
+            "count": 298,
+            "p50": 0.21636951714754105,
+            "p95": 0.4361270970548502,
+            "p99": 0.5518712557386591,
+            "max": 1.2183179787825793
+          },
+          "render_to_paint": {
+            "count": 298,
+            "p50": 0.7657864916836843,
+            "p95": 1.3235643651569262,
+            "p99": 1.5655484571470861,
+            "max": 1.819163007894531
+          },
+          "capture_to_receive": {
+            "count": 299,
+            "p50": 39.65885401703417,
+            "p95": 42.60824108205269,
+            "p99": 48.885381619329564,
+            "max": 52.63923099846579
+          },
+          "capture_to_qt_paint": {
+            "count": 298,
+            "p50": 49.06312050297856,
+            "p95": 57.18033916782588,
+            "p99": 59.85955782933159,
+            "max": 63.7111549731344
+          }
+        },
+        "presentation_gap_ms": {
+          "count": 299,
+          "p50": 32.11729301256128,
+          "p95": 48.352876206627116,
+          "p99": 50.03796433855314,
+          "max": 50.347726995823905
+        },
+        "gaps_over_500ms": 0
+      },
+      "right": {
+        "rates": {
+          "capture": {
+            "count": 299,
+            "fps": 29.884724721866043,
+            "per_second_fps": [
+              30.0,
+              30.0,
+              30.0,
+              30.0,
+              29.0,
+              30.0,
+              30.0,
+              30.0,
+              30.0,
+              30.0,
+              0.0
+            ]
+          },
+          "encoder_input": {
+            "count": 299,
+            "fps": 29.884724721866043,
+            "per_second_fps": [
+              30.0,
+              30.0,
+              30.0,
+              30.0,
+              29.0,
+              30.0,
+              30.0,
+              30.0,
+              30.0,
+              30.0,
+              0.0
+            ]
+          },
+          "encode_end": {
+            "count": 299,
+            "fps": 29.884724721866043,
+            "per_second_fps": [
+              30.0,
+              30.0,
+              30.0,
+              30.0,
+              29.0,
+              30.0,
+              30.0,
+              30.0,
+              30.0,
+              30.0,
+              0.0
+            ]
+          },
+          "decode_end": {
+            "count": 299,
+            "fps": 29.884724721866043,
+            "per_second_fps": [
+              30.0,
+              30.0,
+              30.0,
+              30.0,
+              29.0,
+              30.0,
+              30.0,
+              30.0,
+              30.0,
+              30.0,
+              0.0
+            ]
+          },
+          "callback": {
+            "count": 299,
+            "fps": 29.884724721866043,
+            "per_second_fps": [
+              30.0,
+              30.0,
+              30.0,
+              30.0,
+              29.0,
+              30.0,
+              30.0,
+              30.0,
+              30.0,
+              30.0,
+              0.0
+            ]
+          },
+          "paint": {
+            "count": 298,
+            "fps": 29.78477580975278,
+            "per_second_fps": [
+              30.0,
+              30.0,
+              29.0,
+              30.0,
+              30.0,
+              30.0,
+              30.0,
+              30.0,
+              29.0,
+              30.0,
+              0.0
+            ]
+          }
+        },
+        "latency_ms": {
+          "capture_to_encoder_input": {
+            "count": 299,
+            "p50": 0.39573502726852894,
+            "p95": 0.9091135812923303,
+            "p99": 2.3933692986611255,
+            "max": 2.585670998087153
+          },
+          "encoder_queue": {
+            "count": 299,
+            "p50": 0.11600198922678828,
+            "p95": 0.44061160297133023,
+            "p99": 0.7458792102988799,
+            "max": 1.048998994519934
+          },
+          "encode_including_color_conversion": {
+            "count": 299,
+            "p50": 3.2048290013335645,
+            "p95": 4.200798098463564,
+            "p99": 7.977105789468619,
+            "max": 11.550094990525395
+          },
+          "encode_end_to_decode_start": {
+            "count": 299,
+            "p50": 34.56367601756938,
+            "p95": 36.9778180058347,
+            "p99": 40.65589991281739,
+            "max": 43.83780001080595
+          },
+          "decode": {
+            "count": 299,
+            "p50": 0.7074459863360971,
+            "p95": 1.6423318156739686,
+            "p99": 2.394872689619658,
+            "max": 2.7634949947241694
+          },
+          "decode_to_track_recv": {
+            "count": 299,
+            "p50": 0.16664501163177192,
+            "p95": 0.7057584938593207,
+            "p99": 1.2149228877387839,
+            "max": 5.729225988034159
+          },
+          "receive_bgr_conversion": {
+            "count": 299,
+            "p50": 0.21147899678908288,
+            "p95": 0.4040927771711718,
+            "p99": 0.5759130342630666,
+            "max": 0.7019350014161319
+          },
+          "watermark_probe": {
+            "count": 299,
+            "p50": 0.09640099597163498,
+            "p95": 0.15245010727085148,
+            "p99": 0.30260725587140735,
+            "max": 0.4483270167838782
+          },
+          "cache_publication": {
+            "count": 299,
+            "p50": 0.0758729875087738,
+            "p95": 0.13893709401600063,
+            "p99": 0.21338104968890462,
+            "max": 0.3760010004043579
+          },
+          "cache_to_render": {
+            "count": 298,
+            "p50": 8.075562014710158,
+            "p95": 15.426535457663702,
+            "p99": 16.70102559990482,
+            "max": 17.321182996965945
+          },
+          "qt_scale_pixmap": {
+            "count": 298,
+            "p50": 0.191068509593606,
+            "p95": 0.4420219134772195,
+            "p99": 0.5509912213892663,
+            "max": 0.6315939826890826
+          },
+          "render_to_paint": {
+            "count": 298,
+            "p50": 0.6246849952731282,
+            "p95": 1.3226498587755486,
+            "p99": 1.5089961505145726,
+            "max": 1.769775990396738
+          },
+          "capture_to_receive": {
+            "count": 299,
+            "p50": 39.67405701405369,
+            "p95": 43.13620542234275,
+            "p99": 47.03458610631059,
+            "max": 49.60068399668671
+          },
+          "capture_to_qt_paint": {
+            "count": 298,
+            "p50": 49.418020993471146,
+            "p95": 57.3469637427479,
+            "p99": 59.65036115696416,
+            "max": 64.25937300082296
+          }
+        },
+        "presentation_gap_ms": {
+          "count": 299,
+          "p50": 32.13488101027906,
+          "p95": 48.347854078747325,
+          "p99": 49.84658858331385,
+          "max": 52.06444099894725
+        },
+        "gaps_over_500ms": 0
+      }
+    },
+    "samples": {
+      "gui_timer_lag_ms": {
+        "count": 1000,
+        "p50": 0.13202399190049596,
+        "p95": 0.9476305326097638,
+        "p99": 1.468194231856614,
+        "max": 1.9576900033280251
+      },
+      "control_sample_to_ack_ms": {
+        "count": 500,
+        "p50": 8.102810999844223,
+        "p95": 13.598074836772865,
+        "p99": 17.079247694055084,
+        "max": 24.981353984912857
+      },
+      "harness_loop_lag_ms": {
+        "count": 919,
+        "p50": 0.5239989934489129,
+        "p95": 1.1888643907150243,
+        "p99": 1.7288615118013684,
+        "max": 2.665771006140858
+      },
+      "control_armed": {
+        "count": 919,
+        "p50": 1.0,
+        "p95": 1.0,
+        "p99": 1.0,
+        "max": 1.0
+      },
+      "encoder_target_bps_back": {
+        "count": 299,
+        "p50": 672340.0,
+        "p95": 954772.0,
+        "p99": 992688.0,
+        "max": 992688.0
+      },
+      "encoder_actual_bps_back": {
+        "count": 299,
+        "p50": 621868.0,
+        "p95": 883844.0,
+        "p99": 992688.0,
+        "max": 992688.0
+      },
+      "encoder_target_bps_right": {
+        "count": 299,
+        "p50": 694708.0,
+        "p95": 950255.9999999987,
+        "p99": 983880.0,
+        "max": 983880.0
+      },
+      "encoder_actual_bps_right": {
+        "count": 299,
+        "p50": 694708.0,
+        "p95": 886913.9999999963,
+        "p99": 983880.0,
+        "max": 983880.0
+      },
+      "encoder_target_bps_left": {
+        "count": 299,
+        "p50": 700456.0,
+        "p95": 958263.5999999987,
+        "p99": 992100.0,
+        "max": 992100.0
+      },
+      "encoder_actual_bps_left": {
+        "count": 299,
+        "p50": 700456.0,
+        "p95": 894262.7999999963,
+        "p99": 992100.0,
+        "max": 992100.0
+      },
+      "encoder_target_bps_front": {
+        "count": 298,
+        "p50": 658700.0,
+        "p95": 914688.0,
+        "p99": 950720.0,
+        "max": 950720.0
+      },
+      "encoder_actual_bps_front": {
+        "count": 298,
+        "p50": 621472.0,
+        "p95": 880024.0,
+        "p99": 880024.0,
+        "max": 880024.0
+      },
+      "control_sample_to_mock_submit_ms": {
+        "count": 500,
+        "p50": 7.172562996856868,
+        "p95": 12.146629208291413,
+        "p99": 13.425406981841656,
+        "max": 23.943814972881228
+      },
+      "vehicle_combined_loop_lag_ms": {
+        "count": 943,
+        "p50": 0.5140800005756316,
+        "p95": 1.1333876120625062,
+        "p99": 1.858906362904247,
+        "max": 14.987507989862934
+      },
+      "vehicle_combined_python_threads": {
+        "count": 49,
+        "p50": 12.0,
+        "p95": 13.0,
+        "p99": 13.0,
+        "max": 13.0
+      }
+    },
+    "resources": {
+      "harness": {
+        "cpu_percent_one_core": 52.97292342003011,
+        "rss_mib": {
+          "count": 51,
+          "p50": 217.03125,
+          "p95": 219.5859375,
+          "p99": 219.966796875,
+          "max": 220.29296875
+        },
+        "pss_mib": {
+          "count": 51,
+          "p50": 179.6748046875,
+          "p95": 182.2294921875,
+          "p99": 182.6103515625,
+          "max": 182.9365234375
+        },
+        "native_threads": {
+          "count": 51,
+          "p50": 84.0,
+          "p95": 84.0,
+          "p99": 84.0,
+          "max": 84.0
+        },
+        "file_descriptors": {
+          "count": 51,
+          "p50": 23.0,
+          "p95": 23.0,
+          "p99": 23.0,
+          "max": 23.0
+        }
+      },
+      "combined": {
+        "cpu_percent_one_core": 72.26306345789014,
+        "rss_mib": {
+          "count": 51,
+          "p50": 320.3828125,
+          "p95": 379.7578125,
+          "p99": 379.828125,
+          "max": 379.83984375
+        },
+        "pss_mib": {
+          "count": 51,
+          "p50": 283.6416015625,
+          "p95": 343.0166015625,
+          "p99": 343.0869140625,
+          "max": 343.0986328125
+        },
+        "native_threads": {
+          "count": 51,
+          "p50": 59.0,
+          "p95": 60.0,
+          "p99": 60.0,
+          "max": 60.0
+        },
+        "file_descriptors": {
+          "count": 51,
+          "p50": 14.0,
+          "p95": 14.0,
+          "p99": 14.0,
+          "max": 14.0
+        }
+      },
+      "total": {
+        "cpu_percent_one_core": 125.23598687792025,
+        "rss_mib": {
+          "count": 51,
+          "p50": 539.8828125,
+          "p95": 599.099609375,
+          "p99": 599.666015625,
+          "max": 600.1328125
+        },
+        "pss_mib": {
+          "count": 51,
+          "p50": 465.78515625,
+          "p95": 525.001953125,
+          "p99": 525.568359375,
+          "max": 526.03515625
+        },
+        "native_threads": {
+          "count": 51,
+          "p50": 143.0,
+          "p95": 144.0,
+          "p99": 144.0,
+          "max": 144.0
+        },
+        "file_descriptors": {
+          "count": 51,
+          "p50": 37.0,
+          "p95": 37.0,
+          "p99": 37.0,
+          "max": 37.0
+        }
+      }
+    },
+    "resource_boundaries": {
+      "before": {
+        "timestamp": 133496.926510949,
+        "processes": {
+          "653464": {
+            "pid": 653464,
+            "start_ticks": 13349320,
+            "cpu_s": 5.39,
+            "rss_mib": 215.25,
+            "pss_mib": 177.9580078125,
+            "native_threads": 84,
+            "file_descriptors": 23
+          },
+          "653498": {
+            "pid": 653498,
+            "start_ticks": 13349377,
+            "cpu_s": 5.93,
+            "rss_mib": 234.0859375,
+            "pss_mib": 197.4697265625,
+            "native_threads": 58,
+            "file_descriptors": 14
+          }
+        }
+      },
+      "after": {
+        "timestamp": 133506.931622349,
+        "processes": {
+          "653464": {
+            "pid": 653464,
+            "start_ticks": 13349320,
+            "cpu_s": 10.69,
+            "rss_mib": 219.50390625,
+            "pss_mib": 182.1474609375,
+            "native_threads": 84,
+            "file_descriptors": 23
+          },
+          "653498": {
+            "pid": 653498,
+            "start_ticks": 13349377,
+            "cpu_s": 13.16,
+            "rss_mib": 336.64453125,
+            "pss_mib": 299.9033203125,
+            "native_threads": 60,
+            "file_descriptors": 14
+          }
+        }
+      }
+    }
+  },
+  "recovered": {
+    "seconds": 10.005603880999843,
+    "views": {
+      "front": {
+        "rates": {
+          "capture": {
+            "count": 299,
+            "fps": 29.88325378019277,
+            "per_second_fps": [
+              30.0,
+              29.0,
+              30.0,
+              30.0,
+              30.0,
+              30.0,
+              30.0,
+              30.0,
+              30.0,
+              29.0,
+              178.44775790707854
+            ]
+          },
+          "encoder_input": {
+            "count": 299,
+            "fps": 29.88325378019277,
+            "per_second_fps": [
+              30.0,
+              29.0,
+              30.0,
+              30.0,
+              30.0,
+              30.0,
+              30.0,
+              30.0,
+              29.0,
+              30.0,
+              178.44775790707854
+            ]
+          },
+          "encode_end": {
+            "count": 299,
+            "fps": 29.88325378019277,
+            "per_second_fps": [
+              30.0,
+              30.0,
+              30.0,
+              30.0,
+              30.0,
+              30.0,
+              30.0,
+              29.0,
+              30.0,
+              30.0,
+              0.0
+            ]
+          },
+          "decode_end": {
+            "count": 299,
+            "fps": 29.88325378019277,
+            "per_second_fps": [
+              30.0,
+              30.0,
+              30.0,
+              30.0,
+              30.0,
+              30.0,
+              30.0,
+              29.0,
+              30.0,
+              30.0,
+              0.0
+            ]
+          },
+          "callback": {
+            "count": 299,
+            "fps": 29.88325378019277,
+            "per_second_fps": [
+              30.0,
+              30.0,
+              30.0,
+              30.0,
+              30.0,
+              30.0,
+              30.0,
+              29.0,
+              30.0,
+              30.0,
+              0.0
+            ]
+          },
+          "paint": {
+            "count": 299,
+            "fps": 29.88325378019277,
+            "per_second_fps": [
+              30.0,
+              30.0,
+              30.0,
+              30.0,
+              29.0,
+              31.0,
+              29.0,
+              30.0,
+              30.0,
+              30.0,
+              0.0
+            ]
+          }
+        },
+        "latency_ms": {
+          "capture_to_encoder_input": {
+            "count": 299,
+            "p50": 0.5354449967853725,
+            "p95": 1.7781972099328407,
+            "p99": 3.6615124146919693,
+            "max": 3.792850999161601
+          },
+          "encoder_queue": {
+            "count": 299,
+            "p50": 0.12005100143142045,
+            "p95": 0.24587629595771393,
+            "p99": 0.40647259913384903,
+            "max": 0.5498230166267604
+          },
+          "encode_including_color_conversion": {
+            "count": 299,
+            "p50": 4.689934983616695,
+            "p95": 5.433994592749513,
+            "p99": 19.688538899063097,
+            "max": 28.187702991999686
+          },
+          "encode_end_to_decode_start": {
+            "count": 299,
+            "p50": 34.49406099389307,
+            "p95": 37.0007872028509,
+            "p99": 49.41834132594517,
+            "max": 63.801181997405365
+          },
+          "decode": {
+            "count": 299,
+            "p50": 1.5191689890343696,
+            "p95": 1.9409177941270153,
+            "p99": 2.8154623066075137,
+            "max": 2.9940130189061165
+          },
+          "decode_to_track_recv": {
+            "count": 299,
+            "p50": 0.16510699060745537,
+            "p95": 0.42322739609517135,
+            "p99": 0.9862023877212774,
+            "max": 5.363219999708235
+          },
+          "receive_bgr_conversion": {
+            "count": 299,
+            "p50": 0.5790349969174713,
+            "p95": 1.221881798119284,
+            "p99": 1.7667014553444447,
+            "max": 2.4205730005633086
+          },
+          "watermark_probe": {
+            "count": 299,
+            "p50": 0.09709701407700777,
+            "p95": 0.1455835037631913,
+            "p99": 0.2172093646368008,
+            "max": 0.40902101318351924
+          },
+          "cache_publication": {
+            "count": 299,
+            "p50": 0.13956401380710304,
+            "p95": 0.209888591780327,
+            "p99": 0.39512213377747113,
+            "max": 0.8037709922064096
+          },
+          "cache_to_render": {
+            "count": 299,
+            "p50": 7.599380012834445,
+            "p95": 14.999303218792189,
+            "p99": 15.887117465026677,
+            "max": 15.975194022757933
+          },
+          "qt_scale_pixmap": {
+            "count": 299,
+            "p50": 0.5927059974055737,
+            "p95": 0.9226733905961733,
+            "p99": 1.130308410502036,
+            "max": 1.367132004816085
+          },
+          "render_to_paint": {
+            "count": 299,
+            "p50": 0.7794489793013781,
+            "p95": 1.6669840988470237,
+            "p99": 1.8862748012179495,
+            "max": 2.146565995644778
+          },
+          "capture_to_receive": {
+            "count": 299,
+            "p50": 42.331706994445994,
+            "p95": 47.247064599650905,
+            "p99": 57.55976793414443,
+            "max": 72.57806899724528
+          },
+          "capture_to_qt_paint": {
+            "count": 299,
+            "p50": 52.35484099830501,
+            "p95": 60.66641190263908,
+            "p99": 68.6680906405672,
+            "max": 78.3318690082524
+          }
+        },
+        "presentation_gap_ms": {
+          "count": 300,
+          "p50": 31.994938501156867,
+          "p95": 48.64956468954915,
+          "p99": 49.54634972818894,
+          "max": 65.96923799952492
+        },
+        "gaps_over_500ms": 0
+      },
+      "back": {
+        "rates": {
+          "capture": {
+            "count": 299,
+            "fps": 29.88325378019277,
+            "per_second_fps": [
+              30.0,
+              30.0,
+              30.0,
+              30.0,
+              29.0,
+              30.0,
+              30.0,
+              30.0,
+              30.0,
+              30.0,
+              0.0
+            ]
+          },
+          "encoder_input": {
+            "count": 299,
+            "fps": 29.88325378019277,
+            "per_second_fps": [
+              30.0,
+              30.0,
+              30.0,
+              29.0,
+              30.0,
+              30.0,
+              30.0,
+              30.0,
+              30.0,
+              30.0,
+              0.0
+            ]
+          },
+          "encode_end": {
+            "count": 299,
+            "fps": 29.88325378019277,
+            "per_second_fps": [
+              30.0,
+              30.0,
+              30.0,
+              29.0,
+              30.0,
+              30.0,
+              30.0,
+              30.0,
+              30.0,
+              29.0,
+              178.44775790707854
+            ]
+          },
+          "decode_end": {
+            "count": 299,
+            "fps": 29.88325378019277,
+            "per_second_fps": [
+              30.0,
+              30.0,
+              30.0,
+              29.0,
+              30.0,
+              30.0,
+              30.0,
+              30.0,
+              30.0,
+              29.0,
+              178.44775790707854
+            ]
+          },
+          "callback": {
+            "count": 299,
+            "fps": 29.88325378019277,
+            "per_second_fps": [
+              30.0,
+              30.0,
+              30.0,
+              29.0,
+              30.0,
+              30.0,
+              30.0,
+              29.0,
+              31.0,
+              29.0,
+              178.44775790707854
+            ]
+          },
+          "paint": {
+            "count": 297,
+            "fps": 29.683365795040977,
+            "per_second_fps": [
+              30.0,
+              30.0,
+              29.0,
+              30.0,
+              30.0,
+              30.0,
+              30.0,
+              29.0,
+              29.0,
+              30.0,
+              0.0
+            ]
+          }
+        },
+        "latency_ms": {
+          "capture_to_encoder_input": {
+            "count": 299,
+            "p50": 0.31474200659431517,
+            "p95": 0.4781818861374631,
+            "p99": 0.8030824328307062,
+            "max": 1.4786910032853484
+          },
+          "encoder_queue": {
+            "count": 299,
+            "p50": 0.10723201557993889,
+            "p95": 0.2468102116836235,
+            "p99": 0.4171164351282613,
+            "max": 0.8377739868592471
+          },
+          "encode_including_color_conversion": {
+            "count": 299,
+            "p50": 3.137883002636954,
+            "p95": 3.981095406925305,
+            "p99": 12.396104965009714,
+            "max": 15.021493018139154
+          },
+          "encode_end_to_decode_start": {
+            "count": 299,
+            "p50": 34.31181001360528,
+            "p95": 36.74131132429459,
+            "p99": 45.16416574537284,
+            "max": 57.60955598088913
+          },
+          "decode": {
+            "count": 299,
+            "p50": 0.6860870053060353,
+            "p95": 1.1883506958838548,
+            "p99": 2.248770886217243,
+            "max": 2.651451010024175
+          },
+          "decode_to_track_recv": {
+            "count": 299,
+            "p50": 0.14151498908177018,
+            "p95": 0.5622939002932978,
+            "p99": 0.7726398855447713,
+            "max": 5.751965014496818
+          },
+          "receive_bgr_conversion": {
+            "count": 299,
+            "p50": 0.17987997853197157,
+            "p95": 0.33455239899922146,
+            "p99": 0.5367895856034007,
+            "max": 0.5823569954372942
+          },
+          "watermark_probe": {
+            "count": 299,
+            "p50": 0.07084099343046546,
+            "p95": 0.11052560003008692,
+            "p99": 0.26696806016843727,
+            "max": 0.49945598584599793
+          },
+          "cache_publication": {
+            "count": 299,
+            "p50": 0.06750499596819282,
+            "p95": 0.1189746952150017,
+            "p99": 0.24265253799967457,
+            "max": 0.2902389969676733
+          },
+          "cache_to_render": {
+            "count": 297,
+            "p50": 7.657501992071047,
+            "p95": 14.584073412697762,
+            "p99": 15.802699489286178,
+            "max": 16.759080026531592
+          },
+          "qt_scale_pixmap": {
+            "count": 297,
+            "p50": 0.3456539998296648,
+            "p95": 0.5235736258327961,
+            "p99": 0.7178212632425135,
+            "max": 0.7950889994390309
+          },
+          "render_to_paint": {
+            "count": 297,
+            "p50": 0.8843620016705245,
+            "p95": 1.6554508067201823,
+            "p99": 1.996840840438381,
+            "max": 2.5884979986585677
+          },
+          "capture_to_receive": {
+            "count": 299,
+            "p50": 39.02933999779634,
+            "p95": 43.513274402357624,
+            "p99": 50.0109083473216,
+            "max": 61.428318003891036
+          },
+          "capture_to_qt_paint": {
+            "count": 297,
+            "p50": 48.43475099187344,
+            "p95": 56.02983920252882,
+            "p99": 62.57339117000816,
+            "max": 68.38452600641176
+          }
+        },
+        "presentation_gap_ms": {
+          "count": 298,
+          "p50": 32.11589049897157,
+          "p95": 48.1576672027586,
+          "p99": 49.23959357925923,
+          "max": 65.38653900497593
+        },
+        "gaps_over_500ms": 0
+      },
+      "left": {
+        "rates": {
+          "capture": {
+            "count": 299,
+            "fps": 29.88325378019277,
+            "per_second_fps": [
+              30.0,
+              30.0,
+              30.0,
+              30.0,
+              30.0,
+              29.0,
+              30.0,
+              30.0,
+              30.0,
+              30.0,
+              0.0
+            ]
+          },
+          "encoder_input": {
+            "count": 299,
+            "fps": 29.88325378019277,
+            "per_second_fps": [
+              30.0,
+              30.0,
+              30.0,
+              30.0,
+              30.0,
+              29.0,
+              30.0,
+              30.0,
+              30.0,
+              30.0,
+              0.0
+            ]
+          },
+          "encode_end": {
+            "count": 299,
+            "fps": 29.88325378019277,
+            "per_second_fps": [
+              30.0,
+              30.0,
+              30.0,
+              30.0,
+              29.0,
+              30.0,
+              30.0,
+              30.0,
+              30.0,
+              30.0,
+              0.0
+            ]
+          },
+          "decode_end": {
+            "count": 299,
+            "fps": 29.88325378019277,
+            "per_second_fps": [
+              30.0,
+              30.0,
+              30.0,
+              30.0,
+              29.0,
+              30.0,
+              30.0,
+              30.0,
+              30.0,
+              30.0,
+              0.0
+            ]
+          },
+          "callback": {
+            "count": 299,
+            "fps": 29.88325378019277,
+            "per_second_fps": [
+              30.0,
+              30.0,
+              30.0,
+              30.0,
+              29.0,
+              30.0,
+              30.0,
+              30.0,
+              30.0,
+              30.0,
+              0.0
+            ]
+          },
+          "paint": {
+            "count": 298,
+            "fps": 29.783309787616876,
+            "per_second_fps": [
+              30.0,
+              30.0,
+              29.0,
+              30.0,
+              30.0,
+              30.0,
+              30.0,
+              30.0,
+              28.0,
+              31.0,
+              0.0
+            ]
+          }
+        },
+        "latency_ms": {
+          "capture_to_encoder_input": {
+            "count": 299,
+            "p50": 0.30087001505307853,
+            "p95": 0.6680897990008815,
+            "p99": 0.8349440403981117,
+            "max": 1.0001100017689168
+          },
+          "encoder_queue": {
+            "count": 299,
+            "p50": 0.11548001202754676,
+            "p95": 0.31875940330792213,
+            "p99": 0.5076167773222547,
+            "max": 0.803094997536391
+          },
+          "encode_including_color_conversion": {
+            "count": 299,
+            "p50": 3.0535540136042982,
+            "p95": 4.0707139123696825,
+            "p99": 10.766779010300507,
+            "max": 13.000127975828946
+          },
+          "encode_end_to_decode_start": {
+            "count": 299,
+            "p50": 34.44860500167124,
+            "p95": 36.696870595915236,
+            "p99": 44.95616726228031,
+            "max": 54.32476499117911
+          },
+          "decode": {
+            "count": 299,
+            "p50": 0.7245999877341092,
+            "p95": 1.3677760958671565,
+            "p99": 2.374340245733037,
+            "max": 3.3159219892695546
+          },
+          "decode_to_track_recv": {
+            "count": 299,
+            "p50": 0.18809898756444454,
+            "p95": 0.7580915873404586,
+            "p99": 1.234144458430743,
+            "max": 6.2353840039577335
+          },
+          "receive_bgr_conversion": {
+            "count": 299,
+            "p50": 0.19589997828006744,
+            "p95": 0.3926800040062515,
+            "p99": 0.5758070439333087,
+            "max": 0.6497710128314793
+          },
+          "watermark_probe": {
+            "count": 299,
+            "p50": 0.07914000889286399,
+            "p95": 0.18027548212558028,
+            "p99": 0.4381402191938829,
+            "max": 0.46748900786042213
+          },
+          "cache_publication": {
+            "count": 299,
+            "p50": 0.07277302211150527,
+            "p95": 0.14210999943315972,
+            "p99": 0.23399343539494977,
+            "max": 0.49105100333690643
+          },
+          "cache_to_render": {
+            "count": 298,
+            "p50": 8.046280505368486,
+            "p95": 14.60036713251611,
+            "p99": 15.80253152729709,
+            "max": 16.590858023846522
+          },
+          "qt_scale_pixmap": {
+            "count": 298,
+            "p50": 0.2247185038868338,
+            "p95": 0.48179699078900656,
+            "p99": 0.7288174168206727,
+            "max": 1.1746789969038218
+          },
+          "render_to_paint": {
+            "count": 298,
+            "p50": 0.6471404922194779,
+            "p95": 1.3974904009955933,
+            "p99": 1.6614913166267793,
+            "max": 2.131988003384322
+          },
+          "capture_to_receive": {
+            "count": 299,
+            "p50": 39.24920898862183,
+            "p95": 44.16472118755335,
+            "p99": 50.46692593605255,
+            "max": 68.01665600505657
+          },
+          "capture_to_qt_paint": {
+            "count": 298,
+            "p50": 48.72011300176382,
+            "p95": 56.34808974136831,
+            "p99": 61.813765425758874,
+            "max": 67.5197780074086
+          }
+        },
+        "presentation_gap_ms": {
+          "count": 299,
+          "p50": 32.21392401610501,
+          "p95": 47.41635792015586,
+          "p99": 49.53473268484231,
+          "max": 65.37458000821061
+        },
+        "gaps_over_500ms": 0
+      },
+      "right": {
+        "rates": {
+          "capture": {
+            "count": 299,
+            "fps": 29.88325378019277,
+            "per_second_fps": [
+              30.0,
+              30.0,
+              30.0,
+              30.0,
+              30.0,
+              29.0,
+              30.0,
+              30.0,
+              30.0,
+              30.0,
+              0.0
+            ]
+          },
+          "encoder_input": {
+            "count": 299,
+            "fps": 29.88325378019277,
+            "per_second_fps": [
+              30.0,
+              30.0,
+              30.0,
+              30.0,
+              30.0,
+              29.0,
+              30.0,
+              30.0,
+              30.0,
+              30.0,
+              0.0
+            ]
+          },
+          "encode_end": {
+            "count": 299,
+            "fps": 29.88325378019277,
+            "per_second_fps": [
+              30.0,
+              30.0,
+              30.0,
+              30.0,
+              29.0,
+              30.0,
+              30.0,
+              30.0,
+              30.0,
+              30.0,
+              0.0
+            ]
+          },
+          "decode_end": {
+            "count": 299,
+            "fps": 29.88325378019277,
+            "per_second_fps": [
+              30.0,
+              30.0,
+              30.0,
+              30.0,
+              29.0,
+              30.0,
+              30.0,
+              30.0,
+              30.0,
+              29.0,
+              178.44775790707854
+            ]
+          },
+          "callback": {
+            "count": 299,
+            "fps": 29.88325378019277,
+            "per_second_fps": [
+              30.0,
+              30.0,
+              30.0,
+              30.0,
+              29.0,
+              30.0,
+              30.0,
+              30.0,
+              30.0,
+              29.0,
+              178.44775790707854
+            ]
+          },
+          "paint": {
+            "count": 298,
+            "fps": 29.783309787616876,
+            "per_second_fps": [
+              30.0,
+              30.0,
+              29.0,
+              30.0,
+              30.0,
+              30.0,
+              30.0,
+              30.0,
+              29.0,
+              30.0,
+              0.0
+            ]
+          }
+        },
+        "latency_ms": {
+          "capture_to_encoder_input": {
+            "count": 299,
+            "p50": 0.364237988833338,
+            "p95": 0.5057080037659033,
+            "p99": 0.816893563605844,
+            "max": 1.0537320049479604
+          },
+          "encoder_queue": {
+            "count": 299,
+            "p50": 0.11702298070304096,
+            "p95": 0.28902011108584674,
+            "p99": 0.42138911318033934,
+            "max": 0.43888200889341533
+          },
+          "encode_including_color_conversion": {
+            "count": 299,
+            "p50": 3.191524010617286,
+            "p95": 4.267279698979109,
+            "p99": 11.225163732888154,
+            "max": 15.9649130073376
+          },
+          "encode_end_to_decode_start": {
+            "count": 299,
+            "p50": 34.511743986513466,
+            "p95": 36.94529151252936,
+            "p99": 44.1270536917727,
+            "max": 49.50831498717889
+          },
+          "decode": {
+            "count": 299,
+            "p50": 0.7384670025203377,
+            "p95": 1.6103964153444388,
+            "p99": 2.449463910888879,
+            "max": 2.682944992557168
+          },
+          "decode_to_track_recv": {
+            "count": 299,
+            "p50": 0.17239100998267531,
+            "p95": 0.751810288056731,
+            "p99": 6.171916681341823,
+            "max": 25.951500021619722
+          },
+          "receive_bgr_conversion": {
+            "count": 299,
+            "p50": 0.21228098194114864,
+            "p95": 0.41173770732711995,
+            "p99": 0.6187969102757039,
+            "max": 0.9132389968726784
+          },
+          "watermark_probe": {
+            "count": 299,
+            "p50": 0.0977849995251745,
+            "p95": 0.19929998088628037,
+            "p99": 0.33471044385805626,
+            "max": 0.7318169809877872
+          },
+          "cache_publication": {
+            "count": 299,
+            "p50": 0.07749799988232553,
+            "p95": 0.14706829388160253,
+            "p99": 0.36608877708204085,
+            "max": 0.5409199802670628
+          },
+          "cache_to_render": {
+            "count": 298,
+            "p50": 8.541677496396005,
+            "p95": 14.97016694193007,
+            "p99": 15.627212896943089,
+            "max": 16.092447011033073
+          },
+          "qt_scale_pixmap": {
+            "count": 298,
+            "p50": 0.20233899704180658,
+            "p95": 0.4984053099178709,
+            "p99": 0.7659772605984464,
+            "max": 0.9509939991403371
+          },
+          "render_to_paint": {
+            "count": 298,
+            "p50": 0.6398775003617629,
+            "p95": 1.326962061284575,
+            "p99": 1.817958815954623,
+            "max": 2.0990310003980994
+          },
+          "capture_to_receive": {
+            "count": 299,
+            "p50": 39.64176098816097,
+            "p95": 44.6611906052567,
+            "p99": 52.591657981975004,
+            "max": 64.84732599346898
+          },
+          "capture_to_qt_paint": {
+            "count": 298,
+            "p50": 49.69200151390396,
+            "p95": 56.807230903359596,
+            "p99": 63.45020498469238,
+            "max": 66.48501000017859
+          }
+        },
+        "presentation_gap_ms": {
+          "count": 299,
+          "p50": 32.157312001800165,
+          "p95": 47.81794809969142,
+          "p99": 48.49930916796438,
+          "max": 49.725418008165434
+        },
+        "gaps_over_500ms": 0
+      }
+    },
+    "samples": {
+      "gui_timer_lag_ms": {
+        "count": 999,
+        "p50": 0.11754199862480143,
+        "p95": 0.9254619164858009,
+        "p99": 1.3723590882727874,
+        "max": 22.007534988224503
+      },
+      "control_sample_to_ack_ms": {
+        "count": 501,
+        "p50": 7.8835340100340545,
+        "p95": 13.196811021771282,
+        "p99": 17.77171401772648,
+        "max": 36.68245201697573
+      },
+      "harness_loop_lag_ms": {
+        "count": 915,
+        "p50": 0.5156289937440304,
+        "p95": 1.141513011534698,
+        "p99": 1.7549971520202232,
+        "max": 23.112925011664625
+      },
+      "control_armed": {
+        "count": 915,
+        "p50": 1.0,
+        "p95": 1.0,
+        "p99": 1.0,
+        "max": 1.0
+      },
+      "encoder_target_bps_back": {
+        "count": 299,
+        "p50": 713568.0,
+        "p95": 1010432.0,
+        "p99": 1010432.0,
+        "max": 1050640.0
+      },
+      "encoder_actual_bps_back": {
+        "count": 299,
+        "p50": 713568.0,
+        "p95": 1010432.0,
+        "p99": 1010432.0,
+        "max": 1010432.0
+      },
+      "encoder_target_bps_right": {
+        "count": 299,
+        "p50": 708912.0,
+        "p95": 1004304.0,
+        "p99": 1004304.0,
+        "max": 1044268.0
+      },
+      "encoder_actual_bps_right": {
+        "count": 299,
+        "p50": 708912.0,
+        "p95": 1004304.0,
+        "p99": 1004304.0,
+        "max": 1004304.0
+      },
+      "encoder_target_bps_left": {
+        "count": 299,
+        "p50": 701460.0,
+        "p95": 960808.0,
+        "p99": 998732.0,
+        "max": 998732.0
+      },
+      "encoder_actual_bps_left": {
+        "count": 299,
+        "p50": 701460.0,
+        "p95": 889160.0,
+        "p99": 998732.0,
+        "max": 998732.0
+      },
+      "encoder_target_bps_front": {
+        "count": 299,
+        "p50": 656604.0,
+        "p95": 929844.0,
+        "p99": 966472.0,
+        "max": 966472.0
+      },
+      "encoder_actual_bps_front": {
+        "count": 299,
+        "p50": 631720.0,
+        "p95": 894536.0,
+        "p99": 894536.0,
+        "max": 894536.0
+      },
+      "control_sample_to_mock_submit_ms": {
+        "count": 501,
+        "p50": 6.852189020719379,
+        "p95": 12.057246000040323,
+        "p99": 14.644999988377094,
+        "max": 35.889340011635795
+      },
+      "vehicle_combined_loop_lag_ms": {
+        "count": 939,
+        "p50": 0.5458750040270386,
+        "p95": 1.1290014116093514,
+        "p99": 1.9952644588192927,
+        "max": 15.35937400534749
+      },
+      "vehicle_combined_python_threads": {
+        "count": 49,
+        "p50": 16.0,
+        "p95": 16.0,
+        "p99": 16.0,
+        "max": 16.0
+      }
+    },
+    "resources": {
+      "harness": {
+        "cpu_percent_one_core": 54.16964397613538,
+        "rss_mib": {
+          "count": 50,
+          "p50": 221.796875,
+          "p95": 223.4072265625,
+          "p99": 224.4443359375,
+          "max": 224.875
+        },
+        "pss_mib": {
+          "count": 50,
+          "p50": 184.3369140625,
+          "p95": 185.947265625,
+          "p99": 186.984375,
+          "max": 187.4150390625
+        },
+        "native_threads": {
+          "count": 50,
+          "p50": 84.0,
+          "p95": 84.0,
+          "p99": 84.0,
+          "max": 84.0
+        },
+        "file_descriptors": {
+          "count": 50,
+          "p50": 23.0,
+          "p95": 23.0,
+          "p99": 23.0,
+          "max": 23.0
+        }
+      },
+      "combined": {
+        "cpu_percent_one_core": 71.06017872146172,
+        "rss_mib": {
+          "count": 50,
+          "p50": 379.86328125,
+          "p95": 415.47109375,
+          "p99": 415.562734375,
+          "max": 415.57421875
+        },
+        "pss_mib": {
+          "count": 50,
+          "p50": 343.0791015625,
+          "p95": 378.6869140625,
+          "p99": 378.7785546875,
+          "max": 378.7900390625
+        },
+        "native_threads": {
+          "count": 50,
+          "p50": 63.0,
+          "p95": 63.0,
+          "p99": 63.0,
+          "max": 63.0
+        },
+        "file_descriptors": {
+          "count": 50,
+          "p50": 14.0,
+          "p95": 14.0,
+          "p99": 14.0,
+          "max": 14.0
+        }
+      },
+      "total": {
+        "cpu_percent_one_core": 125.22982269759711,
+        "rss_mib": {
+          "count": 50,
+          "p50": 601.49609375,
+          "p95": 638.0017578125,
+          "p99": 638.148984375,
+          "max": 638.17578125
+        },
+        "pss_mib": {
+          "count": 50,
+          "p50": 527.251953125,
+          "p95": 563.7576171875,
+          "p99": 563.90484375,
+          "max": 563.931640625
+        },
+        "native_threads": {
+          "count": 50,
+          "p50": 147.0,
+          "p95": 147.0,
+          "p99": 147.0,
+          "max": 147.0
+        },
+        "file_descriptors": {
+          "count": 50,
+          "p50": 37.0,
+          "p95": 37.0,
+          "p99": 37.0,
+          "max": 37.0
+        }
+      }
+    },
+    "resource_boundaries": {
+      "before": {
+        "timestamp": 133509.727241353,
+        "processes": {
+          "653464": {
+            "pid": 653464,
+            "start_ticks": 13349320,
+            "cpu_s": 12.03,
+            "rss_mib": 221.1328125,
+            "pss_mib": 183.6728515625,
+            "native_threads": 84,
+            "file_descriptors": 23
+          },
+          "653498": {
+            "pid": 653498,
+            "start_ticks": 13349377,
+            "cpu_s": 15.02,
+            "rss_mib": 336.00390625,
+            "pss_mib": 299.2197265625,
+            "native_threads": 63,
+            "file_descriptors": 14
+          }
+        }
+      },
+      "after": {
+        "timestamp": 133519.732845234,
+        "processes": {
+          "653464": {
+            "pid": 653464,
+            "start_ticks": 13349320,
+            "cpu_s": 17.45,
+            "rss_mib": 221.80078125,
+            "pss_mib": 184.3408203125,
+            "native_threads": 84,
+            "file_descriptors": 23
+          },
+          "653498": {
+            "pid": 653498,
+            "start_ticks": 13349377,
+            "cpu_s": 22.13,
+            "rss_mib": 398.01953125,
+            "pss_mib": 361.2353515625,
+            "native_threads": 63,
+            "file_descriptors": 14
+          }
+        }
+      }
+    }
+  }
+}

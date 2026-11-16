@@ -209,7 +209,14 @@ async def test_spawned_control_and_media_execute_receive_video_and_clean_up(
     assert len({item["pid"] for item in group.outcomes} | {os.getpid()}) == 3
     control = json.loads((settings.logging.directory / "control.json").read_text())
     media = json.loads((settings.logging.directory / "media.json").read_text())
-    assert not {"cv2", "aiortc", "av", "PyQt6"} & set(control["imports"])
+    assert not {
+        "cv2",
+        "aiortc",
+        "av",
+        "PyQt6",
+        "numpy",
+        "rd_vehicle.interfaces.icamera",
+    } & set(control["imports"])
     assert "aiortc" in media["imports"]
 
 

@@ -266,3 +266,53 @@ RSS 在前段升高后波动，后半段线性趋势约 **−6.22 MiB/min**；�
 REMB 生效后的目标值并非始终等于初始目标。`views` 稳定窗口中，前视目标码率 P50 的三轮中位数约 1.379 Mbit/s，实际 codec bit_rate 约 1.329 Mbit/s；三路辅助视角目标均被限定到 0.600 Mbit/s，实际 codec bit_rate 约 0.552–0.557 Mbit/s。原始报告还保存各路实际 RTP payload 速率，证明设置进入了真实编码器和传输链路；目标码率与网络吞吐不是同一指标。画质未做实车驾驶视野验收。
 
 [pool2 对比](../benchmarks/results/media-b21-pool2-comparison.json)、[views 对比](../benchmarks/results/media-b21-views-comparison.json) 包含全部指标、各轮范围、输入文件及 SHA-256。九份原始报告为 `benchmarks/results/media-b21-{stock,pool2,views}-4view-r{1,2,3}.json`，全部使用同一源代码与探针，无帧关联错误；没有用 B19 旧探针数据充当本轮基线。
+
+## B25 正式车辆进程拓扑的测量
+
+[测量工具](../scripts/benchmark_processes.py)将驾驶端 Qt、接收/控制客户端与回环服务端放在同一测试进程，车辆端始终是另一个干净的 spawn 进程。`combined` 在该车辆进程中调用正式 `rd_vehicle.main.run` 同时运行控制和媒体；`split` 使用正式 `VehicleProcesses` 监督独立 control/media 子进程。两组的组件代码、配置、输入与驱动/服务测试进程一致，仅改变车辆进程拓扑。组件内注入诊断 runner 和合成相机工厂；实际组件入口、心跳、故障监护及关闭实现沿用生产代码。
+
+图像由固定种子的移动纹理生成，前视 1080×720、辅助三路 640×480，均为 30 FPS；编码保持默认 VP8 和资源参数。源帧水印、采集/编码时间戳留在媒体进程，退出后与接收/Qt 绘制时间戳合并。控制提交时间与原始输入时间戳同样在退出后关联，没有通过 IPC 传输图像或向生产心跳通道添加测量消息。同一 Linux 主机的单调时钟可用于本实验；此方法不能直接用于跨主机时钟。
+
+资源范围包含整个车辆进程树和驾驶/服务测试进程，不包含 multiprocessing 的辅助 resource tracker。每 200ms 读取 `/proc` 的累计 CPU、RSS、PSS、原生线程及描述符，保存逐 PID 采样和测量窗口边界，并校验 PID 的启动标识。CPU 汇总不计子进程累计时间，避免重复计数；RSS 总和会重复计算共享库页，因此同时报告按比例分摊共享页的 PSS。各组件另记录事件循环延迟和 Python 线程数。应用关闭后要求相机/控制/编码线程结束，正式监督器回收子进程且退出码为 0。
+
+校准发现控制适配器导入 `rd_vehicle.interfaces.icontroller` 时，包的顶层导出会连带导入相机接口及 NumPy。B25 改为按需解析接口导出，保持原导入 API；真实控制子进程回归增加 NumPy/相机接口不得导入的断言。两组性能数据均使用修正后的同一代码，不把两组差异解释为此次导入修改的前后收益。
+
+复现时每次运行使用独立进程，依次交替 `combined` / `split` 三轮；不要同时运行其他基准或测试：
+
+```bash
+for round in 1 2 3; do
+  for topology in combined split; do
+    .venv/bin/python scripts/benchmark_processes.py --topology "$topology" \
+      --views 4 --seconds 10 --warmup 2 \
+      --output "benchmarks/results/process-b25-${topology}-4view-r${round}.json"
+  done
+done
+.venv/bin/python scripts/compare_processes.py \
+  --combined benchmarks/results/process-b25-combined-4view-r{1,2,3}.json \
+  --split benchmarks/results/process-b25-split-4view-r{1,2,3}.json \
+  --output benchmarks/results/process-b25-comparison.json
+```
+
+每次包括初次建连、预热、10 秒稳定窗口、强制信令断开、四路新发布身份恢复、新鲜中立输入重新授权及 10 秒恢复窗口。测量窗口中任何控制撤权都会使报告无效。比较工具要求各组三份独立记录、同源代码哈希/环境/负载/编码器、完整清理；统计采用每轮指标的中位数，不合并帧样本计算百分位。
+
+六次正式尺寸运行均有效，帧关联没有错误，所有稳定/恢复窗口持续保持控制授权，退出没有强制终止。原始数据为 `benchmarks/results/process-b25-{combined,split}-4view-r{1,2,3}.json`，完整统计和文件哈希见[对比报告](../benchmarks/results/process-b25-comparison.json)。稳定阶段结果如下，各数值为三轮对应指标的中位数：
+
+| 指标 | 共进程 | 正式分进程 |
+| --- | ---: | ---: |
+| 总 CPU，单核为 100% | 127.42% | 129.47% |
+| 总 RSS P95（MiB，包含共享页重复计数） | 599.10 | 705.22 |
+| 总 PSS P95（MiB） | 525.00 | 582.65 |
+| 原生线程 P95（所有测量进程） | 144 | 150 |
+| 前视绘制 FPS | 29.78 | 29.88 |
+| 前视采集完成→Qt 绘制 P95（ms） | 61.44 | 60.84 |
+| 控制采样→模拟提交 P99（ms） | 13.42 | 12.88 |
+| 控制采样→执行确认 P99（ms） | 17.08 | 17.96 |
+| 车辆控制所在事件循环延迟 P99（ms） | 1.89 | 1.91 |
+| 启动到四路呈现且控制已授权（ms） | 1133.98 | 1335.32 |
+| 停止到车辆主机退出（ms） | 173.86 | 188.72 |
+
+恢复阶段，总 CPU 为 125.23% / 127.49%，PSS P95 为 563.76 / 671.78 MiB，前视 P95 为 60.67 / 60.24 ms，控制执行确认 P99 为 17.77 / 18.56 ms。断开到四路新身份呈现为 215.52 / 212.38 ms，断开到新控制代次授权为 772.80 / 760.30 ms；后者包含新画面稳定及新鲜中立输入，不等同首帧时间。
+
+在本机此负载下，分进程的稳定阶段 PSS P95 中位数增加约 11.0%，CPU 增加约 1.6%，执行确认 P99 增加约 5.1%；视频延迟接近。内存的跨轮波动明显：共进程 PSS P95 为 455.66–610.50 MiB，分进程为 558.82–644.18 MiB；恢复阶段范围也重叠。这些是当前主机的描述性结果，不是固定内存预算或统计显著性结论。保留正式分进程架构的依据仍是控制/媒体故障隔离及既有卡死测试，而非宣称每个性能指标都会改善。本批不变更媒体后端、硬件编解码、分辨率、帧率或默认编码预算。
+
+本批补齐正式车辆组件拓扑下的四路软件性能对比；尚不包含真实 ROS2、相机、驾驶硬件、物理显示、目标机器系统服务或弱网/TURN。B20 的长期原生内存滞留和 B19 的首次非零退出仍需另行定位，本批正常退出不能证明这两个问题已解决。
