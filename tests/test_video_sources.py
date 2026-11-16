@@ -115,7 +115,7 @@ class LocalPublisher:
         self.tracks = TrackManager()
         self.count = 0
 
-    def register_video_track(self, name, fps):
+    def register_video_track(self, name, fps, max_age_s=0.5):
         self.tracks.register(name, fps)
 
     async def push_frame(self, image, name):
@@ -262,7 +262,7 @@ def test_usb_handle_opens_at_start_and_closes_on_owner_thread(monkeypatch):
 @pytest.mark.asyncio
 async def test_streamer_peer_replacement_and_stop_during_listen():
     config = ClientNetworkSettings(signaling_url="ws://127.0.0.1:1")
-    streamer = WebRTCStreamer("room", config, CredentialSettings())
+    streamer = WebRTCStreamer("room", config, CredentialSettings(), session=42)
     streamer.register_video_track("front", fps=60)
     first = await streamer._create_peer("a")
     old_a = streamer.track_manager.subscriptions["a"]["front"]
@@ -331,7 +331,7 @@ async def test_real_webrtc_two_receivers_share_capture_and_close_independently(
         aioice.ice, "get_host_addresses", lambda **kwargs: ["127.0.0.1"]
     )
     config = ClientNetworkSettings(signaling_url="ws://127.0.0.1:1")
-    streamer = WebRTCStreamer("room", config, CredentialSettings())
+    streamer = WebRTCStreamer("room", config, CredentialSettings(), session=42)
     manager = MultiCameraManager(streamer)
     camera = TestCamera(width=96, height=64, fps=30, name="front")
     manager.add_camera(camera)

@@ -70,7 +70,18 @@ async def _component_lifetime(settings, channel, runner):
 
     owned = [asyncio.create_task(parent_lifetime()), asyncio.create_task(heartbeat())]
     try:
-        await (runner or run)(settings, stop)
+        if runner is None:
+
+            def fault():
+                # Report the component fault before potentially slow device cleanup.
+                try:
+                    channel.shutdown(socket.SHUT_WR)
+                except OSError:
+                    pass
+
+            await run(settings, stop, on_fault=fault)
+        else:
+            await runner(settings, stop)
     finally:
         for task in owned:
             task.cancel()

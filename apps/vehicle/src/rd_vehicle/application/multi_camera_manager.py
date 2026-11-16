@@ -1,7 +1,9 @@
 """Own capture threads and one bounded new-frame notification per camera."""
 
 import asyncio
+import math
 import threading
+import time
 
 
 class _FrameNotification:
@@ -31,7 +33,7 @@ class _FrameNotification:
 
 
 class MultiCameraManager:
-    def __init__(self, streamer):
+    def __init__(self, streamer, *, video_policy=None, on_fault=None):
         self.cameras = []
         self.streamer = streamer
         self._running = False
@@ -39,13 +41,21 @@ class MultiCameraManager:
         self._notifications = []
         self._starting = []
         self._stop_task = None
+        self._video_policy = video_policy
+        self._on_fault = on_fault
 
     def add_camera(self, camera):
         if self._running or self._stop_task is not None:
             raise RuntimeError("cannot add camera after start")
         if any(cam.camera_name == camera.camera_name for cam in self.cameras):
             raise ValueError("duplicate camera name")
-        self.streamer.register_video_track(camera.camera_name, fps=camera.fps)
+        self.streamer.register_video_track(
+            camera.camera_name,
+            fps=camera.fps,
+            max_age_s=self._video_policy.stale_frame_ms / 1000
+            if self._video_policy
+            else 0.5,
+        )
         self.cameras.append(camera)
 
     async def start(self):
@@ -81,9 +91,46 @@ class MultiCameraManager:
                         name="publish-" + cam.camera_name,
                     )
                 )
-        except BaseException:
+            if self._video_policy is not None:
+                self._workers.append(
+                    asyncio.create_task(
+                        self._watch_primary(), name="primary-capture-watch"
+                    )
+                )
+        except BaseException as exc:
+            if isinstance(exc, Exception) and self._on_fault is not None:
+                self._on_fault()
             await self.stop()
             raise
+
+    async def _watch_primary(self):
+        camera = next(
+            (
+                cam
+                for cam in self.cameras
+                if cam.camera_name == self._video_policy.primary_view
+            ),
+            None,
+        )
+        if camera is None:
+            raise RuntimeError("primary camera is missing")
+        last_sequence, captured_at = 0, time.monotonic()
+        timeout = self._video_policy.stale_frame_ms / 1000
+        while self._running:
+            image = camera.get_snapshot()
+            now = time.monotonic()
+            if image is not None and image.sequence > last_sequence:
+                if (
+                    not math.isfinite(image.captured_at)
+                    or image.captured_at > now
+                    or (last_sequence and image.captured_at <= captured_at)
+                ):
+                    raise RuntimeError("invalid primary capture timestamp")
+                last_sequence, captured_at = image.sequence, image.captured_at
+            if now - captured_at >= timeout:
+                self.streamer.invalidate_frame(camera.camera_name)
+                raise RuntimeError("primary capture expired")
+            await asyncio.sleep(min(timeout / 4, 0.05))
 
     async def _camera_push_worker(self, camera, notification):
         last_sequence = 0
@@ -105,7 +152,12 @@ class MultiCameraManager:
         if not self._workers:
             raise RuntimeError("camera manager has not started")
         # Propagate failures to the application supervisor, which owns stop().
-        await asyncio.gather(*self._workers)
+        try:
+            await asyncio.gather(*self._workers)
+        except Exception:
+            if self._on_fault is not None:
+                self._on_fault()
+            raise
 
     async def stop(self):
         if self._stop_task is None:

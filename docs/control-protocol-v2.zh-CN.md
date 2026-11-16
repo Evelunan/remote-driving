@@ -46,11 +46,13 @@ TLS QUIC 的 ALPN 固定为 `rd-control/2`；完成握手后才处理业务消�
 
 ## 已实现的中继业务
 
-注册 RPC 为 `register(token, role, session)`；令牌确定身份，申报的角色必须与服务端配置相符。只有 driving/vehicle 角色可注册控制 session，viewer 即使拥有视频房间权限也不能控制。车端绑定独占，冲突连接不能覆盖已有绑定；同一连接不能二次注册切换身份。
+B16 的 `revision` 必须为 `video-bound/1`，服务端响应也返回该值；缺少或不匹配时返回 `protocol_upgrade_required`，客户端不回退。连接 helper 要求应用显式传入修订，不替旧应用自动声明新能力。ALPN 和 Datagram 字节版本保持 v2，修订标识约束新的授权/画面语义。
+
+注册 RPC 为 `register(token, role, session, revision)`；令牌确定身份，申报的角色必须与服务端配置相符。只有 driving/vehicle 角色可注册控制 session，viewer 即使拥有视频房间权限也不能控制。车端绑定独占，冲突连接不能覆盖已有绑定；同一连接不能二次注册切换身份。
 
 `acquire({})` 仅供已注册 driving 连接调用。服务端先预占 session，生成 UUID epoch，再可靠调用车端 `prepare_lease`，参数为 session、epoch、lease_ttl_ms、max_control_age_ms、max_clock_skew_ms。车端须返回 `{ready: true, epoch: <相同值>}`。准备失败、超时、连接关闭或申请取消都会撤销预占；旧准备响应不能撤销后来取得的新租约。
 
-授予结果包含上述参数与 `neutral_required: true`。在车端返回中立命令的 EXECUTED 结果前，中继只放行 throttle=0、steering=0 的控制包；brake 可为合法制动值。驱动侧应保持新鲜中立采样直至获得执行确认，再允许运动目标。执行 ACK 必须对应当前租约实际转发过的 seq 和原始采样时间；中继最多保留 64 个最近样本用于校验。执行失败会撤销租约。
+授予结果包含上述参数、`neutral_required: true` 与实际绑定车辆的 `vehicle_principal`；驾驶端必须把后者和 session 与服务端核验的媒体来源匹配，见 [画面与控制](video-safety.zh-CN.md)。在车端返回中立命令的 EXECUTED 结果前，中继只放行 throttle=0、steering=0 的控制包；brake 可为合法制动值。驱动侧应保持新鲜中立采样直至获得执行确认，再允许运动目标。执行 ACK 必须对应当前租约实际转发过的 seq 和原始采样时间；中继最多保留 64 个最近样本用于校验。执行失败会撤销租约。
 
 `release({epoch})` 可由当前驾驶者或车端发起，成功返回 `{revoked: true}`。旧 epoch 返回 false，其他驾驶者不能释放现有租约。服务端也支持可靠单向 release 事件用于尽快撤销；结束前需确认结果时使用 RPC。
 

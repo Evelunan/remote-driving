@@ -15,6 +15,62 @@ async def until(predicate, timeout=4):
 
 
 @pytest.mark.asyncio
+async def test_missing_or_forged_publisher_metadata_cannot_become_a_video_source():
+    receiver = WebRTCReceiver("room", ClientNetworkSettings(), CredentialSettings())
+    for data in (
+        {"peers": ["p"], "peer_roles": {"p": "vehicle"}},
+        {
+            "peers": ["p"],
+            "peer_roles": {"p": "vehicle"},
+            "peer_sources": {"p": {"principal": "v", "session": True}},
+        },
+    ):
+        with pytest.raises(ValueError, match="video source"):
+            await receiver._on_joined(data)
+        assert not receiver._publishers
+    with pytest.raises(PermissionError):
+        await receiver._on_offer(
+            {"from": "forged", "source": {"principal": "v", "session": 42}}
+        )
+    await receiver.close()
+
+
+@pytest.mark.asyncio
+async def test_repeated_decoded_pts_is_not_new_picture_evidence():
+    import numpy as np
+    from av import VideoFrame
+    from rd_core.video_safety import VideoSource
+
+    receiver = WebRTCReceiver("room", ClientNetworkSettings(), CredentialSettings())
+    receiver._publishers["p"] = VideoSource("vehicle", 42, "p")
+    peer = await receiver._create_peer("p")
+    frames = []
+    receiver.on_frame(lambda *args: frames.append(args))
+
+    class Repeated:
+        id = "front"
+        stopped = False
+
+        async def recv(self):
+            frame = VideoFrame.from_ndarray(
+                np.zeros((24, 32, 3), dtype=np.uint8), format="bgr24"
+            )
+            frame.pts = 0
+            return frame
+
+        def stop(self):
+            self.stopped = True
+
+    track = Repeated()
+    try:
+        with pytest.raises(ValueError, match="timestamp did not advance"):
+            await receiver._recv_track("p", peer, track)
+        assert len(frames) == 1 and track.stopped
+    finally:
+        await receiver.close()
+
+
+@pytest.mark.asyncio
 async def test_actual_authenticated_media_clients_reconnect_and_own_all_tasks(
     runtime_factory, local_tls, monkeypatch
 ):
@@ -33,15 +89,21 @@ async def test_actual_authenticated_media_clients_reconnect_and_own_all_tasks(
         signaling_ca_file=local_tls[0],
         reconnect_delay_s=0.05,
     )
-    publisher = WebRTCStreamer("video", network, CredentialSettings("TEST_VEHICLE"))
+    publisher = WebRTCStreamer(
+        "video", network, CredentialSettings("TEST_VEHICLE"), session=42
+    )
     driver = WebRTCReceiver("video", network, CredentialSettings("TEST_DRIVER"))
     viewer = WebRTCReceiver("video", network, CredentialSettings("TEST_VIEWER"))
     manager = MultiCameraManager(publisher)
     camera = TestCamera(width=96, height=64, fps=30, name="front")
     manager.add_camera(camera)
     frames, statuses = {"driver": [], "viewer": []}, []
-    driver.on_frame(lambda name, frame: frames["driver"].append((name, frame.shape)))
-    viewer.on_frame(lambda name, frame: frames["viewer"].append((name, frame.shape)))
+    driver.on_frame(
+        lambda name, frame, source: frames["driver"].append((name, frame.shape))
+    )
+    viewer.on_frame(
+        lambda name, frame, source: frames["viewer"].append((name, frame.shape))
+    )
     driver.set_status_callback(lambda code, text: statuses.append(code))
     tasks = []
     try:
@@ -128,7 +190,9 @@ async def test_late_decode_completion_cannot_publish_into_replacement_peer():
 
 @pytest.mark.asyncio
 async def test_close_before_session_first_tick_still_releases_created_peers():
-    publisher = WebRTCStreamer("room", ClientNetworkSettings(), CredentialSettings())
+    publisher = WebRTCStreamer(
+        "room", ClientNetworkSettings(), CredentialSettings(), session=42
+    )
     publisher.register_video_track("front")
     peer = await publisher._create_peer("driver")
     starting = asyncio.create_task(publisher.start())
@@ -200,7 +264,7 @@ def test_window_reconnect_waits_for_old_workers_without_blocking_gui(legacy_pyth
             connection_changed = pyqtSignal(bool)
             status_changed = pyqtSignal(str, str)
             error_occurred = pyqtSignal(str)
-            def __init__(self, *args):
+            def __init__(self, *args, **kwargs):
                 super().__init__()
                 self.args = args
                 self.stop = threading.Event()
@@ -229,7 +293,7 @@ def test_window_reconnect_waits_for_old_workers_without_blocking_gui(legacy_pyth
         assert not old_video.isRunning() and not old_control.isRunning()
         assert window._receiver_thread is not old_video
         assert len(ticks) >= 3
-        old_video.args[0]._on_frame("front", np.ones((24, 32, 3), dtype=np.uint8))
+        old_video.args[0]._on_frame("front", np.ones((24, 32, 3), dtype=np.uint8), None)
         assert window.fb.get("front").frame is None
         active = (window._receiver_thread, window._control_thread)
         window.close()

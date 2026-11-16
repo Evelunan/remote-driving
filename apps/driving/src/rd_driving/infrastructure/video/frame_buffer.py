@@ -6,6 +6,7 @@ import time
 from dataclasses import dataclass
 
 import numpy as np
+from rd_core.video_safety import VideoSource
 
 
 @dataclass(frozen=True)
@@ -14,6 +15,7 @@ class Frame:
     frame: np.ndarray | None = None
     received_at: float = 0
     generation: int = 0
+    source: VideoSource | None = None
 
     def fresh(self, max_age_s: float, *, now: float | None = None) -> bool:
         age = (time.monotonic() if now is None else now) - self.received_at
@@ -48,7 +50,7 @@ class FrameBuffer:
     def clear(self):
         self.begin_session()
 
-    def put(self, track_id, frame, *, generation=None, received_at=None):
+    def put(self, track_id, frame, *, generation=None, received_at=None, source=None):
         if track_id not in self.positions:
             raise ValueError("unknown camera view")
         with self._lock:
@@ -76,8 +78,17 @@ class FrameBuffer:
                 return False
             previous = self._frames[track_id]
             self._frames[track_id] = Frame(
-                previous.id + 1, readonly, received_at, generation
+                previous.id + 1, readonly, received_at, generation, source
             )
+            return True
+
+    def invalidate_source(self, source, *, generation):
+        with self._lock:
+            if generation != self._generation:
+                return False
+            for name, frame in self._frames.items():
+                if frame.source == source:
+                    self._frames[name] = Frame(id=frame.id + 1, generation=generation)
             return True
 
     def get(self, position):

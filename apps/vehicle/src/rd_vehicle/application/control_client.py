@@ -8,6 +8,7 @@ from rd_core.control import Command, ControlState, ControlSupervisor, is_newer
 from rd_core.logging import get_logger
 from rd_core.settings import VehicleSettings
 from rd_core.wire import (
+    CONTROL_REVISION,
     Control,
     Execution,
     ExecutionStatus,
@@ -236,6 +237,7 @@ class VehicleControlClient:
                         self.settings.control,
                         session=self.settings.session,
                         role="vehicle",
+                        revision=CONTROL_REVISION,
                         request_handler=lambda method, params, g=generation: (
                             self._request(g, method, params)
                         ),
@@ -265,6 +267,13 @@ class VehicleControlClient:
                                 task.cancel()
                             await asyncio.gather(watch, closed, return_exceptions=True)
                 except (ConnectionError, OSError, TimeoutError, RpcError) as error:
+                    if (
+                        isinstance(error, RpcError)
+                        and error.code == "protocol_upgrade_required"
+                    ):
+                        logger.error(
+                            "Control protocol revision mismatch; upgrade all applications together"
+                        )
                     logger.warning(
                         "Vehicle connection ended (%s)", type(error).__name__
                     )

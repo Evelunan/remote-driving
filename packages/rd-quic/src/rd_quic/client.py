@@ -11,7 +11,7 @@ from aioquic.quic.configuration import QuicConfiguration
 from rd_core.auth import read_secret
 from rd_core.configuration import ConfigError
 from rd_core.settings import ClientNetworkSettings, ControlSettings, CredentialSettings
-from rd_core.wire import ALPN
+from rd_core.wire import ALPN, CONTROL_REVISION
 
 from .framing import RpcError
 from .protocol import RpcProtocol
@@ -111,11 +111,14 @@ async def registered_connection(
     *,
     session: int,
     role: str,
+    revision: str,
     request_handler=None,
     event_handler=None,
     datagram_handler=None,
     on_disconnect=None,
 ):
+    if revision != CONTROL_REVISION:
+        raise RpcError("protocol_upgrade_required")
     token = read_secret(credentials.token_env)
     configuration = quic_configuration(network)
     protocol = None
@@ -149,8 +152,16 @@ async def registered_connection(
             protocol.transmit()
             await protocol.wait_connected()
             result = await protocol.request(
-                "register", {"token": token, "session": session, "role": role}
+                "register",
+                {
+                    "token": token,
+                    "session": session,
+                    "role": role,
+                    "revision": revision,
+                },
             )
+            if result.get("revision") != CONTROL_REVISION:
+                raise RpcError("protocol_upgrade_required")
             if result.get("session") != session or result.get("role") != role:
                 raise RpcError("registration_mismatch")
             age, skew = (

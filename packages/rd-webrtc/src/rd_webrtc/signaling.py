@@ -110,9 +110,15 @@ class SignalingClient:
             )
             self._closing = None
 
-    async def join(self, room):
+    async def join(self, room, *, session=None):
         async with asyncio.timeout(self.network.register_timeout_s):
-            await self.send({"type": "join", "room": room})
+            await self.send(
+                {
+                    "type": "join",
+                    "room": room,
+                    **({"session": session} if session is not None else {}),
+                }
+            )
             reply = await self.recv()
         if reply.get("type") != "joined" or not isinstance(reply.get("id"), str):
             raise SignalingError("room join was not acknowledged")

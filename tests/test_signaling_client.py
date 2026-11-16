@@ -35,10 +35,13 @@ async def test_shared_wss_client_join_role_routing_reconnect_and_token_log_redac
     try:
         check_media_config(network, vehicle.credentials)
         await vehicle.connect()
-        vehicle_id = (await vehicle.join("video"))["id"]
+        vehicle_id = (await vehicle.join("video", session=42))["id"]
         await driver.connect()
         joined = await driver.join("video")
         assert joined["peer_roles"] == {vehicle_id: "vehicle"}
+        assert joined["peer_sources"] == {
+            vehicle_id: {"principal": "vehicle", "session": 42}
+        }
         driver_id = joined["id"]
         assert (await vehicle.recv())["role"] == "driving"
         await driver.send({"type": "offer", "to": vehicle_id, "sdp": "forged"})

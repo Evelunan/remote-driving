@@ -15,3 +15,5 @@ uv run --package rd-driving rd-driving --config configs/driving.yaml --connect
 输入在 USB 读取完成时记录采样时间，经最新值队列按固定周期发送。有效中立输入及车端执行确认后才允许运动；输入失效或确认过期撤销控制。界面分别显示控制器接口执行确认、采样至确认耗时和已收到的实测遥测；实测值过期/断联清除，不用控制目标冒充车速。当前真实车速与停车反馈尚未接入。
 
 PyQt6 需要可用显示环境。OpenCV 导入封装保留用户原有 Qt 插件/字体路径，避免第三方 wheel 覆盖；offscreen 验证不代表真实桌面、GPU 或设备验收。构建命令见[根 README](../../README.md)，剩余工作见[实施记录](../../docs/refactoring-progress.zh-CN.md)。
+
+主画面必须经过 Qt 新帧绘制、新鲜度与车辆身份/session 校验才能授权控制。过期、隐藏或来源更换撤销授权；恢复须新帧稳定、新采样回中和执行确认，详见 [画面与控制](../../docs/video-safety.zh-CN.md)。

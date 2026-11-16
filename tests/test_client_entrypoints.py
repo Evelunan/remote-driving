@@ -3,6 +3,7 @@ import json
 import os
 import subprocess
 import sys
+import time
 
 import pytest
 import yaml
@@ -16,6 +17,7 @@ from rd_core.settings import (
     USBSettings,
     VehicleSettings,
 )
+from rd_core.video_safety import VideoGate
 from rd_driving.app.input_service import DrivingInputService
 from rd_driving.cli import parse_args as driving_args
 from rd_driving.infrastructure.video.webrtc_reciver import WebRTCReceiver
@@ -188,10 +190,22 @@ async def test_formal_vehicle_runtime_and_driving_input_execute_configured_value
         assert (vendor, product) == (123, 456)
         return device
 
-    inputs = DrivingInputService(driving, device_factory=device_factory)
+    gate = VideoGate()
+    inputs = DrivingInputService(
+        driving, device_factory=device_factory, video_gate=gate
+    )
     receiver = WebRTCReceiver("video", network, driving.credentials)
     frames = {}
-    receiver.on_frame(lambda name, image: frames.update({name: image.shape}))
+    sequence = 0
+
+    def frame_received(name, image, source):
+        nonlocal sequence
+        frames[name] = image.shape
+        sequence += 1
+        if name == "front":
+            gate.observe(sequence, time.monotonic(), source)
+
+    receiver.on_frame(frame_received)
     stop = asyncio.Event()
     tasks = [
         asyncio.create_task(
@@ -246,10 +260,10 @@ def test_gui_settings_and_login_close_without_uninitialized_thread(legacy_python
         import os
         os.environ["QT_QPA_PLATFORM"] = "offscreen"
         from PyQt6.QtWidgets import QApplication
-        from rd_core.settings import DrivingSettings, UISettings
+        from rd_core.settings import DrivingSettings, UISettings, VideoSafetySettings
         from rd_driving.main_window import MainWindow
         app = QApplication([])
-        settings = DrivingSettings(session=0, room="test-room", ui=UISettings(theme="dark_tech", width=1300, height=800, frame_interval_ms=23, stats_interval_ms=777, stale_frame_ms=222, debug=True))
+        settings = DrivingSettings(session=0, room="test-room", ui=UISettings(theme="dark_tech", width=1300, height=800, frame_interval_ms=23, stats_interval_ms=777, debug=True), video=VideoSafetySettings(stale_frame_ms=222))
         window = MainWindow(settings=settings)
         assert window.minimumWidth() == 1300 and window.minimumHeight() == 800
         assert window._login_page._session_input.text() == "0"

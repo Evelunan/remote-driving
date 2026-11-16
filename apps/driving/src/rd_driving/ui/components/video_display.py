@@ -83,6 +83,8 @@ class VideoDisplay(QLabel):
         # 性能统计
         self._fps = 0
         self._last_frame_id = -1
+        self._pixmap_frame_id = self._presented_id = -1
+        self._on_presented = None
         self._frame_count = 0
         self._last_fps_time = time.monotonic()
         # 应用默认样式
@@ -256,8 +258,11 @@ class VideoDisplay(QLabel):
         # QPixmap::fromImage 会进行一次拷贝，这是 Qt 显示的必经之路，无法避免
         # 但我们避免了 Python 层面的中间数组分配
         self.setPixmap(QPixmap.fromImage(qimg))
+        self._pixmap_frame_id = self._last_frame_id
 
-    def update_frame(self, frame: np.ndarray, frame_id: int) -> None:
+    def update_frame(
+        self, frame: np.ndarray, frame_id: int, *, on_presented=None
+    ) -> None:
         """外部调用的帧更新接口"""
         if frame is None:
             return
@@ -265,6 +270,7 @@ class VideoDisplay(QLabel):
             # 重复帧，不渲染
             return
         self._last_frame_id = frame_id
+        self._on_presented = on_presented
 
         if self._debug_overlay:
             self._display_time = time.strftime("%H:%M:%S")
@@ -290,10 +296,20 @@ class VideoDisplay(QLabel):
             painter.setPen(QColor(0, 255, 0))
             painter.drawText(12, 24, "display: " + self._display_time)
             painter.end()
+        if (
+            self._current_frame is not None
+            and self._pixmap_frame_id == self._last_frame_id
+            and self._presented_id != self._last_frame_id
+        ):
+            self._presented_id = self._last_frame_id
+            if self._on_presented is not None:
+                self._on_presented()
 
     def show_message(self, text: str) -> None:
         """显示文本消息（无视频流时）"""
         self._current_frame = None
+        self._pixmap_frame_id = self._presented_id = -1
+        self._on_presented = None
         self._scaled_buffer = None
         self._cached_widget_size = QSize(0, 0)
         self._last_frame_id = -1

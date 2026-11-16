@@ -28,6 +28,45 @@ class Socket:
 
 
 @pytest.mark.asyncio
+async def test_publisher_source_requires_session_scope_is_server_owned_and_cannot_change():
+    manager = RoomManager(3)
+    vehicle = await manager.register_peer(
+        Socket(),
+        Principal("real-vehicle", "vehicle", frozenset({42, 43}), frozenset({"room"})),
+    )
+    viewer = await manager.register_peer(
+        Socket(), Principal("viewer", "viewer", frozenset(), frozenset({"room"}))
+    )
+    await manager.join_room(viewer, "room")
+    for session in (None, True, "42"):
+        assert not await manager.join_room(vehicle, "room", session=session)
+        assert vehicle.websocket.messages[-1]["message"] == "vehicle_session_required"
+    await manager.handle_message(
+        vehicle,
+        json.dumps(
+            {
+                "type": "join",
+                "room": "room",
+                "session": 42,
+                "source": {"principal": "forged", "session": 999},
+            }
+        ),
+    )
+    assert viewer.websocket.messages[-1]["source"] == {
+        "principal": "real-vehicle",
+        "session": 42,
+    }
+    await manager.join_room(viewer, "room")
+    assert viewer.websocket.messages[-1]["peer_sources"] == {
+        vehicle.id: {"principal": "real-vehicle", "session": 42}
+    }
+    assert not await manager.join_room(vehicle, "room", session=43)
+    assert vehicle.websocket.messages[-1]["message"] == "publication_session_changed"
+    await manager.handle_message(vehicle, '{"type":"join","room":"room","session":999}')
+    assert vehicle.websocket.closed == 1008
+
+
+@pytest.mark.asyncio
 async def test_room_capacity_is_atomic_and_rejoin_is_idempotent():
     manager = RoomManager(2)
     peers = [await manager.register_peer(Socket()) for _ in range(3)]
@@ -53,14 +92,16 @@ async def test_room_scopes_source_spoofing_and_directed_routing():
             Principal(
                 str(index),
                 "vehicle" if index == 0 else "viewer",
-                frozenset(),
+                frozenset({42}),
                 frozenset({"allowed"}),
             ),
         )
         for index in range(3)
     ]
     for peer in peers:
-        await manager.handle_message(peer, '{"type":"join","room":"allowed"}')
+        await manager.handle_message(
+            peer, '{"type":"join","room":"allowed","session":42}'
+        )
     sender, target, bystander = peers
     await manager.handle_message(
         sender,
@@ -100,12 +141,13 @@ async def test_room_has_one_publisher_and_viewers_cannot_signal_each_other():
     for index, role in enumerate(("vehicle", "vehicle", "driving", "viewer")):
         peers.append(
             await manager.register_peer(
-                Socket(), Principal(str(index), role, frozenset(), frozenset({"room"}))
+                Socket(),
+                Principal(str(index), role, frozenset({42}), frozenset({"room"})),
             )
         )
     first, second, driver, viewer = peers
-    assert await manager.join_room(first, "room")
-    assert not await manager.join_room(second, "room")
+    assert await manager.join_room(first, "room", session=42)
+    assert not await manager.join_room(second, "room", session=42)
     assert second.websocket.messages[-1]["message"] == "publisher_already_present"
     assert await manager.join_room(driver, "room")
     assert await manager.join_room(viewer, "room")
@@ -119,7 +161,7 @@ async def test_room_has_one_publisher_and_viewers_cannot_signal_each_other():
     assert viewer.websocket.messages[-1]["type"] == "offer"
     assert driver.websocket.messages[-1]["type"] == "offer"
     await manager.unregister_peer(first)
-    assert await manager.join_room(second, "room")
+    assert await manager.join_room(second, "room", session=42)
 
 
 @pytest.fixture
@@ -212,7 +254,7 @@ async def test_actual_wss_authentication_forwarding_expiry_and_cleanup(
             )
             assert json.loads(await operator.recv())["message"] == "media_role_denied"
             vehicle = await client("vehicle-token-" + "c" * 32)
-            await vehicle.send('{"type":"join","room":"allowed"}')
+            await vehicle.send('{"type":"join","room":"allowed","session":42}')
             vehicle_id = json.loads(await vehicle.recv())["id"]
             assert json.loads(await operator.recv())["role"] == "vehicle"
             assert json.loads(await viewer.recv())["role"] == "vehicle"
@@ -257,6 +299,12 @@ def test_check_config_and_dump_do_not_start_services(
     authenticated_args, monkeypatch, capsys
 ):
     from rd_server.signaling.server import SignalingServer
+
+    # The CLI configures process-wide logging. Keep this in-process listener
+    # test from replacing pytest's capture streams with a short-lived stream.
+    monkeypatch.setattr(
+        "rd_server.main.configure_logging", lambda *args, **kwargs: None
+    )
 
     async def forbidden_start(self):
         raise AssertionError("must not listen in check/dump mode")

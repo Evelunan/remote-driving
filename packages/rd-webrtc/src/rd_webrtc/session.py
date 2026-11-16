@@ -12,8 +12,9 @@ logger = get_logger(__name__)
 
 
 class MediaSession:
-    def __init__(self, room, network, credentials):
+    def __init__(self, room, network, credentials, *, publication_session=None):
         self.room, self.network = room, network
+        self.publication_session = publication_session
         self.signaling = SignalingClient(network, credentials)
         self._ice_servers = ice_servers(network.ice_servers)
         self.peers = {}
@@ -52,7 +53,9 @@ class MediaSession:
                 try:
                     self._emit_status("connecting", "正在连接信令服务器")
                     await self.signaling.connect()
-                    joined = await self.signaling.join(self.room)
+                    joined = await self.signaling.join(
+                        self.room, session=self.publication_session
+                    )
                     self.my_id = joined["id"]
                     self._emit_status("joined", "信令认证与房间加入已确认")
                     await self._on_joined(joined)

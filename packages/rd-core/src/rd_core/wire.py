@@ -8,6 +8,7 @@ from uuid import UUID
 
 VERSION = 2
 ALPN = "rd-control/2"
+CONTROL_REVISION = "video-bound/1"
 _HEADER = struct.Struct("!2sBBH16sIQ")
 
 

@@ -43,3 +43,7 @@ cameras:
     width: 640
     height: 480
     fps: 30
+video:
+  primary_view: front
+  stale_frame_ms: 500
+  recovery_ms: 500

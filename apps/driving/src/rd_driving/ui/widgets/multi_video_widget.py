@@ -57,10 +57,13 @@ class MultiVideoWidget(QWidget):
         *,
         stale_frame_ms=500,
         debug_overlay=False,
+        video_gate=None,
+        primary_view="front",
     ):
         super().__init__(parent)
 
         self._fb = fb
+        self._video_gate, self._primary_view = video_gate, primary_view
         if stale_frame_ms <= 0:
             raise ValueError("stale_frame_ms must be positive")
         self._stale_after_s = stale_frame_ms / 1000
@@ -192,8 +195,17 @@ class MultiVideoWidget(QWidget):
                 else "stale"
             )
             if state == "fresh":
-                self._displays[cam].update_frame(frame.frame, frame.id)
+                callback = None
+                if cam == self._primary_view and self._video_gate is not None:
+                    callback = lambda f=frame: self._video_gate.observe(
+                        f.id, f.received_at, f.source
+                    )
+                self._displays[cam].update_frame(
+                    frame.frame, frame.id, on_presented=callback
+                )
             elif self._availability[cam] != state:
+                if cam == self._primary_view and self._video_gate is not None:
+                    self._video_gate.invalidate("picture_unavailable")
                 message = "接收画面已过期" if state == "stale" else "等待视频流..."
                 self._displays[cam].show_message(DEFAULT_LABELS[cam] + " - " + message)
             self._availability[cam] = state
@@ -204,8 +216,15 @@ class MultiVideoWidget(QWidget):
             d.apply_theme(theme)
 
     def show_message_all(self, message: str) -> None:
+        if self._video_gate is not None:
+            self._video_gate.invalidate("picture_unavailable")
         for display in self._displays.values():
             display.show_message(message)
+
+    def hideEvent(self, event):
+        if self._video_gate is not None:
+            self._video_gate.invalidate("picture_hidden")
+        super().hideEvent(event)
 
     def get_display(self, key=None):
         if key in CAMERA_NAMES:

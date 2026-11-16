@@ -13,6 +13,7 @@ from rd_core.settings import (
     ProcessSettings,
     VehicleSettings,
 )
+from rd_core.video_safety import VideoGate
 from rd_vehicle.processes import ProcessFailure, VehicleProcesses
 
 
@@ -158,12 +159,22 @@ async def test_spawned_control_and_media_execute_receive_video_and_clean_up(
     )
     samples = LatestValueQueue()
     executed = []
+    gate = VideoGate()
     client = DrivingControlClient(
-        driving, samples, on_execution=lambda *args: executed.append(args[0])
+        driving,
+        samples,
+        video_gate=gate,
+        on_execution=lambda *args: executed.append(args[0]),
     )
     receiver = WebRTCReceiver("video", network, driving.credentials)
     frames = []
-    receiver.on_frame(lambda name, pixels: frames.append((name, pixels.shape)))
+
+    def received(name, pixels, source):
+        frames.append((name, pixels.shape))
+        if name == "front":
+            gate.observe(len(frames), time.monotonic(), source)
+
+    receiver.on_frame(received)
     axis = 0.0
 
     async def produce():

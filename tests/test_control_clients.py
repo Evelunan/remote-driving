@@ -13,6 +13,8 @@ from rd_core.settings import (
     MotionSettings,
     VehicleSettings,
 )
+from rd_core.video_safety import VideoGate, VideoSource
+from rd_core.wire import CONTROL_REVISION
 from rd_driving.app.control_client import DrivingControlClient
 from rd_quic.client import ClockError, ClockGuard
 from rd_vehicle.application.control_client import VehicleControlClient
@@ -33,9 +35,17 @@ class Inputs:
         self.brake = 0
         self.enabled = True
         self.sampled = []
+        self.video_gate = VideoGate(recovery_ms=1)
+        self.video_sequence = 0
 
     async def run(self):
         while True:
+            self.video_sequence += 1
+            self.video_gate.observe(
+                self.video_sequence,
+                time.monotonic(),
+                VideoSource("vehicle", 42, "simulated-video"),
+            )
             if self.enabled:
                 sample = ControlInput(
                     self.throttle,
@@ -49,6 +59,22 @@ class Inputs:
                 self.queue.put_nowait(sample)
                 self.sampled.append(sample)
             await asyncio.sleep(0.01)
+
+
+def test_shared_transport_does_not_implicitly_opt_old_applications_into_video_revision(
+    client_settings,
+):
+    from rd_quic.client import registered_connection
+
+    settings, _ = client_settings
+    with pytest.raises(TypeError, match="revision"):
+        registered_connection(
+            settings.network,
+            settings.credentials,
+            settings.control,
+            session=42,
+            role="driving",
+        )
 
 
 @pytest.fixture
@@ -94,7 +120,10 @@ async def test_real_clients_execute_configured_targets_expire_input_and_rearm_af
     inputs = Inputs()
     reports = []
     driver = DrivingControlClient(
-        driving_settings, inputs.queue, on_execution=lambda *args: reports.append(args)
+        driving_settings,
+        inputs.queue,
+        video_gate=inputs.video_gate,
+        on_execution=lambda *args: reports.append(args),
     )
     tasks = [
         asyncio.create_task(vehicle.run()),
@@ -129,7 +158,9 @@ async def test_real_clients_execute_configured_targets_expire_input_and_rearm_af
         tasks[-1].cancel()
         await asyncio.gather(tasks[-1], return_exceptions=True)
         await until(lambda: vehicle.epoch is None)
-        replacement = DrivingControlClient(driving_settings, inputs.queue)
+        replacement = DrivingControlClient(
+            driving_settings, inputs.queue, video_gate=inputs.video_gate
+        )
         tasks[-1] = asyncio.create_task(replacement.run())
         await until(lambda: replacement.armed)
         assert replacement.epoch != old_epoch
@@ -175,7 +206,10 @@ async def test_no_execution_ack_causes_driver_release_and_vehicle_failsafe(
     inputs = Inputs()
     statuses = []
     driver = DrivingControlClient(
-        driving_settings, inputs.queue, on_status=lambda *args: statuses.append(args)
+        driving_settings,
+        inputs.queue,
+        video_gate=inputs.video_gate,
+        on_status=lambda *args: statuses.append(args),
     )
     tasks = [
         asyncio.create_task(vehicle.run()),
@@ -278,7 +312,9 @@ async def test_blocked_actuator_does_not_block_independent_stop_or_invalidate_ne
         vehicle_settings, controller, independent_stop=lambda reason: safety.set()
     )
     inputs = Inputs()
-    driver = DrivingControlClient(driving_settings, inputs.queue)
+    driver = DrivingControlClient(
+        driving_settings, inputs.queue, video_gate=inputs.video_gate
+    )
     tasks = [
         asyncio.create_task(vehicle.run()),
         asyncio.create_task(inputs.run()),
@@ -335,6 +371,7 @@ async def test_client_requires_hostname_verification_and_compatible_clock_budget
                 settings.control,
                 session=42,
                 role="vehicle",
+                revision=CONTROL_REVISION,
             ):
                 pytest.fail("certificate hostname must be verified")
         network = replace(network, quic_server_name="localhost")
@@ -345,6 +382,7 @@ async def test_client_requires_hostname_verification_and_compatible_clock_budget
                 replace(settings.control, max_clock_skew_ms=20),
                 session=42,
                 role="vehicle",
+                revision=CONTROL_REVISION,
             ):
                 pytest.fail("pairwise clock budget must not be weakened locally")
     finally:

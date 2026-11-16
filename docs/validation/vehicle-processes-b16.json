@@ -1,0 +1,40 @@
+{
+  "python": "/tmp/rd-b16-vehicle/bin/python",
+  "results": [
+    {
+      "components": [
+        "control",
+        "media"
+      ],
+      "pids": {
+        "control": 560779,
+        "media": 560780
+      },
+      "exitcode": 0,
+      "children_reaped": true
+    },
+    {
+      "components": [
+        "control"
+      ],
+      "pids": {
+        "control": 560837
+      },
+      "exitcode": 0,
+      "children_reaped": true
+    },
+    {
+      "components": [
+        "media"
+      ],
+      "pids": {
+        "media": 560874
+      },
+      "exitcode": 0,
+      "children_reaped": true
+    }
+  ],
+  "validation": "Installed wheel process lifecycle smoke; mock controller and synthetic video only",
+  "python_version": "3.12.16",
+  "physical_stop_verified": false
+}

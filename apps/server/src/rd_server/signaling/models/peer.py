@@ -19,6 +19,17 @@ class Peer:
     principal: Principal | None = None
     room_id: str | None = None
     send_timeout_s: float = 3.0
+    publication_session: int | None = None
+
+    @property
+    def video_source(self):
+        if (
+            self.principal is not None
+            and self.principal.role == "vehicle"
+            and self.publication_session is not None
+        ):
+            return {"principal": self.principal.id, "session": self.publication_session}
+        return None
 
     async def send(self, message: dict[str, Any]) -> bool:
         try:

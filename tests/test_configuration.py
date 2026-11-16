@@ -45,7 +45,7 @@ def test_environment_only_applies_to_its_role_and_paths_follow_config(tmp_path):
 def test_arrays_replace_and_are_deeply_immutable(tmp_path):
     path = tmp_path / "vehicle.yaml"
     path.write_text(
-        "cameras:\n  - name: back\n    source: /dev/v4l/by-id/test\n    fps: 20\n"
+        "video:\n  primary_view: back\ncameras:\n  - name: back\n    source: /dev/v4l/by-id/test\n    fps: 20\n"
     )
     loaded = load_config(VehicleSettings, "vehicle", path=path, environ={})
     assert [item.name for item in loaded.value.cameras] == ["back"]

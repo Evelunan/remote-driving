@@ -9,7 +9,14 @@ from uuid import UUID
 import pytest
 from aioquic.asyncio import connect
 from aioquic.quic.configuration import QuicConfiguration
-from rd_core.wire import ALPN, Control, Execution, ExecutionStatus, Packet
+from rd_core.wire import (
+    ALPN,
+    CONTROL_REVISION,
+    Control,
+    Execution,
+    ExecutionStatus,
+    Packet,
+)
 from rd_quic.framing import RpcError
 from rd_quic.protocol import RpcProtocol
 from websockets.asyncio.client import connect as ws_connect
@@ -50,7 +57,13 @@ async def test_real_authenticated_registration_exclusive_lease_and_recovery(
                 if name is not None:
                     role = role or ("driving" if name in ("driver", "other") else name)
                     result = await peer.request(
-                        "register", {"token": tokens[name], "role": role, "session": 42}
+                        "register",
+                        {
+                            "revision": CONTROL_REVISION,
+                            "token": tokens[name],
+                            "role": role,
+                            "session": 42,
+                        },
                     )
                     assert result["principal"] == name
                 return peer
@@ -60,13 +73,40 @@ async def test_real_authenticated_registration_exclusive_lease_and_recovery(
                 await unauthorized.request("acquire", {})
             with pytest.raises(RpcError, match="access_denied"):
                 await unauthorized.request(
-                    "register", {"token": "x" * 40, "role": "driving", "session": 42}
+                    "register",
+                    {
+                        "revision": CONTROL_REVISION,
+                        "token": "x" * 40,
+                        "role": "driving",
+                        "session": 42,
+                    },
+                )
+            # A valid old token must not make an unmodified old client compatible.
+            with pytest.raises(RpcError, match="protocol_upgrade_required"):
+                await unauthorized.request(
+                    "register",
+                    {"token": tokens["driver"], "role": "driving", "session": 42},
+                )
+            with pytest.raises(RpcError, match="protocol_upgrade_required"):
+                await unauthorized.request(
+                    "register",
+                    {
+                        "token": tokens["driver"],
+                        "role": "driving",
+                        "session": 42,
+                        "revision": "old",
+                    },
                 )
             viewer = await client()
             with pytest.raises(RpcError, match="role_denied"):
                 await viewer.request(
                     "register",
-                    {"token": tokens["viewer"], "role": "viewer", "session": 42},
+                    {
+                        "revision": CONTROL_REVISION,
+                        "token": tokens["viewer"],
+                        "role": "viewer",
+                        "session": 42,
+                    },
                 )
             if "signaling" in services:
                 signaling = runtime.services["signaling"]
@@ -114,6 +154,7 @@ async def test_real_authenticated_registration_exclusive_lease_and_recovery(
             prepare_gate.set()
             grant = await pending
             assert grant["neutral_required"] is True
+            assert grant["vehicle_principal"] == "vehicle"
             neutral = Packet(
                 42, UUID(grant["epoch"]), 0, int(time.time() * 1000), Control(0, 0, 0)
             )

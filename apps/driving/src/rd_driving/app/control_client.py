@@ -10,7 +10,9 @@ from rd_core.control import is_newer
 from rd_core.logging import get_logger
 from rd_core.samples import ControlInput
 from rd_core.settings import DrivingSettings
+from rd_core.video_safety import VideoGate
 from rd_core.wire import (
+    CONTROL_REVISION,
     Control,
     Execution,
     ExecutionStatus,
@@ -33,8 +35,14 @@ class DrivingControlClient:
         on_status=None,
         on_execution=None,
         on_telemetry=None,
+        video_gate=None,
     ):
         self.settings, self.samples = settings, samples
+        self.video_gate = video_gate or VideoGate(
+            stale_frame_ms=settings.video.stale_frame_ms,
+            recovery_ms=settings.video.recovery_ms,
+        )
+        self._lease_video = None
         self.on_status, self.on_execution, self.on_telemetry = (
             on_status,
             on_execution,
@@ -69,6 +77,20 @@ class DrivingControlClient:
 
     def _neutral(self):
         return self._fresh() and self.latest.throttle == 0 and self.latest.steering == 0
+
+    def _picture_ready(self, permit):
+        return (
+            permit.ready
+            and permit.source is not None
+            and permit.source.session == self.settings.session
+        )
+
+    def _lease_picture_valid(self):
+        permit = self.video_gate.snapshot()
+        return self._picture_ready(permit) and self._lease_video == (
+            permit.revision,
+            permit.source,
+        )
 
     def _disconnected(self, generation, protocol):
         if generation is self._generation:
@@ -111,7 +133,11 @@ class DrivingControlClient:
             )
         except (ValueError, ConnectionError):
             return
-        if packet.session != self.settings.session or packet.epoch != self.epoch:
+        if (
+            packet.session != self.settings.session
+            or packet.epoch != self.epoch
+            or not self._lease_picture_valid()
+        ):
             return
         if isinstance(packet.payload, Execution):
             sample = self._sent.get(packet.seq)
@@ -148,6 +174,7 @@ class DrivingControlClient:
     async def _release(self):
         epoch, self.epoch = self.epoch, None
         self.armed = False
+        self._lease_video = None
         if (
             epoch is not None
             and self.connection is not None
@@ -164,9 +191,17 @@ class DrivingControlClient:
 
     async def _send_session(self):
         protocol = self.connection.protocol
-        self._status("waiting_neutral")
-        while protocol.rpc_ready and not self._neutral():
+        while protocol.rpc_ready:
             self.connection.clock.check()
+            permit = self.video_gate.snapshot()
+            if self._picture_ready(permit):
+                if self._neutral() and self.latest.sampled_at >= permit.ready_at:
+                    break
+                status = "waiting_neutral"
+            else:
+                status = "waiting_video"
+            if self.state != status:
+                self._status(status)
             await asyncio.sleep(0.02)
         if not protocol.rpc_ready:
             return
@@ -183,6 +218,12 @@ class DrivingControlClient:
         ):
             raise RpcError("invalid_lease")
         self.epoch, self.armed = epoch, False
+        self._lease_video = (permit.revision, permit.source)
+        if not self._lease_picture_valid():
+            self._status("video_unavailable", "primary_video_unavailable")
+            raise RpcError("primary_video_unavailable")
+        if grant.get("vehicle_principal") != permit.source.principal:
+            raise RpcError("video_vehicle_mismatch")
         self._sent.clear()
         self._seq, self._last_ack, self._last_telemetry = 0, None, None
         self._last_execution = time.monotonic()
@@ -191,6 +232,10 @@ class DrivingControlClient:
         self._status("waiting_execution")
         while protocol.rpc_ready and self.epoch == epoch:
             self.connection.clock.check()
+            if not self._lease_picture_valid():
+                self.armed = False
+                self._status("video_unavailable", "primary_video_unavailable")
+                raise RpcError("primary_video_unavailable")
             now = time.monotonic()
             if not self._fresh():
                 raise RpcError("input_expired")
@@ -231,6 +276,7 @@ class DrivingControlClient:
                         self.settings.control,
                         session=self.settings.session,
                         role="driving",
+                        revision=CONTROL_REVISION,
                         event_handler=lambda method, params, g=generation: self._event(
                             g, method, params
                         ),
@@ -249,7 +295,13 @@ class DrivingControlClient:
                             await self._release()
                 except (ConnectionError, OSError, TimeoutError, RpcError) as error:
                     self._status(
-                        "error",
+                        "video_vehicle_mismatch"
+                        if isinstance(error, RpcError)
+                        and error.code == "video_vehicle_mismatch"
+                        else "video_unavailable"
+                        if isinstance(error, RpcError)
+                        and error.code == "primary_video_unavailable"
+                        else "error",
                         error.code
                         if isinstance(error, RpcError)
                         else type(error).__name__,

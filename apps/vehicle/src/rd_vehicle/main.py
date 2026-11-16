@@ -105,12 +105,16 @@ async def start_control(settings, *, controller_factory=None):
     await client.run()
 
 
-async def start_streaming(settings, *, camera_factory=None):
+async def start_streaming(settings, *, camera_factory=None, on_fault=None):
     from rd_vehicle.application.multi_camera_manager import MultiCameraManager
     from rd_vehicle.infrastructure.streams.webrtc_streamer import WebRTCStreamer
 
-    streamer = WebRTCStreamer(settings.room, settings.network, settings.credentials)
-    manager = MultiCameraManager(streamer)
+    streamer = WebRTCStreamer(
+        settings.room, settings.network, settings.credentials, session=settings.session
+    )
+    manager = MultiCameraManager(
+        streamer, video_policy=settings.video, on_fault=on_fault
+    )
     try:
         for camera_settings in settings.cameras:
             manager.add_camera((camera_factory or _create_camera)(camera_settings))
@@ -132,6 +136,7 @@ async def run(
     controller_factory=None,
     camera_factory=None,
     install_signals=False,
+    on_fault=None,
 ):
     """In-process component host; the production CLI owns separate spawned hosts."""
     check_config(settings)
@@ -164,7 +169,9 @@ async def run(
         if "media" in components:
             tasks.append(
                 asyncio.create_task(
-                    start_streaming(settings, camera_factory=camera_factory),
+                    start_streaming(
+                        settings, camera_factory=camera_factory, on_fault=on_fault
+                    ),
                     name="vehicle-media",
                 )
             )
@@ -176,6 +183,10 @@ async def run(
             if task is not stopped:
                 task.result()
                 raise RuntimeError("vehicle component ended unexpectedly")
+    except Exception:
+        if on_fault is not None:
+            on_fault()
+        raise
     finally:
         if stopped is not None:
             stopped.cancel()

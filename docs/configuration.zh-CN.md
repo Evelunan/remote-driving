@@ -64,7 +64,7 @@ rd-server --config /path/server.yaml --services signaling --set signaling.port=8
 | 包内多份 server.yaml | `network`，显式 WSS URL、QUIC host/port/server_name 与 CA 文件 |
 | 固定 TURN 用户名/口令 | `network.ice_servers` 中的 username_env / credential_env 引用 |
 | app.yaml 中 USB 常量 | `usb.vendor_id` / `usb.product_id` |
-| UI 刷新常量与 debug | `ui.frame_interval_ms` / stats_interval_ms / stale_frame_ms / debug |
+| UI 刷新常量与 debug | `ui.frame_interval_ms` / stats_interval_ms / debug；画面过期改为 `video.stale_frame_ms` |
 | 车端模糊 cm/s、mm/s 最大速度 | `motion.max_linear_mps` / max_angular_radps，当前默认 5.0 / 2.0 |
 | 控制超时秒数 | `control.command_timeout_ms`，当前默认 300；输入超时默认 200 ms |
 | 串口全局配置 | `serial.port` / baud_rate / read_timeout_s / write_timeout_s / template_hex |
@@ -73,3 +73,5 @@ rd-server --config /path/server.yaml --services signaling --set signaling.port=8
 相机 name 仅接受当前四视角 front/back/left/right，不允许重复；source 可为 synthetic、非负设备索引或设备路径。推荐 Linux `/dev/v4l/by-id/…` 稳定路径。尺寸必须为正偶数，FPS 为 (0, 240]；各路实际硬件参数需检查协商日志。数组整体替换，未配置的视角显示无信号。
 
 串口默认读写超时均为 0.02 s，13 字节模板显式可配，速度编码上限由 uint16 表示范围限制；这部分只保留兼容适配，用户当前选择 ROS2。运动限值和超时均需实车验收，停车接口尚未接入物理确认。
+
+主视角和控制授权使用统一 `video.primary_view` / `stale_frame_ms` / `recovery_ms`；不再接受 `ui.stale_frame_ms`。媒体发布身份/session 必须匹配控制租约的车辆，恢复须持续新帧与新的中立输入，详见 [画面与控制](video-safety.zh-CN.md)。三个应用须协同升级信令来源与 acquire 字段，缺少新字段时不会降级授权。

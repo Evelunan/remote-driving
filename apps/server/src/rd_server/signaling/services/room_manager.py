@@ -29,6 +29,11 @@ class RoomManager:
                 for other_id in other_ids
                 if room.peers[other_id].principal is not None
             },
+            "peer_sources": {
+                other_id: room.peers[other_id].video_source
+                for other_id in other_ids
+                if room.peers[other_id].video_source is not None
+            },
         }
 
     async def register_peer(
@@ -44,9 +49,21 @@ class RoomManager:
         await self.leave_room(peer)
         self.peers.pop(peer.id, None)
 
-    async def join_room(self, peer: Peer, room_id: str) -> bool:
+    async def join_room(self, peer: Peer, room_id: str, *, session=None) -> bool:
         if peer.principal is not None:
             peer.principal.check_room(room_id)
+            if peer.principal.role == "vehicle":
+                if type(session) is not int:
+                    await self.error(peer, "vehicle_session_required")
+                    return False
+                peer.principal.check_session(session, role="vehicle")
+                if (
+                    peer.publication_session is not None
+                    and peer.publication_session != session
+                ):
+                    await self.error(peer, "publication_session_changed")
+                    return False
+                peer.publication_session = session
         if peer.room_id == room_id:
             room = self.rooms[room_id]
             await peer.send(self._joined_message(peer, room))
@@ -76,6 +93,7 @@ class RoomManager:
                 "type": "new_peer",
                 "id": peer.id,
                 "role": peer.principal.role if peer.principal else None,
+                "source": peer.video_source,
             },
             peer.id,
         )
@@ -126,7 +144,7 @@ class RoomManager:
         if not isinstance(room_id, str) or not 1 <= len(room_id) <= 128:
             await self.error(peer, "invalid_room_id")
             return
-        await self.join_room(peer, room_id)
+        await self.join_room(peer, room_id, session=message.get("session"))
 
     async def handle_forward(self, peer: Peer, message: dict[str, Any]):
         room = self.rooms.get(peer.room_id)

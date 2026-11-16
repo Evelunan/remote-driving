@@ -6,7 +6,14 @@ from types import SimpleNamespace
 import pytest
 from rd_core.auth import AuthProvider
 from rd_core.settings import AuthSettings, PrincipalSettings, RelaySettings
-from rd_core.wire import Control, Execution, ExecutionStatus, Packet, Telemetry
+from rd_core.wire import (
+    CONTROL_REVISION,
+    Control,
+    Execution,
+    ExecutionStatus,
+    Packet,
+    Telemetry,
+)
 from rd_quic.framing import RpcError
 from rd_server.relay.registry import Registry
 
@@ -63,7 +70,12 @@ def setup(monkeypatch):
     for record in records[:3]:
         registry.register(
             peers[record.id],
-            {"token": tokens[record.token_env], "role": record.role, "session": 42},
+            {
+                "revision": CONTROL_REVISION,
+                "token": tokens[record.token_env],
+                "role": record.role,
+                "session": 42,
+            },
         )
     return registry, peers, clock, tokens
 
@@ -81,22 +93,52 @@ def execution(packet, status=ExecutionStatus.EXECUTED):
 def test_registration_checks_identity_role_scope_and_duplicate_vehicle(setup):
     registry, peers, _, tokens = setup
     for params in (
-        {"token": tokens["DRIVER"], "role": "vehicle", "session": 42},
-        {"token": tokens["DRIVER"], "role": "driving", "session": 99},
-        {"token": "invalid", "role": "driving", "session": 42},
-        {"token": tokens["DRIVER"], "role": "driving", "session": True},
+        {
+            "revision": CONTROL_REVISION,
+            "token": tokens["DRIVER"],
+            "role": "vehicle",
+            "session": 42,
+        },
+        {
+            "revision": CONTROL_REVISION,
+            "token": tokens["DRIVER"],
+            "role": "driving",
+            "session": 99,
+        },
+        {
+            "revision": CONTROL_REVISION,
+            "token": "invalid",
+            "role": "driving",
+            "session": 42,
+        },
+        {
+            "revision": CONTROL_REVISION,
+            "token": tokens["DRIVER"],
+            "role": "driving",
+            "session": True,
+        },
     ):
         with pytest.raises(RpcError):
             registry.register(Peer(registry), params)
     with pytest.raises(RpcError, match="role_denied"):
         registry.register(
             peers["viewer"],
-            {"token": tokens["VIEWER"], "role": "viewer", "session": 42},
+            {
+                "revision": CONTROL_REVISION,
+                "token": tokens["VIEWER"],
+                "role": "viewer",
+                "session": 42,
+            },
         )
     with pytest.raises(RpcError, match="vehicle_already_connected"):
         registry.register(
             Peer(registry),
-            {"token": tokens["VEHICLE"], "role": "vehicle", "session": 42},
+            {
+                "revision": CONTROL_REVISION,
+                "token": tokens["VEHICLE"],
+                "role": "vehicle",
+                "session": 42,
+            },
         )
     assert registry.vehicles[42] is peers["vehicle"]
     assert peers["viewer"] not in registry.bindings

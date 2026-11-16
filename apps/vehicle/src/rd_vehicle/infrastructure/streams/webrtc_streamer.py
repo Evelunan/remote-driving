@@ -8,8 +8,10 @@ from .track_manager import TrackManager
 
 
 class WebRTCStreamer(MediaSession):
-    def __init__(self, room, network, credentials):
-        super().__init__(room, network, credentials)
+    def __init__(self, room, network, credentials, *, session):
+        if type(session) is not int or not 0 <= session <= 65535:
+            raise ValueError("publisher control session must be uint16")
+        super().__init__(room, network, credentials, publication_session=session)
         self.track_manager = TrackManager()
         self.signaling.on("new_peer", self._on_new_peer)
         self.signaling.on("answer", self._on_answer)

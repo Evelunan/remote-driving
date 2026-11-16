@@ -4,6 +4,7 @@ import asyncio
 
 from aiortc import RTCSessionDescription
 from aiortc.mediastreams import MediaStreamError
+from rd_core.video_safety import VideoSource
 from rd_webrtc.session import MediaSession
 
 
@@ -26,8 +27,9 @@ class WebRTCReceiver(MediaSession):
     ):
         super().__init__(room, network, credentials)
         self._on_frame = None
+        self._on_invalidate = None
         self._views = frozenset(views)
-        self._publishers = set()
+        self._publishers = {}
         self._track_ids = {}
         self.signaling.on("offer", self._on_offer)
         self.signaling.on("new_peer", self._on_new_peer)
@@ -35,9 +37,12 @@ class WebRTCReceiver(MediaSession):
     def on_frame(self, callback):
         self._on_frame = callback
 
+    def on_invalidate(self, callback):
+        self._on_invalidate = callback
+
     async def _on_joined(self, data):
         self._publishers = {
-            peer
+            peer: VideoSource.from_message(peer, data.get("peer_sources", {}).get(peer))
             for peer, role in data.get("peer_roles", {}).items()
             if role == "vehicle"
         }
@@ -48,7 +53,9 @@ class WebRTCReceiver(MediaSession):
 
     async def _on_new_peer(self, data):
         if data.get("role") == "vehicle":
-            self._publishers.add(data["id"])
+            self._publishers[data["id"]] = VideoSource.from_message(
+                data["id"], data.get("source")
+            )
             self._emit_status("peer_joined", "车端在线，等待视频请求")
 
     async def _create_peer(self, peer_id):
@@ -75,14 +82,23 @@ class WebRTCReceiver(MediaSession):
 
     async def _recv_track(self, peer_id, peer, track):
         first = True
+        last_pts = None
         try:
             while self._current(peer_id, peer):
                 frame = await track.recv()
                 if not self._current(peer_id, peer):
                     break
+                if frame.pts is None or (
+                    last_pts is not None and frame.pts <= last_pts
+                ):
+                    raise ValueError("video presentation timestamp did not advance")
+                last_pts = frame.pts
                 pixels = frame.to_ndarray(format="bgr24")
+                source = self._publishers.get(peer_id)
+                if source is None:
+                    raise PermissionError("video source identity is missing")
                 if self._on_frame is not None:
-                    self._on_frame(track.id, pixels)
+                    self._on_frame(track.id, pixels, source)
                 if first:
                     self._emit_status("receiving", "首帧已到达")
                     first = False
@@ -115,14 +131,17 @@ class WebRTCReceiver(MediaSession):
 
     def _peer_removed(self, peer_id):
         # Called after identity is removed; tasks retain their own peer references.
+        source = self._publishers.get(peer_id)
+        if source is not None and self._on_invalidate is not None:
+            self._on_invalidate(source)
         live = set(self.peers.values())
         self._track_ids = {
             peer: ids for peer, ids in self._track_ids.items() if peer in live
         }
 
     async def _on_peer_left(self, data):
-        self._publishers.discard(data["id"])
         await super()._on_peer_left(data)
+        self._publishers.pop(data["id"], None)
 
     def _final_close(self):
         self._publishers.clear()

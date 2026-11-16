@@ -13,6 +13,9 @@ STATUS_TEXT = {
     "connecting": "连接中",
     "registered": "已认证",
     "waiting_neutral": "等待回中",
+    "waiting_video": "主画面不可用，控制已禁止",
+    "video_unavailable": "主画面失效，控制已撤销",
+    "video_vehicle_mismatch": "画面与控制车辆不匹配",
     "waiting_execution": "等待中立执行确认",
     "active": "控制已授权",
     "revoked": "控制授权已撤销",
@@ -22,12 +25,13 @@ STATUS_TEXT = {
 
 
 class ControlSystemThread(QThread):
-    def __init__(self, signal_bridge, settings):
+    def __init__(self, signal_bridge, settings, *, video_gate=None):
         super().__init__()
         self._bridge, self.settings = signal_bridge, settings
         self._loop = self._main_task = None
         self._stop_requested = threading.Event()
         self.service = None
+        self.video_gate = video_gate
 
     def _safe_emit(self, signal_name, *args):
         if not self._stop_requested.is_set() and self._bridge is not None:
@@ -37,11 +41,16 @@ class ControlSystemThread(QThread):
         online = state in {
             "registered",
             "waiting_neutral",
+            "waiting_video",
             "waiting_execution",
             "active",
         }
         self._safe_emit(
-            "quic_status_changed", online, STATUS_TEXT.get(state, "状态未知")
+            "quic_status_changed",
+            online,
+            "控制协议不兼容，请同步升级"
+            if detail == "protocol_upgrade_required"
+            else STATUS_TEXT.get(state, "状态未知"),
         )
         if state != "active":
             self._safe_emit("control_confirmation_expired")
@@ -76,6 +85,7 @@ class ControlSystemThread(QThread):
             on_status=self._status,
             on_execution=self._execution,
             on_telemetry=self._telemetry,
+            video_gate=self.video_gate,
         )
         await self.service.run()
 

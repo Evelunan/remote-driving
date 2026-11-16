@@ -363,6 +363,16 @@ class ProcessSettings:
 
 
 @dataclass(frozen=True)
+class VideoSafetySettings:
+    primary_view: Literal["front", "back", "left", "right"] = "front"
+    stale_frame_ms: int = 500
+    recovery_ms: int = 500
+
+    def __post_init__(self):
+        _positive(stale_frame_ms=self.stale_frame_ms, recovery_ms=self.recovery_ms)
+
+
+@dataclass(frozen=True)
 class VehicleSettings:
     environment: Environment = "development"
     session: int = 1234
@@ -370,6 +380,7 @@ class VehicleSettings:
     controller: Literal["none", "mock", "ros2", "serial"] = "none"
     components: tuple[Literal["control", "media"], ...] = ("control", "media")
     processes: ProcessSettings = field(default_factory=ProcessSettings)
+    video: VideoSafetySettings = field(default_factory=VideoSafetySettings)
     logging: LoggingSettings = field(default_factory=LoggingSettings)
     credentials: CredentialSettings = field(default_factory=CredentialSettings)
     network: ClientNetworkSettings = field(default_factory=ClientNetworkSettings)
@@ -390,6 +401,10 @@ class VehicleSettings:
             self.cameras
         ):
             raise ValueError("camera names must be nonempty and unique")
+        if "media" in self.components and self.video.primary_view not in {
+            camera.name for camera in self.cameras
+        }:
+            raise ValueError("primary video view must have a configured camera")
 
 
 @dataclass(frozen=True)
@@ -409,7 +424,6 @@ class UISettings:
     height: int = 750
     frame_interval_ms: int = 16
     stats_interval_ms: int = 1000
-    stale_frame_ms: int = 500
     debug: bool = False
 
     def __post_init__(self):
@@ -418,7 +432,6 @@ class UISettings:
             height=self.height,
             frame_interval_ms=self.frame_interval_ms,
             stats_interval_ms=self.stats_interval_ms,
-            stale_frame_ms=self.stale_frame_ms,
         )
 
 
@@ -433,6 +446,7 @@ class DrivingSettings:
     control: ControlSettings = field(default_factory=ControlSettings)
     usb: USBSettings = field(default_factory=USBSettings)
     ui: UISettings = field(default_factory=UISettings)
+    video: VideoSafetySettings = field(default_factory=VideoSafetySettings)
 
     def validate(self):
         validate_client(self)

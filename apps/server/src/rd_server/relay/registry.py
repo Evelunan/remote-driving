@@ -9,6 +9,7 @@ from rd_core.auth import AuthorizationError, AuthProvider, Principal
 from rd_core.control import is_newer
 from rd_core.settings import RelaySettings
 from rd_core.wire import (
+    CONTROL_REVISION,
     Control,
     Execution,
     ExecutionStatus,
@@ -47,8 +48,10 @@ class Registry:
         self.leases = {}
 
     def register(self, peer, params):
+        if params.get("revision") != CONTROL_REVISION:
+            raise RpcError("protocol_upgrade_required")
         if (
-            set(params) != {"token", "session", "role"}
+            set(params) != {"token", "session", "role", "revision"}
             or type(params["session"]) is not int
         ):
             raise RpcError("invalid_registration")
@@ -69,6 +72,7 @@ class Registry:
             self.vehicles[session] = peer
         self.bindings[peer] = Binding(principal, session)
         return {
+            "revision": CONTROL_REVISION,
             "principal": principal.id,
             "role": principal.role,
             "session": session,
@@ -128,7 +132,11 @@ class Registry:
             self._binding(vehicle, "vehicle")
             lease.ready = True
             lease.deadline = time.monotonic() + self.settings.lease_ttl_s
-            return {**parameters, "neutral_required": True}
+            return {
+                **parameters,
+                "neutral_required": True,
+                "vehicle_principal": self._binding(vehicle, "vehicle").principal.id,
+            }
         except BaseException:
             self.revoke(binding.session, "prepare_failed", epoch=lease.epoch)
             raise

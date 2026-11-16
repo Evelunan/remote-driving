@@ -24,6 +24,7 @@ class DrivingInputService:
         on_execution=None,
         on_telemetry=None,
         device_factory=None,
+        video_gate=None,
     ):
         self.settings, self.on_usb = settings, on_usb
         self._device_factory = device_factory or USBConnector
@@ -34,6 +35,7 @@ class DrivingInputService:
             on_status=on_status,
             on_execution=on_execution,
             on_telemetry=on_telemetry,
+            video_gate=video_gate,
         )
 
     def _usb_status(self, online, message):

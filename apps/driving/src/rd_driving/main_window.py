@@ -23,6 +23,7 @@ from PyQt6.QtWidgets import (
 from rd_core.configuration import load_config
 from rd_core.logging import get_logger
 from rd_core.settings import DrivingSettings
+from rd_core.video_safety import VideoGate
 
 from rd_driving.branding import APP_NAME, APP_NAME_EN, VERSION
 from rd_driving.factories import UIFactory
@@ -45,6 +46,10 @@ class MainWindow(QMainWindow):
     ):
         super().__init__()
         self.settings = settings or load_config(DrivingSettings, "driving").value
+        self.video_gate = VideoGate(
+            stale_frame_ms=self.settings.video.stale_frame_ms,
+            recovery_ms=self.settings.video.recovery_ms,
+        )
         self._session_id = session_id
         self._room = room
         self._theme = UIFactory.set_theme(self.settings.ui.theme)
@@ -236,8 +241,10 @@ class MainWindow(QMainWindow):
         # self._multi_video_widget = GLMultiVideoWidget(self.fb)
         self._multi_video_widget = MultiVideoWidget(
             self.fb,
-            stale_frame_ms=self.settings.ui.stale_frame_ms,
+            stale_frame_ms=self.settings.video.stale_frame_ms,
             debug_overlay=self.settings.ui.debug,
+            video_gate=self.video_gate,
+            primary_view=self.settings.video.primary_view,
         )
         self._control_panel = UIFactory.create_control_panel()
         self._control_panel.set_reconnect_callback(self._reconnect)
@@ -324,9 +331,9 @@ class MainWindow(QMainWindow):
             self._control_panel.set_camera_grid(key, fps, w, h)
 
         if self._webrtc_connected:
-            front = self.fb.get("front")
+            front = self.fb.get(self.settings.video.primary_view)
             fresh = front is not None and front.fresh(
-                self.settings.ui.stale_frame_ms / 1000
+                self.settings.video.stale_frame_ms / 1000
             )
             self._control_panel.set_connection_status(
                 "video", fresh, "传输中" if fresh else "主画面已过期"
@@ -339,6 +346,7 @@ class MainWindow(QMainWindow):
         ):
             raise RuntimeError("previous workers have not stopped")
         self._service_generation += 1
+        self.video_gate.invalidate("service_restarted")
         self._setup_signals()
         self._webrtc_connected = False
         try:
@@ -354,8 +362,16 @@ class MainWindow(QMainWindow):
         )
         generation = self.fb.begin_session()
         receiver.on_frame(
-            lambda track_id, frame: self.fb.put(track_id, frame, generation=generation)
+            lambda track_id, frame, source: self.fb.put(
+                track_id, frame, source=source, generation=generation
+            )
         )
+
+        def invalidate(source):
+            if self.fb.invalidate_source(source, generation=generation):
+                self.video_gate.invalidate("publisher_disconnected", source=source)
+
+        receiver.on_invalidate(invalidate)
 
         self._receiver_thread = WebRTCReceiverThread(receiver)
 
@@ -380,6 +396,7 @@ class MainWindow(QMainWindow):
         self._control_thread = ControlSystemThread(
             self._bridge,
             replace(self.settings, session=int(self._session_id), room=self._room),
+            video_gate=self.video_gate,
         )
         self._control_thread.finished.connect(self._finish_shutdown)
         self._control_thread.start()
@@ -464,6 +481,7 @@ class MainWindow(QMainWindow):
         self._services_running = False
         self._service_generation += 1
         self.fb.clear()
+        self.video_gate.invalidate("service_stopped")
         self._clear_feedback()
         self._login_page.setEnabled(False)
         self._control_page.setEnabled(False)
