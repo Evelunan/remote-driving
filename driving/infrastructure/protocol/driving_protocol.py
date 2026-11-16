@@ -4,7 +4,7 @@ import json
 import time
 from typing import TYPE_CHECKING
 from aioquic.asyncio.protocol import QuicConnectionProtocol
-from aioquic.quic.events import DatagramFrameReceived, ConnectionTerminated
+from aioquic.quic.events import DatagramFrameReceived, ConnectionTerminated, HandshakeCompleted
 
 from interfaces import IMessageQueue
 from logger import get_logger
@@ -29,7 +29,7 @@ class DrivingProtocol(QuicConnectionProtocol):
         self.session_id = session_id
         self.processed_queue = processed_queue
 
-        self._connected = False
+        self._business_connected = False
         self._business_task: asyncio.Task | None = None
         self._state_callback = None
 
@@ -39,8 +39,13 @@ class DrivingProtocol(QuicConnectionProtocol):
     def connection_made(self, transport):
         super().connection_made(transport)
 
-        self._connected = True
         logger.info("QUIC 传输已建立，等待握手完成...")
+
+    def connection_lost(self, exc):
+        self._business_connected = False
+        if self._business_task:
+            self._business_task.cancel()
+        super().connection_lost(exc)
 
     # =========================
     # QUIC事件
@@ -52,6 +57,9 @@ class DrivingProtocol(QuicConnectionProtocol):
 
         elif isinstance(event, DatagramFrameReceived):
             self._handle_datagram(event.data)
+        elif isinstance(event, HandshakeCompleted):
+            self._business_connected = True
+        super().quic_event_received(event)
 
     # =========================
     # 连接关闭处理
@@ -62,7 +70,7 @@ class DrivingProtocol(QuicConnectionProtocol):
             f"连接终止: code={event.error_code}, reason={event.reason_phrase}"
         )
 
-        self._connected = False
+        self._business_connected = False
 
         if self._business_task and not self._business_task.done():
             self._business_task.cancel()
@@ -97,7 +105,9 @@ class DrivingProtocol(QuicConnectionProtocol):
     # =========================
     def start(self):
 
-        if not self._business_task:
+        if not self._business_connected:
+            raise RuntimeError("QUIC handshake is not complete")
+        if self._business_task is None or self._business_task.done():
             self._business_task = asyncio.create_task(self._business_loop())
 
     # =========================
@@ -107,7 +117,7 @@ class DrivingProtocol(QuicConnectionProtocol):
         try:
             await self._send_hello()
             logger.info("控制循环启动")
-            while self._connected:
+            while self._business_connected:
                 try:
                     data: dict = await asyncio.wait_for(
                         self.processed_queue.get(), timeout=1.0

@@ -94,6 +94,11 @@ class MainWindow(QMainWindow):
         self._bridge = SignalBridge()
         self._bridge.usb_status_changed.connect(self._on_usb_status_changed)
         self._bridge.quic_status_changed.connect(self._on_quic_status_changed)
+        self._bridge.control_data_updated.connect(self._on_control_data_updated)
+
+    def _on_control_data_updated(self, v: float, w: float, rtt: float):
+        if self._services_running and self._control_panel:
+            self._control_panel.set_conmand_grid(v, w, rtt)
 
     def _on_usb_status_changed(self, ok: bool, text: str):
         if self._services_running and self._control_panel:
@@ -280,7 +285,6 @@ class MainWindow(QMainWindow):
 
     def _start_control(self):
         self._control_thread = ControlSystemThread(self._bridge, self._session_id)
-        self._control_thread._state_callback = self._control_panel.set_conmand_grid
         self._control_thread.start()
 
 

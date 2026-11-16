@@ -44,7 +44,6 @@ class ControlSystemThread(QThread):
         self._processed_queue = ControlFactory.create_message_queue()
 
         self._state_queue = ControlFactory.create_message_queue()
-        self._state_callback = None
 
     def run(self):
         self._running = True
@@ -216,13 +215,11 @@ class ControlSystemThread(QThread):
                     except Exception as e:
                         logger.error(f"记录 rtt 失败: {e}")
 
-                if self._state_callback:
-                    self._state_callback(v, w, rtt)
+                self._safe_emit("control_data_updated", float(v), float(w), float(rtt))
             except asyncio.CancelledError:
                 break
             except asyncio.TimeoutError:
-                if self._state_callback:
-                    self._state_callback(0, 0, 0)
+                self._safe_emit("control_data_updated", 0.0, 0.0, 0.0)
             except Exception as e:
                 if not self._stopping:
                     logger.error(f"错误: {e}")

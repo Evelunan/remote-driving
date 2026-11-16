@@ -31,6 +31,14 @@ class USBConnector(IInputDevice):
     # CONNECT
     # ==========================
     async def connect(self) -> None:
+        await self.disconnect()
+        try:
+            await self._open()
+        except BaseException:
+            await self.disconnect()
+            raise
+
+    async def _open(self) -> None:
 
         logger.info("Searching USB device %04x:%04x", self.vendor_id, self.product_id)
 
@@ -93,30 +101,35 @@ class USBConnector(IInputDevice):
     def _should_process(
         self, data: bytes, last: bytes | None, threshold: int = 0
     ) -> bool:
-        v3, v4 = data[3], data[4]
-
-        # 1. 忽略中立状态
-        if abs(v3 - 128) <= threshold and abs(v4 - 128) <= threshold:
-            return False
-        # 2. 忽略微小变化
-        # if last is not None:
-        #     lv3, lv4 = last[3], last[4]
-        #     if abs(v3 - lv3) <= threshold and abs(v4 - lv4) <= threshold:
-        #         return False
-
-        return True
+        # 中立与未变化的采样也表明输入仍然有效，不能在此过滤。
+        return len(data) >= 5
 
     async def _read_loop(self):
+        try:
+            await self._read_packets()
+        finally:
+            self._running = False
+
+    async def _read_packets(self):
         last_data = None
         while self._running:
             try:
 
-                data = await asyncio.to_thread(
+                read = asyncio.create_task(asyncio.to_thread(
                     self.handle.bulkRead,
                     self.endpoint_in,
                     self.max_packet_size,
                     timeout=100,
-                )
+                ))
+                try:
+                    data = await asyncio.shield(read)
+                except asyncio.CancelledError:
+                    # libusb 的读取超时为 100ms；关闭句柄前等待读取退出。
+                    try:
+                        await read
+                    except Exception:
+                        pass
+                    raise
                 data = bytes(data)
                 if not self._should_process(data, last_data):
                     continue
@@ -177,6 +190,10 @@ class USBConnector(IInputDevice):
         if self.context:
             self.context.close()
             self.context = None
+
+        self.interface_number = None
+        self.endpoint_in = None
+        self.max_packet_size = 64
 
         if was_connected:
             logger.info("USB disconnected")

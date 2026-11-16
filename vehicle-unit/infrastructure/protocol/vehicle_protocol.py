@@ -1,7 +1,7 @@
 import asyncio
 import time
 from aioquic.asyncio.protocol import QuicConnectionProtocol
-from aioquic.quic.events import DatagramFrameReceived, ConnectionTerminated
+from aioquic.quic.events import DatagramFrameReceived, ConnectionTerminated, HandshakeCompleted
 
 from common.constants import ROOT_PATH
 from interfaces.icontroller import IController
@@ -19,7 +19,7 @@ class VehicleProtocol(QuicConnectionProtocol):
         super().__init__(*args, **kwargs)
         self.session_id = session_id
         self.controller = controller
-        self._connected = False
+        self._business_connected = False
         self._business_task: asyncio.Task | None = None
 
         self._last_seq: int | None = None
@@ -34,12 +34,11 @@ class VehicleProtocol(QuicConnectionProtocol):
 
     def connection_made(self, transport):
         super().connection_made(transport)
-        self._connected = True
         logger.info("[car] UDP transport established, waiting for QUIC handshake...")
 
     def connection_lost(self, exc):
         logger.warning(f"[car] Connection lost: {exc}")
-        self._connected = False
+        self._business_connected = False
         self._stop_business()
         super().connection_lost(exc)
 
@@ -48,10 +47,13 @@ class VehicleProtocol(QuicConnectionProtocol):
             logger.warning(
                 f"[car] Connection terminated: {event.error_code} {event.reason_phrase}"
             )
-            self._connected = False
+            self._business_connected = False
             self._stop_business()
         elif isinstance(event, DatagramFrameReceived):
             self._handle_datagram(event.data)
+        elif isinstance(event, HandshakeCompleted):
+            self._business_connected = True
+        super().quic_event_received(event)
 
     # =========================
     # business lifecycle
@@ -59,7 +61,9 @@ class VehicleProtocol(QuicConnectionProtocol):
 
     def start(self):
         """启动业务循环"""
-        if not self._business_task:
+        if not self._business_connected:
+            raise RuntimeError("QUIC handshake is not complete")
+        if self._business_task is None or self._business_task.done():
             self._business_task = asyncio.create_task(self._business_loop())
 
     def _stop_business(self):
@@ -85,7 +89,7 @@ class VehicleProtocol(QuicConnectionProtocol):
             self.transmit()
         except Exception:
             logger.exception("[car] Failed to send datagram")
-            self._connected = False
+            self._business_connected = False
 
     def _handle_datagram(self, data: bytes):
         try:
@@ -115,7 +119,7 @@ class VehicleProtocol(QuicConnectionProtocol):
 
     async def _heartbeat_loop(self):
         logger.info("[car] Heartbeat loop started")
-        while self._connected:
+        while self._business_connected:
             heartbeat = ControlCodec.encode(
                 ControlCodec.MessageType.HEARTBEAT, self.session_id
             )

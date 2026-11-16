@@ -3,7 +3,7 @@ from aioquic.quic.configuration import QuicConfiguration
 from interfaces import IInputDevice, IAnalogCalculator, IMessageQueue, IDataProcessor
 from infrastructure.device import USBConnector
 from infrastructure.processing import AnalogCalculator, DataProcessor
-from infrastructure.communication import AsyncQueue
+from infrastructure.communication import LatestValueQueue
 from app import DrivingDatagram
 
 
@@ -15,7 +15,7 @@ class ControlFactory:
 
     @staticmethod
     def create_message_queue() -> IMessageQueue:
-        return AsyncQueue()
+        return LatestValueQueue()
 
     @staticmethod
     def create_data_processor(
