@@ -7,6 +7,7 @@ from unittest.mock import AsyncMock
 import numpy as np
 import pytest
 from aiortc.mediastreams import MediaStreamError
+from rd_core.settings import ClientNetworkSettings, CredentialSettings
 from rd_vehicle.application.multi_camera_manager import (
     MultiCameraManager,
     _FrameNotification,
@@ -260,10 +261,8 @@ def test_usb_handle_opens_at_start_and_closes_on_owner_thread(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_streamer_peer_replacement_and_stop_during_listen():
-    config = SimpleNamespace(
-        signaling=SimpleNamespace(url="ws://127.0.0.1:1"), ice_servers=[]
-    )
-    streamer = WebRTCStreamer("room", config)
+    config = ClientNetworkSettings(signaling_url="ws://127.0.0.1:1")
+    streamer = WebRTCStreamer("room", config, CredentialSettings())
     streamer.register_video_track("front", fps=60)
     first = await streamer._create_peer("a")
     old_a = streamer.track_manager.subscriptions["a"]["front"]
@@ -280,6 +279,9 @@ async def test_streamer_peer_replacement_and_stop_during_listen():
 
     streamer.signaling.connect = AsyncMock()
     streamer.signaling.send = AsyncMock()
+    streamer.signaling.join = AsyncMock(
+        return_value={"id": "id", "peers": [], "peer_roles": {}}
+    )
     streamer.signaling.listen = listen
     streamer.signaling.close = AsyncMock()
     task = asyncio.create_task(streamer.start())
@@ -328,10 +330,8 @@ async def test_real_webrtc_two_receivers_share_capture_and_close_independently(
     monkeypatch.setattr(
         aioice.ice, "get_host_addresses", lambda **kwargs: ["127.0.0.1"]
     )
-    config = SimpleNamespace(
-        signaling=SimpleNamespace(url="ws://127.0.0.1:1"), ice_servers=[]
-    )
-    streamer = WebRTCStreamer("room", config)
+    config = ClientNetworkSettings(signaling_url="ws://127.0.0.1:1")
+    streamer = WebRTCStreamer("room", config, CredentialSettings())
     manager = MultiCameraManager(streamer)
     camera = TestCamera(width=96, height=64, fps=30, name="front")
     manager.add_camera(camera)
@@ -390,4 +390,4 @@ async def test_real_webrtc_two_receivers_share_capture_and_close_independently(
             task.cancel()
         await asyncio.gather(*consumers, return_exceptions=True)
     assert camera._thread is None
-    assert not streamer.peers and not streamer._closing_peers
+    assert not streamer.peers and not streamer._retired

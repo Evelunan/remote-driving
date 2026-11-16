@@ -1,84 +1,71 @@
-import asyncio
-from typing import Optional
-from PyQt6.QtCore import QThread, pyqtSignal
+"""Qt worker owns one asyncio session; stopping never blocks the GUI thread."""
 
-from rd_driving.infrastructure.video import WebRTCReceiver
+import asyncio
+import threading
+
+from PyQt6.QtCore import QThread, pyqtSignal
 from rd_core.logging import get_logger
 
 logger = get_logger(__name__)
 
 
 class WebRTCReceiverThread(QThread):
-    """视频接收线程 - 修复版"""
-
     connection_changed = pyqtSignal(bool)
     error_occurred = pyqtSignal(str)
-    status_changed = pyqtSignal(str, str)  # (status_code, message)
+    status_changed = pyqtSignal(str, str)
 
-    def __init__(self, receiver: WebRTCReceiver):
+    def __init__(self, receiver):
         super().__init__()
         self._receiver = receiver
-        self._loop: Optional[asyncio.AbstractEventLoop] = None
-        self._main_task: Optional[asyncio.Task] = None
-
-        self._stopping = False
-        # 设置状态回调
+        self._loop = None
+        self._main_task = None
+        self._stop_requested = threading.Event()
         self._receiver.set_status_callback(self._on_status_changed)
 
-    def _on_status_changed(self, status: str, message: str):
-        """状态变化回调（在异步线程中调用）"""
-        if not self._stopping:
-            try:
-                self.status_changed.emit(status, message)
-            except Exception:
-                pass  # 忽略信号发送失败
+    def _on_status_changed(self, status, message):
+        if self._stop_requested.is_set():
+            return
+        self.status_changed.emit(status, message)
+        if status == "joined":
+            self.connection_changed.emit(True)
+        elif status in {"connecting", "disconnected"}:
+            self.connection_changed.emit(False)
+
+    async def _main(self):
+        self._loop = asyncio.get_running_loop()
+        self._main_task = asyncio.current_task()
+        try:
+            if not self._stop_requested.is_set():
+                await self._receiver.start()
+        finally:
+            await self._receiver.close()
 
     def run(self):
-        self._loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(self._loop)
         try:
-            self.connection_changed.emit(True)
-            # 启动 WebRTC
-            self._loop.create_task(self._receiver.start())
-            # 保持事件循环运行
-            self._loop.run_forever()
-
-        except Exception as e:
-            if not self._stopping:
-                self.error_occurred.emit(str(e))
+            asyncio.run(self._main())
+        except asyncio.CancelledError:
+            pass
+        except Exception as exc:  # noqa: BLE001 - sanitize the thread boundary
+            logger.error("Video worker failed (%s)", type(exc).__name__)
+            self.error_occurred.emit("视频服务失败：" + type(exc).__name__)
         finally:
+            self._loop = None
+            self._main_task = None
             self.connection_changed.emit(False)
+
+    def request_stop(self):
+        self._stop_requested.set()
+        loop = self._loop
+        if loop is not None:
             try:
-                self._loop.run_until_complete(self._receiver.close())
-            except Exception:
-                pass
-            try:
-                self._loop.close()
-            except Exception:
-                pass
+                loop.call_soon_threadsafe(self._cancel)
+            except RuntimeError:
+                pass  # event loop already completed and closed
 
-    def request_stop(self, timeout: float = 5.0):
-        self._stopping = True
-
-        if self._loop and self._loop.is_running():
-            try:
-                # 提交关闭任务
-                future = asyncio.run_coroutine_threadsafe(
-                    self._receiver.close(), self._loop
-                )
-                
-                # ✅ 等待关闭完成（关键）
-                future.result(timeout=timeout)
-
-            except Exception as e:
-                logger.warning(f"等待关闭超时或异常: {e}")
-
-            finally:
-                # 停止事件循环
-                try:
-                    self._loop.call_soon_threadsafe(self._loop.stop)
-                except Exception:
-                    pass
-
-        # ✅ 等待线程退出（关键）
-        self.wait(int(timeout * 1000))
+    def _cancel(self):
+        if (
+            self._main_task is not None
+            and not self._main_task.done()
+            and not self._main_task.cancelling()
+        ):
+            self._main_task.cancel()

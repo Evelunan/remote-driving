@@ -1,6 +1,6 @@
 # 配置与身份授权
 
-当前实施状态：统一服务端已接入下述加载机制；驾驶端和车辆端的不可变配置模型已建立，运行组件尚在迁移。认证信令、QUIC v2 服务端可靠注册与独占租约已实现；客户端认证/新协议迁移和时钟诊断仍待完成，不应据此认为整套系统已可用于实车。
+当前实施状态：统一服务端、两端媒体连接和独立 v2 控制客户端已使用不可变配置。认证 WSS/WebRTC、QUIC 租约和配对时钟诊断已有本机验证；正式控制入口、其余 UI/设备配置与客户端 CLI 参数仍在迁移。当前版本不作为实车部署完成态。
 
 ## 加载规则
 
@@ -23,18 +23,20 @@ rd-server --config /path/server.yaml --services signaling --set signaling.port=8
 
 ## 身份与信令权限
 
-服务端的 `auth.principals` 定义身份 ID、角色、允许访问的控制 session 和视频 room。令牌通过 `token_env` 引用环境变量，要求 32–4096 字符且每个身份使用不同令牌。应使用密码学随机令牌；仓库不保存令牌或私钥。内存中的认证表保存令牌 SHA-256 摘要，使用常量时间摘要比较。
+服务端的 `auth.principals` 定义身份 ID、角色、允许访问的控制 session 和视频 room。令牌通过 `token_env` 引用环境变量，要求 32–4096 字符且每个身份使用不同令牌；同时用于信令时须使用不含空白的可见 ASCII 字符。应使用密码学随机令牌；仓库不保存令牌或私钥。内存中的认证表保存令牌 SHA-256 摘要，使用常量时间摘要比较。
 
 客户端在 WebSocket 握手头中发送 `Authorization: Bearer <token>`。服务端在登记 peer 前验证令牌；无令牌、无效令牌和已过期令牌均关闭连接（1008）。加入房间前检查 room 权限，过期身份不能发送或接收信令；有 `expires_at` 的空闲连接也会自动关闭。身份过期配置使用带时区的 ISO 时间。变更或撤销令牌目前需要重启服务，现有连接将关闭，不提供静默热更新。
 
-`viewer` 可以访问被授予的视频房间，但其角色不能用于取得驾驶控制权。房间成员关系不代表控制租约；控制授权由 relay 模块独立裁决。服务端总是根据连接填充消息 `from`；指定 `to` 时，目标必须是同房间其他成员，非法目标不会变成广播。
+`vehicle` 才能发送 offer，`driving`/`viewer` 只能向车辆发送 answer；candidate 也只能在车辆与接收角色之间路由。每个房间最多一个车辆发布者，离开后其他已授权车辆才能加入。服务端在 joined/new_peer 中提供真实角色，接收端只接受本房间车辆的 offer。`viewer` 可以访问被授予的视频房间，但其角色不能用于取得驾驶控制权。房间成员关系不代表控制租约；控制授权由 relay 模块独立裁决。服务端总是根据连接填充消息 `from`；指定 `to` 时，目标必须是同房间其他成员，非法目标不会变成广播。
+
+两端共用 `rd_webrtc.signaling.SignalingClient`：校验证书及主机名，非回环地址拒绝明文 WS；禁止重定向和隐式环境代理，避免令牌发送到其他目的地。TURN 用户名/口令从环境变量引用读取。加入房间必须收到确认，断线结束监听，不在旧连接上重试。`network.signaling_*` 控制消息大小、ping、发送及关闭超时，`register_timeout_s` 限定连接与加入房间时间，`reconnect_delay_s` 控制重连间隔。固定 websockets 16.0 并测试禁止重定向的适配点。
 
 应用 DEBUG 日志不打开 WebSocket 传输层的报文/头部 DEBUG 输出，避免记录 Authorization。配置转储只显示环境变量引用；应用错误信息不包含令牌、SDP 或原始 YAML 行。
 
 ## 示例与迁移
 
 - [server.yaml](../configs/server.yaml)：认证双模块示例；用 `--services relay` 或 `--services signaling` 可分别部署。
-- [server.local.yaml](../configs/server.local.yaml)：显式旧协议、本机 signaling；可配合当前未迁移客户端测试。
+- [server.local.yaml](../configs/server.local.yaml)：显式旧协议、本机 signaling；仅供旧协议回归；新版媒体客户端不降级到匿名信令。
 - [server.signaling.yaml](../configs/server.signaling.yaml)：认证 WSS 示例，需部署方提供证书和三个令牌环境变量。相对 TLS 路径在 `configs/tls/` 下解析。
 
 旧信令模块内的 `server.yaml` 和缓存加载器已移除，入口统一为 `rd-server`。字段映射：`ping_interval` → `signaling.ping_interval_s`，`ping_timeout` → `signaling.ping_timeout_s`，`max_message_size` → `signaling.max_message_bytes`；host、port、max_peers_per_room 移入 signaling。

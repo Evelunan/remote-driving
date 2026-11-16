@@ -1,4 +1,4 @@
-# 已实现的认证信令示例；驾驶端/车端认证客户端将在后续批次接入。
+# 认证信令示例；两端媒体客户端已接入，完整应用入口迁移见实施记录。
 environment: production
 services: [signaling]
 logging:

@@ -7,6 +7,8 @@ import sys
 from rd_vehicle.application import VehicleDatagram, MultiCameraManager
 from rd_vehicle.common.utils import get_camera_index
 from rd_core.logging import configure_logging, get_logger
+from rd_core.configuration import load_config
+from rd_core.settings import VehicleSettings
 from rd_vehicle.config.loaders import (
     get_webrtc_config,
     get_quic_config,
@@ -56,8 +58,8 @@ async def start_control(session_id: int):
 
 async def start_streaming(room: str):
     """启动多路摄像头采集与 WebRTC 推流服务"""
-    config = get_webrtc_config()
-    streamer = WebRTCStreamer(room, config)
+    settings = load_config(VehicleSettings, "vehicle").value
+    streamer = WebRTCStreamer(room, settings.network, settings.credentials)
     manager = MultiCameraManager(streamer)
 
     cameras = get_cameras_config()

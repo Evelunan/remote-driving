@@ -214,6 +214,11 @@ class IceSettings:
 class ClientNetworkSettings:
     signaling_url: str = "wss://localhost:8765"
     signaling_ca_file: Path | None = None
+    signaling_ping_interval_s: float = 20.0
+    signaling_ping_timeout_s: float = 20.0
+    signaling_send_timeout_s: float = 3.0
+    signaling_close_timeout_s: float = 3.0
+    signaling_max_message_bytes: int = 65536
     quic_host: str = "localhost"
     quic_port: int = 4433
     quic_server_name: str = "localhost"
@@ -241,7 +246,14 @@ class ClientNetworkSettings:
             idle_timeout_s=self.idle_timeout_s,
             reconnect_delay_s=self.reconnect_delay_s,
             register_timeout_s=self.register_timeout_s,
+            signaling_ping_interval_s=self.signaling_ping_interval_s,
+            signaling_ping_timeout_s=self.signaling_ping_timeout_s,
+            signaling_send_timeout_s=self.signaling_send_timeout_s,
+            signaling_close_timeout_s=self.signaling_close_timeout_s,
+            signaling_max_message_bytes=self.signaling_max_message_bytes,
         )
+        if self.signaling_max_message_bytes > 1_048_576:
+            raise ValueError("signaling_max_message_bytes must not exceed 1 MiB")
         if self.register_timeout_s > 60:
             raise ValueError("register_timeout_s must not exceed 60")
 

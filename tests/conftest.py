@@ -98,7 +98,7 @@ def runtime_factory(tmp_path, local_tls, monkeypatch):
             }
         )
 
-    def build(services=("relay",), **relay_options):
+    def build(services=("relay",), *, signaling_options=None, **relay_options):
         config = {
             "environment": "production",
             "services": list(services),
@@ -113,6 +113,7 @@ def runtime_factory(tmp_path, local_tls, monkeypatch):
                 "host": "127.0.0.1",
                 "port": 0,
                 "tls": {"cert": str(cert), "key": str(key)},
+                **(signaling_options or {}),
             },
         }
         path = tmp_path / "authenticated-server.yaml"

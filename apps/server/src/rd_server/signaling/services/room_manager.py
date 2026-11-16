@@ -17,6 +17,20 @@ class RoomManager:
     rooms: dict[str, Room] = field(default_factory=dict)
     peers: dict[str, Peer] = field(default_factory=dict)
 
+    @staticmethod
+    def _joined_message(peer, room):
+        other_ids = room.get_other_peer_ids(peer.id)
+        return {
+            "type": "joined",
+            "id": peer.id,
+            "peers": other_ids,
+            "peer_roles": {
+                other_id: room.peers[other_id].principal.role
+                for other_id in other_ids
+                if room.peers[other_id].principal is not None
+            },
+        }
+
     async def register_peer(
         self, websocket, principal: Principal | None = None
     ) -> Peer:
@@ -35,27 +49,36 @@ class RoomManager:
             peer.principal.check_room(room_id)
         if peer.room_id == room_id:
             room = self.rooms[room_id]
-            await peer.send(
-                {
-                    "type": "joined",
-                    "id": peer.id,
-                    "peers": room.get_other_peer_ids(peer.id),
-                }
-            )
+            await peer.send(self._joined_message(peer, room))
             return True
         if peer.room_id is not None:
             await self.leave_room(peer)
         room = self.rooms.setdefault(
             room_id, Room(id=room_id, max_peers=self.max_peers_per_room)
         )
+        if (
+            peer.principal is not None
+            and peer.principal.role == "vehicle"
+            and any(
+                member.principal is not None and member.principal.role == "vehicle"
+                for member in room.peers.values()
+            )
+        ):
+            await self.error(peer, "publisher_already_present")
+            return False
         # Capacity check and membership insertion contain no suspension point.
         if not room.add_peer(peer):
             await peer.send({"type": "full", "message": "room is full"})
             return False
-        await peer.send(
-            {"type": "joined", "id": peer.id, "peers": room.get_other_peer_ids(peer.id)}
+        await peer.send(self._joined_message(peer, room))
+        await room.broadcast(
+            {
+                "type": "new_peer",
+                "id": peer.id,
+                "role": peer.principal.role if peer.principal else None,
+            },
+            peer.id,
         )
-        await room.broadcast({"type": "new_peer", "id": peer.id}, peer.id)
         return True
 
     async def leave_room(self, peer: Peer) -> None:
@@ -112,6 +135,13 @@ class RoomManager:
             return
         if peer.principal is not None:
             peer.principal.check_room(room.id)
+            kind = message["type"]
+            role = peer.principal.role
+            if (kind == "offer" and role != "vehicle") or (
+                kind == "answer" and role == "vehicle"
+            ):
+                await self.error(peer, "media_role_denied")
+                return
         forwarded = {**message, "from": peer.id}
         if "to" in message:
             target_id = message["to"]
@@ -122,6 +152,22 @@ class RoomManager:
             ):
                 await self.error(peer, "invalid_target")
                 return
-            await room.peers[target_id].send(forwarded)
+            target = room.peers[target_id]
+            if not self._media_pair_allowed(peer, target):
+                await self.error(peer, "media_role_denied")
+                return
+            await target.send(forwarded)
         else:
-            await room.broadcast(forwarded, peer.id)
+            for target in tuple(room.peers.values()):
+                if target is not peer and self._media_pair_allowed(peer, target):
+                    await target.send(forwarded)
+
+    @staticmethod
+    def _media_pair_allowed(sender, target):
+        if sender.principal is None and target.principal is None:
+            return True  # explicit loopback legacy mode
+        if sender.principal is None or target.principal is None:
+            return False
+        return (sender.principal.role == "vehicle") != (
+            target.principal.role == "vehicle"
+        )

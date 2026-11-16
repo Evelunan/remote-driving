@@ -1199,12 +1199,16 @@ source = { editable = "packages/rd-webrtc" }
 dependencies = [
     { name = "aiortc" },
     { name = "numpy" },
+    { name = "rd-core" },
+    { name = "websockets" },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "aiortc", specifier = ">=1.14.0" },
     { name = "numpy", specifier = ">=1.26" },
+    { name = "rd-core", editable = "packages/rd-core" },
+    { name = "websockets", specifier = "==16.0" },
 ]
 
 [[package]]

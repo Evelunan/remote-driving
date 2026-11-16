@@ -1,0 +1,244 @@
+import asyncio
+
+import pytest
+from rd_core.settings import ClientNetworkSettings, CredentialSettings
+from rd_driving.infrastructure.video.webrtc_reciver import WebRTCReceiver
+from rd_vehicle.application.multi_camera_manager import MultiCameraManager
+from rd_vehicle.infrastructure.cameras.test_camera import TestCamera
+from rd_vehicle.infrastructure.streams.webrtc_streamer import WebRTCStreamer
+
+
+async def until(predicate, timeout=4):
+    async with asyncio.timeout(timeout):
+        while not predicate():
+            await asyncio.sleep(0.01)
+
+
+@pytest.mark.asyncio
+async def test_actual_authenticated_media_clients_reconnect_and_own_all_tasks(
+    runtime_factory, local_tls, monkeypatch
+):
+    import aioice.ice
+
+    monkeypatch.setattr(
+        aioice.ice, "get_host_addresses", lambda **kwargs: ["127.0.0.1"]
+    )
+    build, _ = runtime_factory
+    runtime = build(("signaling",), signaling_options={"max_peers_per_room": 3})
+    await runtime.start()
+    service = runtime.services["signaling"]
+    port = service._server.sockets[0].getsockname()[1]
+    network = ClientNetworkSettings(
+        signaling_url=f"wss://127.0.0.1:{port}",
+        signaling_ca_file=local_tls[0],
+        reconnect_delay_s=0.05,
+    )
+    publisher = WebRTCStreamer("video", network, CredentialSettings("TEST_VEHICLE"))
+    driver = WebRTCReceiver("video", network, CredentialSettings("TEST_DRIVER"))
+    viewer = WebRTCReceiver("video", network, CredentialSettings("TEST_VIEWER"))
+    manager = MultiCameraManager(publisher)
+    camera = TestCamera(width=96, height=64, fps=30, name="front")
+    manager.add_camera(camera)
+    frames, statuses = {"driver": [], "viewer": []}, []
+    driver.on_frame(lambda name, frame: frames["driver"].append((name, frame.shape)))
+    viewer.on_frame(lambda name, frame: frames["viewer"].append((name, frame.shape)))
+    driver.set_status_callback(lambda code, text: statuses.append(code))
+    tasks = []
+    try:
+        await manager.start()
+        tasks = [
+            asyncio.create_task(endpoint.start())
+            for endpoint in (publisher, driver, viewer)
+        ]
+        await until(lambda: all(len(value) >= 3 for value in frames.values()))
+        assert frames["driver"][0] == ("front", (64, 96, 3))
+        assert (
+            statuses.index("joined")
+            < statuses.index("connected")
+            < statuses.index("receiving")
+        )
+        old_id = publisher.my_id
+        old_peers = tuple(publisher.peers.values())
+        before = {name: len(value) for name, value in frames.items()}
+        await service.manager.peers[old_id].websocket.close(1012, "test disconnect")
+        await until(lambda: publisher.my_id is not None and publisher.my_id != old_id)
+        await until(
+            lambda: all(len(frames[name]) > count + 2 for name, count in before.items())
+        )
+        assert all(peer.pc.connectionState == "closed" for peer in old_peers)
+        assert not publisher.track_manager.sources["front"].closed
+        await driver.close()
+        await until(lambda: len(service.manager.peers) == 2)
+        viewer_count = len(frames["viewer"])
+        await until(lambda: len(frames["viewer"]) > viewer_count + 2)
+        assert not driver._peer_tasks and not driver.peers and not driver._track_ids
+    finally:
+        await manager.stop()
+        await asyncio.gather(
+            *(endpoint.close() for endpoint in (publisher, driver, viewer))
+        )
+        await asyncio.gather(*tasks, return_exceptions=True)
+        await runtime.stop()
+    assert camera._thread is None
+    assert not service.manager.peers and not service.manager.rooms
+    assert not [
+        task
+        for task in asyncio.all_tasks()
+        if task.get_name().startswith(("media-", "signaling-"))
+    ]
+
+
+@pytest.mark.asyncio
+async def test_late_decode_completion_cannot_publish_into_replacement_peer():
+    import numpy as np
+    from av import VideoFrame
+
+    receiver = WebRTCReceiver("room", ClientNetworkSettings(), CredentialSettings())
+    peer = await receiver._create_peer("vehicle")
+    entered = asyncio.Event()
+    frames = []
+    receiver.on_frame(lambda *args: frames.append(args))
+
+    class LateFrame:
+        id = "front"
+        stopped = False
+
+        async def recv(self):
+            entered.set()
+            try:
+                await asyncio.Future()
+            except asyncio.CancelledError:
+                return VideoFrame.from_ndarray(
+                    np.zeros((24, 32, 3), dtype=np.uint8), format="bgr24"
+                )
+
+        def stop(self):
+            self.stopped = True
+
+    track = LateFrame()
+    receiver._spawn_peer_task(
+        "vehicle", peer, receiver._recv_track("vehicle", peer, track)
+    )
+    await entered.wait()
+    await receiver._create_peer("vehicle")
+    assert not frames and track.stopped
+    assert peer.pc.connectionState == "closed"
+    await receiver.close()
+
+
+@pytest.mark.asyncio
+async def test_close_before_session_first_tick_still_releases_created_peers():
+    publisher = WebRTCStreamer("room", ClientNetworkSettings(), CredentialSettings())
+    publisher.register_video_track("front")
+    peer = await publisher._create_peer("driver")
+    starting = asyncio.create_task(publisher.start())
+    await asyncio.sleep(0)
+    await publisher.close()
+    await asyncio.gather(starting, return_exceptions=True)
+    assert peer.pc.connectionState == "closed"
+    assert publisher.track_manager.sources["front"].closed
+
+
+def test_qt_media_stop_is_nonblocking_and_not_connected_before_join(legacy_python):
+    legacy_python(
+        "driving",
+        """
+        import asyncio
+        import time
+        from PyQt6.QtCore import QCoreApplication
+        from rd_driving.infrastructure.workers.video_reciver_thread import WebRTCReceiverThread
+        app = QCoreApplication([])
+        class Receiver:
+            started = False
+            closed = False
+            def set_status_callback(self, callback):
+                self.status = callback
+            async def start(self):
+                self.started = True
+                self.status("connecting", "connecting")
+                await asyncio.Future()
+            async def close(self):
+                await asyncio.sleep(0.15)
+                self.closed = True
+        receiver = Receiver()
+        worker = WebRTCReceiverThread(receiver)
+        connections = []
+        worker.connection_changed.connect(connections.append)
+        worker.start()
+        deadline = time.monotonic() + 2
+        while not receiver.started and time.monotonic() < deadline:
+            app.processEvents()
+            time.sleep(0.005)
+        started = time.monotonic()
+        worker.request_stop()
+        assert time.monotonic() - started < 0.1
+        assert worker.isRunning()
+        while worker.isRunning() and time.monotonic() < deadline:
+            app.processEvents()
+            time.sleep(0.005)
+        app.processEvents()
+        assert not worker.isRunning() and receiver.closed
+        assert True not in connections
+    """,
+    )
+
+
+def test_window_reconnect_waits_for_old_workers_without_blocking_gui(legacy_python):
+    legacy_python(
+        "driving",
+        """
+        import os
+        os.environ["QT_QPA_PLATFORM"] = "offscreen"
+        import threading
+        import time
+        import numpy as np
+        from PyQt6.QtCore import QThread, pyqtSignal, QTimer
+        from PyQt6.QtWidgets import QApplication
+        import rd_driving.main_window as module
+        app = QApplication([])
+        class Worker(QThread):
+            connection_changed = pyqtSignal(bool)
+            status_changed = pyqtSignal(str, str)
+            error_occurred = pyqtSignal(str)
+            def __init__(self, *args):
+                super().__init__()
+                self.args = args
+                self.stop = threading.Event()
+            def run(self):
+                self.stop.wait(3)
+                time.sleep(0.15)
+            def request_stop(self):
+                self.stop.set()
+        module.ControlSystemThread = Worker
+        module.WebRTCReceiverThread = Worker
+        window = module.MainWindow(session_id="42", room="video")
+        window.show()
+        old_video, old_control = window._receiver_thread, window._control_thread
+        ticks = []
+        timer = QTimer()
+        timer.timeout.connect(lambda: ticks.append(time.monotonic()))
+        timer.start(10)
+        started = time.monotonic()
+        window._reconnect()
+        assert time.monotonic() - started < 0.1
+        assert window._receiver_thread is old_video
+        deadline = time.monotonic() + 3
+        while window._receiver_thread is old_video and time.monotonic() < deadline:
+            app.processEvents()
+            time.sleep(0.005)
+        assert not old_video.isRunning() and not old_control.isRunning()
+        assert window._receiver_thread is not old_video
+        assert len(ticks) >= 3
+        old_video.args[0]._on_frame("front", np.ones((24, 32, 3), dtype=np.uint8))
+        assert window.fb.get("front").frame is None
+        active = (window._receiver_thread, window._control_thread)
+        window.close()
+        while any(worker.isRunning() for worker in active) and time.monotonic() < deadline:
+            app.processEvents()
+            time.sleep(0.005)
+        app.processEvents()
+        app.processEvents()
+        assert all(not worker.isRunning() for worker in active)
+        assert window._closing_ready
+    """,
+    )

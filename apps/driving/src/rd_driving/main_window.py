@@ -32,7 +32,9 @@ from rd_driving.infrastructure.workers import (
 )
 from rd_driving.infrastructure.video import WebRTCReceiver, FrameBuffer
 from rd_core.logging import configure_logging, get_logger
-from rd_driving.config.loaders import get_webrtc_config, get_app_config
+from rd_driving.config.loaders import get_app_config
+from rd_core.configuration import load_config
+from rd_core.settings import DrivingSettings
 from rd_driving.common.constants import ROOT_PATH
 
 logger = get_logger(__name__)
@@ -40,8 +42,9 @@ logger = get_logger(__name__)
 class MainWindow(QMainWindow):
     """主窗口 - 包含登录页面和控制页面"""
 
-    def __init__(self, session_id: str = None, room: str = None):
+    def __init__(self, session_id: str = None, room: str = None, *, settings=None):
         super().__init__()
+        self.settings = settings or load_config(DrivingSettings, "driving").value
         self._session_id = session_id
         self._room = room
         self._theme = UIFactory.get_theme()
@@ -49,6 +52,12 @@ class MainWindow(QMainWindow):
         # 服务相关
         self._receiver_thread = None
         self._control_thread = None
+        self._service_generation = 0
+        self._pending_action = None
+        self._closing_ready = False
+        self._shutdown_poll = QTimer(self)
+        self._shutdown_poll.setInterval(25)
+        self._shutdown_poll.timeout.connect(self._finish_shutdown)
 
         # UI 组件引用（用于安全检查）
         self._control_panel = None
@@ -89,10 +98,18 @@ class MainWindow(QMainWindow):
 
     def _setup_signals(self):
         self._bridge = SignalBridge()
-        self._bridge.usb_status_changed.connect(self._on_usb_status_changed)
-        self._bridge.quic_status_changed.connect(self._on_quic_status_changed)
-        self._bridge.control_data_updated.connect(self._on_control_data_updated)
-        self._bridge.control_confirmation_expired.connect(self._on_control_confirmation_expired)
+        generation = self._service_generation
+        for signal, callback in (
+            (self._bridge.usb_status_changed, self._on_usb_status_changed),
+            (self._bridge.quic_status_changed, self._on_quic_status_changed),
+            (self._bridge.control_data_updated, self._on_control_data_updated),
+            (self._bridge.control_confirmation_expired, self._on_control_confirmation_expired),
+        ):
+            signal.connect(lambda *args, g=generation, cb=callback: self._generation_signal(g, cb, *args))
+
+    def _generation_signal(self, generation, callback, *args):
+        if generation == self._service_generation and self._services_running:
+            callback(*args)
 
     def _on_control_data_updated(self, throttle: float, brake: float, steering: float, elapsed_ms: float):
         if self._services_running and self._control_panel:
@@ -147,10 +164,9 @@ class MainWindow(QMainWindow):
     def _switch_to_control_page(self):
         """切换到控制页面并启动服务"""
         self._setup_control_page()
-        self._setup_signals()
         self._setup_timers()
-        self._start_services()
         self._services_running = True
+        self._start_services()
         self._stacked_widget.setCurrentIndex(1)
 
     def _setup_control_page(self):
@@ -174,7 +190,9 @@ class MainWindow(QMainWindow):
         content_layout.setSpacing(20)
 
         # self._multi_video_widget = GLMultiVideoWidget(self.fb)
-        self._multi_video_widget = MultiVideoWidget(self.fb)
+        self._multi_video_widget = MultiVideoWidget(
+            self.fb, stale_frame_ms=self.settings.ui.stale_frame_ms, debug_overlay=self.settings.ui.debug
+        )
         self._control_panel = UIFactory.create_control_panel()
         self._control_panel.set_reconnect_callback(self._reconnect)
 
@@ -219,16 +237,21 @@ class MainWindow(QMainWindow):
         return footer
 
     def _setup_timers(self):
+        for name in ("_frame_timer", "_stats_timer", "_time_timer"):
+            previous = getattr(self, name, None)
+            if previous is not None:
+                previous.stop()
+                previous.deleteLater()
         app_config = get_app_config()
-        self._frame_timer = QTimer()
+        self._frame_timer = QTimer(self)
         self._frame_timer.timeout.connect(self._multi_video_widget.update)
         self._frame_timer.start(app_config.frame_timer_interval)
         
-        self._stats_timer = QTimer()
+        self._stats_timer = QTimer(self)
         self._stats_timer.timeout.connect(self._update_camera_info)
         self._stats_timer.start(app_config.stats_timer_interval)
         
-        self._time_timer = QTimer()
+        self._time_timer = QTimer(self)
         self._time_timer.timeout.connect(self._update_time)
         self._time_timer.start(app_config.time_timer_interval)
         self._time_label.setText(time.strftime("%Y-%m-%d %H:%M:%S"))
@@ -254,26 +277,26 @@ class MainWindow(QMainWindow):
             w, h = display.get_resolution()
             self._control_panel.set_camera_grid(key, fps, w, h)
             
-            # # 统计帧数 
-            # if get_app_config().debug_mode:
-            #     try:
-            #         log_file = ROOT_PATH / "logs" / "fps_stats.csv"
-            #         with open(log_file, "a") as f:
-            #             f.write(f"{time.time()},{fps}\n")
-            #     except Exception as e:
-            #         logger.error(f"记录 fps 失败: {e}")
+        if self._webrtc_connected:
+            front = self.fb.get("front")
+            fresh = front is not None and front.fresh(self.settings.ui.stale_frame_ms / 1000)
+            self._control_panel.set_connection_status("video", fresh, "传输中" if fresh else "主画面已过期")
 
     def _start_services(self):
-        self._receiver_thread = None
-        self._control_thread = None
+        if any(worker is not None and worker.isRunning() for worker in (self._receiver_thread, self._control_thread)):
+            raise RuntimeError("previous workers have not stopped")
+        self._service_generation += 1
+        self._setup_signals()
         self._webrtc_connected = False
-
-        self._start_video()
-        self._start_control()
+        try:
+            self._start_video()
+            self._start_control()
+        except Exception as exc:
+            logger.error("服务启动失败 (%s)", type(exc).__name__)
+            self._request_shutdown("logout")
 
     def _start_video(self):
-        config = get_webrtc_config()
-        receiver = WebRTCReceiver(self._room, config)
+        receiver = WebRTCReceiver(self._room, self.settings.network, self.settings.credentials)
         generation = self.fb.begin_session()
         receiver.on_frame(
             lambda track_id, frame: self.fb.put(track_id, frame, generation=generation)
@@ -281,37 +304,29 @@ class MainWindow(QMainWindow):
 
         self._receiver_thread = WebRTCReceiverThread(receiver)
 
-        self._receiver_thread.connection_changed.connect(self._on_video_conn)
+        service_generation = self._service_generation
+        self._receiver_thread.connection_changed.connect(
+            lambda ok, g=service_generation: self._generation_signal(g, self._on_video_conn, ok)
+        )
         self._receiver_thread.error_occurred.connect(
             lambda e: logger.error(f"视频错误: {e}")
         )
-        self._receiver_thread.status_changed.connect(self._on_video_status_changed)
+        self._receiver_thread.status_changed.connect(
+            lambda status, text, g=service_generation: self._generation_signal(g, self._on_video_status_changed, status, text)
+        )
+        self._receiver_thread.finished.connect(self._finish_shutdown)
         self._receiver_thread.start()
 
     def _start_control(self):
         self._control_thread = ControlSystemThread(self._bridge, self._session_id)
+        self._control_thread.finished.connect(self._finish_shutdown)
         self._control_thread.start()
 
 
 
     def _reconnect(self):
-        if not self._services_running:
-            return
-
-        # 重置 WebRTC 连接状态
-        self._webrtc_connected = False
-
-        if self._control_panel:
-            self._control_panel.set_connection_status("video", False, "重连中")
-            self._control_panel.set_connection_status("webrtc", False, "重连中")
-            self._control_panel.set_connection_status("signal", False, "重连中")
-            self._control_panel.set_connection_status("usb", False, "重连中")
-            self._control_panel.set_connection_status("quic", False, "重连中")           
-        self._receiver_thread.request_stop()
-        self._start_video()
-        
-        self._control_thread.request_stop()
-        self._start_control()
+        if self._services_running and self._pending_action is None:
+            self._request_shutdown("restart")
 
     def _on_video_conn(self, connected: bool):
         if not self._services_running or self._control_panel is None:
@@ -331,6 +346,8 @@ class MainWindow(QMainWindow):
             if status == "connecting":
                 self._webrtc_connected = False
                 self._control_panel.set_connection_status("signal", False, "连接中")
+            elif status == "joined":
+                self._control_panel.set_connection_status("signal", True, "已认证")
             elif status == "waiting_peer":
                 self._webrtc_connected = False
                 self._control_panel.set_connection_status("signal", True, "已连接")
@@ -345,7 +362,7 @@ class MainWindow(QMainWindow):
             elif status == "connected":
                 self._webrtc_connected = True
                 self._control_panel.set_connection_status("webrtc", True, "已连接")
-                self._control_panel.set_connection_status("video", True, "传输中")
+                self._control_panel.set_connection_status("video", False, "等待首帧")
             elif status == "receiving":
                 # 只有 WebRTC 已连接时才更新视频状态
                 if self._webrtc_connected:
@@ -376,62 +393,51 @@ class MainWindow(QMainWindow):
         return self._login_data.copy()
 
     def _stop_services(self):
-        """停止所有后台服务和定时器"""
-        # 首先标记服务已停止，防止定时器回调访问已销毁的组件
-        self._services_running = False
-        self.fb.clear()
-
-        # 停止所有定时器
-        try:
-            if hasattr(self, "_frame_timer") and self._frame_timer:
-                self._frame_timer.stop()
-        except Exception as e:
-            logger.debug(f"停止帧定时器时出错: {e}")
-
-        try:
-            if hasattr(self, "_time_timer") and self._time_timer:
-                self._time_timer.stop()
-        except Exception as e:
-            logger.debug(f"停止时间定时器时出错: {e}")
-
-        try:
-            if hasattr(self, "_stats_timer") and self._stats_timer:
-                self._stats_timer.stop()
-        except Exception as e:
-            logger.debug(f"停止视频状态时出错: {e}")
-        # 停止视频接收线程
-        try:
-            if self._receiver_thread and self._receiver_thread.isRunning():
-                self._receiver_thread.request_stop()
-                if not self._receiver_thread.wait(3000):
-                    logger.warning("视频接收线程未能在超时内停止")
-                self._receiver_thread = None
-        except Exception as e:
-            logger.debug(f"停止视频接收线程时出错: {e}")
-            self._receiver_thread = None
-
-        # 停止控制系统线程
-        try:
-            if self._control_thread and self._control_thread.isRunning():
-                self._control_thread.request_stop()
-                if not self._control_thread.wait(3000):
-                    logger.warning("控制系统线程未能在超时内停止")
-                self._control_thread = None
-        except Exception as e:
-            logger.debug(f"停止控制系统线程时出错: {e}")
-            self._control_thread = None
-
+        self._request_shutdown("logout")
 
     def _logout(self):
-        """退出登录，返回登录页面"""
-        logger.info("退出登录")
+        self._request_shutdown("logout")
 
-        try:
-            # 停止所有服务（会设置 _services_running = False）
-            self._stop_services()
-        except Exception as e:
-            logger.error(f"停止服务时出错: {e}")
+    def _request_shutdown(self, action):
+        if self._pending_action == "close":
+            return
+        self._pending_action = action
+        self._services_running = False
+        self._service_generation += 1
+        self.fb.clear()
+        self._login_page.setEnabled(False)
+        self._control_page.setEnabled(False)
+        for name in ("_frame_timer", "_stats_timer", "_time_timer"):
+            timer = getattr(self, name, None)
+            if timer is not None:
+                timer.stop()
+        for worker in (self._receiver_thread, self._control_thread):
+            if worker is not None:
+                worker.request_stop()
+        self._shutdown_poll.start()
+        self._finish_shutdown()
 
+    def _finish_shutdown(self):
+        if self._pending_action is None:
+            return
+        if any(worker is not None and worker.isRunning() for worker in (self._receiver_thread, self._control_thread)):
+            return
+        self._shutdown_poll.stop()
+        self._receiver_thread = self._control_thread = None
+        action, self._pending_action = self._pending_action, None
+        if action == "close":
+            self._closing_ready = True
+            QTimer.singleShot(0, self.close)
+        elif action == "restart":
+            self._control_page.setEnabled(True)
+            self._setup_timers()
+            self._services_running = True
+            self._start_services()
+        else:
+            self._finish_logout()
+            self._login_page.setEnabled(True)
+
+    def _finish_logout(self):
         # 清除会话信息
         self._session_id = None
         self._room = None
@@ -456,8 +462,11 @@ class MainWindow(QMainWindow):
             logger.error(f"切换到登录页面时出错: {e}")
 
     def closeEvent(self, event):
-        self._stop_services()
-        event.accept()
+        if self._closing_ready:
+            event.accept()
+        else:
+            event.ignore()
+            self._request_shutdown("close")
 
 
 def run_gui(session_id=None, room=None):

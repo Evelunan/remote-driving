@@ -50,7 +50,12 @@ async def test_room_scopes_source_spoofing_and_directed_routing():
     peers = [
         await manager.register_peer(
             Socket(),
-            Principal(str(index), "viewer", frozenset(), frozenset({"allowed"})),
+            Principal(
+                str(index),
+                "vehicle" if index == 0 else "viewer",
+                frozenset(),
+                frozenset({"allowed"}),
+            ),
         )
         for index in range(3)
     ]
@@ -88,11 +93,41 @@ async def test_expired_identity_cannot_send_or_receive():
     assert not peer.websocket.messages
 
 
+@pytest.mark.asyncio
+async def test_room_has_one_publisher_and_viewers_cannot_signal_each_other():
+    manager = RoomManager(5)
+    peers = []
+    for index, role in enumerate(("vehicle", "vehicle", "driving", "viewer")):
+        peers.append(
+            await manager.register_peer(
+                Socket(), Principal(str(index), role, frozenset(), frozenset({"room"}))
+            )
+        )
+    first, second, driver, viewer = peers
+    assert await manager.join_room(first, "room")
+    assert not await manager.join_room(second, "room")
+    assert second.websocket.messages[-1]["message"] == "publisher_already_present"
+    assert await manager.join_room(driver, "room")
+    assert await manager.join_room(viewer, "room")
+    before = len(viewer.websocket.messages)
+    await manager.handle_message(
+        driver, json.dumps({"type": "candidate", "to": viewer.id, "candidate": None})
+    )
+    assert driver.websocket.messages[-1]["message"] == "media_role_denied"
+    assert len(viewer.websocket.messages) == before
+    await manager.handle_message(first, json.dumps({"type": "offer", "sdp": "test"}))
+    assert viewer.websocket.messages[-1]["type"] == "offer"
+    assert driver.websocket.messages[-1]["type"] == "offer"
+    await manager.unregister_peer(first)
+    assert await manager.join_room(second, "room")
+
+
 @pytest.fixture
 def authenticated_args(tmp_path, local_tls, monkeypatch):
     cert, key = local_tls
     monkeypatch.setenv("TEST_OPERATOR", "operator-token-" + "a" * 32)
     monkeypatch.setenv("TEST_VIEWER", "viewer-token-" + "b" * 32)
+    monkeypatch.setenv("TEST_VEHICLE", "vehicle-token-" + "c" * 32)
     path = tmp_path / "server.yaml"
     path.write_text(f"""environment: production
 services: [signaling]
@@ -112,6 +147,11 @@ auth:
     - id: operator
       role: driving
       token_env: TEST_OPERATOR
+      sessions: [42]
+      rooms: [allowed]
+    - id: vehicle
+      role: vehicle
+      token_env: TEST_VEHICLE
       sessions: [42]
       rooms: [allowed]
     - id: viewer
@@ -170,7 +210,18 @@ async def test_actual_wss_authentication_forwarding_expiry_and_cleanup(
                     {"type": "offer", "from": "forged", "to": view_id, "sdp": "example"}
                 )
             )
-            assert json.loads(await viewer.recv())["from"] == op_id
+            assert json.loads(await operator.recv())["message"] == "media_role_denied"
+            vehicle = await client("vehicle-token-" + "c" * 32)
+            await vehicle.send('{"type":"join","room":"allowed"}')
+            vehicle_id = json.loads(await vehicle.recv())["id"]
+            assert json.loads(await operator.recv())["role"] == "vehicle"
+            assert json.loads(await viewer.recv())["role"] == "vehicle"
+            await vehicle.send(
+                json.dumps(
+                    {"type": "offer", "from": op_id, "to": view_id, "sdp": "example"}
+                )
+            )
+            assert json.loads(await viewer.recv())["from"] == vehicle_id
             await viewer.send('{"type":"join","room":"forbidden"}')
             with pytest.raises(ConnectionClosedError):
                 await viewer.recv()
