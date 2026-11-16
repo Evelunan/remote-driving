@@ -1,0 +1,369 @@
+{
+  "aggregation": "median of per-run phase statistics; not pooled frame percentiles",
+  "scope": "single-process loopback software pipeline; synthetic camera read completion to Qt offscreen paint; mock actuator",
+  "cpu_model": "11th Gen Intel(R) Core(TM) i7-11800H @ 2.30GHz",
+  "cases": {
+    "1": {
+      "reports": [
+        "media-b18-1view-r1.json",
+        "media-b18-1view-r2.json",
+        "media-b18-1view-r3.json"
+      ],
+      "workload": {
+        "views": 1,
+        "profile": "production",
+        "seconds_per_phase": 10.0,
+        "warmup_seconds": 2,
+        "capture_fps": 30,
+        "ui_poll_ms": 16,
+        "widget_size": [
+          1280,
+          720
+        ],
+        "subscribers": 1,
+        "seed": 42,
+        "scene": "moving-texture"
+      },
+      "steady": {
+        "cpu_percent_one_core_median": 55.33334073752554,
+        "rss_mib_median": 272.248046875,
+        "control_submit_p99_ms_median": 13.18181547379935,
+        "control_ack_p99_ms_median": 14.598378382943332,
+        "views": {
+          "front": {
+            "paint_fps_median": 28.87839696353806,
+            "capture_to_qt_paint_ms_median_of_percentiles": {
+              "p50": 69.52111200371291,
+              "p95": 87.95590000227092,
+              "p99": 93.1345042755129
+            },
+            "paint_p95_range_ms": [
+              86.96605415243539,
+              88.91003579774404
+            ],
+            "stage_p95_ms_median": {
+              "capture_to_encoder_input": 32.45919819455593,
+              "encoder_queue": 0.47931119042914333,
+              "encode_including_color_conversion": 7.047856191638856,
+              "encode_end_to_decode_start": 38.75857200182507,
+              "decode": 2.4667182005941863,
+              "decode_to_track_recv": 0.3338107984745871,
+              "receive_bgr_conversion": 0.745875007123686,
+              "watermark_probe": 0.13443365096463825,
+              "cache_publication": 0.22886040678713468,
+              "cache_to_render": 14.641059398127254,
+              "qt_scale_pixmap": 0.912785096443258,
+              "render_to_paint": 0.9115346038015556,
+              "capture_to_receive": 76.35860060108826,
+              "capture_to_qt_paint": 87.95590000227092
+            }
+          }
+        }
+      },
+      "recovered": {
+        "cpu_percent_one_core_median": 54.88709422197364,
+        "rss_mib_median": 310.21484375,
+        "control_submit_p99_ms_median": 12.529673479730263,
+        "control_ack_p99_ms_median": 13.719544298219262,
+        "views": {
+          "front": {
+            "paint_fps_median": 28.977657794066783,
+            "capture_to_qt_paint_ms_median_of_percentiles": {
+              "p50": 69.27448499482125,
+              "p95": 86.59904190717498,
+              "p99": 91.92284276141437
+            },
+            "paint_p95_range_ms": [
+              86.1750184034463,
+              89.02659995583237
+            ],
+            "stage_p95_ms_median": {
+              "capture_to_encoder_input": 32.39630455354928,
+              "encoder_queue": 0.3580365009838715,
+              "encode_including_color_conversion": 7.059512994601391,
+              "encode_end_to_decode_start": 37.73487199941883,
+              "decode": 2.352117000555154,
+              "decode_to_track_recv": 0.3524295025272295,
+              "receive_bgr_conversion": 0.6891364973853342,
+              "watermark_probe": 0.1231660062330775,
+              "cache_publication": 0.18567450024420395,
+              "cache_to_render": 14.836379249754827,
+              "qt_scale_pixmap": 0.979624647879973,
+              "render_to_paint": 0.9241597559594087,
+              "capture_to_receive": 75.63299700268544,
+              "capture_to_qt_paint": 86.59904190717498
+            }
+          }
+        }
+      },
+      "first_front_paint_ms_median": 129.21106300200336,
+      "reconnect_all_views_painted_ms_median": 204.7388850041898,
+      "reconnect_new_control_epoch_ms_median": 760.2758970024297
+    },
+    "4": {
+      "reports": [
+        "media-b18-4view-r1.json",
+        "media-b18-4view-r2.json",
+        "media-b18-4view-r3.json"
+      ],
+      "workload": {
+        "views": 4,
+        "profile": "production",
+        "seconds_per_phase": 10.0,
+        "warmup_seconds": 2,
+        "capture_fps": 30,
+        "ui_poll_ms": 16,
+        "widget_size": [
+          1280,
+          720
+        ],
+        "subscribers": 1,
+        "seed": 42,
+        "scene": "moving-texture"
+      },
+      "steady": {
+        "cpu_percent_one_core_median": 121.59769135422648,
+        "rss_mib_median": 431.603515625,
+        "control_submit_p99_ms_median": 17.555631241120835,
+        "control_ack_p99_ms_median": 20.485216979868625,
+        "views": {
+          "front": {
+            "paint_fps_median": 28.9971486233869,
+            "capture_to_qt_paint_ms_median_of_percentiles": {
+              "p50": 73.80820949765621,
+              "p95": 91.57004715452786,
+              "p99": 95.39584881931663
+            },
+            "paint_p95_range_ms": [
+              91.48701150115812,
+              92.78914989554323
+            ],
+            "stage_p95_ms_median": {
+              "capture_to_encoder_input": 32.546805299352854,
+              "encoder_queue": 1.0964358538331,
+              "encode_including_color_conversion": 8.636402643605836,
+              "encode_end_to_decode_start": 39.413568505551666,
+              "decode": 2.9325740993954246,
+              "decode_to_track_recv": 1.1429124948335816,
+              "receive_bgr_conversion": 0.8312777550600003,
+              "watermark_probe": 0.15255624821293168,
+              "cache_publication": 0.22695645020576197,
+              "cache_to_render": 14.765960101794914,
+              "qt_scale_pixmap": 0.9103072959987913,
+              "render_to_paint": 2.260693950665881,
+              "capture_to_receive": 79.19756849878468,
+              "capture_to_qt_paint": 91.57004715452786
+            }
+          },
+          "back": {
+            "paint_fps_median": 29.076343597313265,
+            "capture_to_qt_paint_ms_median_of_percentiles": {
+              "p50": 72.29192499653436,
+              "p95": 88.22894900367828,
+              "p99": 95.41085950477286
+            },
+            "paint_p95_range_ms": [
+              87.19800309700076,
+              88.99836899945512
+            ],
+            "stage_p95_ms_median": {
+              "capture_to_encoder_input": 32.56135950505268,
+              "encoder_queue": 1.0428514025988993,
+              "encode_including_color_conversion": 6.270533260249068,
+              "encode_end_to_decode_start": 39.87890599819366,
+              "decode": 2.1594580030068755,
+              "decode_to_track_recv": 1.5076505078468472,
+              "receive_bgr_conversion": 0.4296280021662824,
+              "watermark_probe": 0.169443002960179,
+              "cache_publication": 0.1521004960522987,
+              "cache_to_render": 15.428172002430074,
+              "qt_scale_pixmap": 0.6243995012482628,
+              "render_to_paint": 2.364994004892651,
+              "capture_to_receive": 76.73354749567807,
+              "capture_to_qt_paint": 88.22894900367828
+            }
+          },
+          "left": {
+            "paint_fps_median": 28.894015780585185,
+            "capture_to_qt_paint_ms_median_of_percentiles": {
+              "p50": 71.6994504982722,
+              "p95": 89.81691545850481,
+              "p99": 97.81816914386582
+            },
+            "paint_p95_range_ms": [
+              87.22381920670159,
+              90.37175229823333
+            ],
+            "stage_p95_ms_median": {
+              "capture_to_encoder_input": 32.51998200721573,
+              "encoder_queue": 1.0538725524384067,
+              "encode_including_color_conversion": 6.272823004110251,
+              "encode_end_to_decode_start": 40.70401675708127,
+              "decode": 2.1677885015378706,
+              "decode_to_track_recv": 1.4253713969083042,
+              "receive_bgr_conversion": 0.454936052847188,
+              "watermark_probe": 0.159578507009428,
+              "cache_publication": 0.16242989513557407,
+              "cache_to_render": 15.41761564949411,
+              "qt_scale_pixmap": 0.5666767909133341,
+              "render_to_paint": 1.7414625937817618,
+              "capture_to_receive": 76.92091599892592,
+              "capture_to_qt_paint": 89.81691545850481
+            }
+          },
+          "right": {
+            "paint_fps_median": 28.897158455720046,
+            "capture_to_qt_paint_ms_median_of_percentiles": {
+              "p50": 72.15023100434337,
+              "p95": 88.08348820894025,
+              "p99": 94.0892231219914
+            },
+            "paint_p95_range_ms": [
+              87.78806109621655,
+              88.33093600114807
+            ],
+            "stage_p95_ms_median": {
+              "capture_to_encoder_input": 32.97200754605001,
+              "encoder_queue": 1.148258253670065,
+              "encode_including_color_conversion": 6.094911953550763,
+              "encode_end_to_decode_start": 40.19196720109903,
+              "decode": 1.962781305337558,
+              "decode_to_track_recv": 1.4909411060216373,
+              "receive_bgr_conversion": 0.4342380052548833,
+              "watermark_probe": 0.17846700211521238,
+              "cache_publication": 0.1572566077811644,
+              "cache_to_render": 15.577008598484094,
+              "qt_scale_pixmap": 0.5768912000348789,
+              "render_to_paint": 1.8516239528253213,
+              "capture_to_receive": 76.49910940599511,
+              "capture_to_qt_paint": 88.08348820894025
+            }
+          }
+        }
+      },
+      "recovered": {
+        "cpu_percent_one_core_median": 120.90235982373005,
+        "rss_mib_median": 549.623046875,
+        "control_submit_p99_ms_median": 15.409806316310984,
+        "control_ack_p99_ms_median": 19.038698138028803,
+        "views": {
+          "front": {
+            "paint_fps_median": 29.077405344038116,
+            "capture_to_qt_paint_ms_median_of_percentiles": {
+              "p50": 74.51707900327165,
+              "p95": 91.28361650800798,
+              "p99": 98.81911110423977
+            },
+            "paint_p95_range_ms": [
+              90.51547919661971,
+              91.48845000163419
+            ],
+            "stage_p95_ms_median": {
+              "capture_to_encoder_input": 32.35050899820635,
+              "encoder_queue": 1.1733229985111393,
+              "encode_including_color_conversion": 8.285299503768329,
+              "encode_end_to_decode_start": 39.14573850488523,
+              "decode": 2.673939998203423,
+              "decode_to_track_recv": 0.9269524962292053,
+              "receive_bgr_conversion": 0.7558080033049919,
+              "watermark_probe": 0.12463449820643291,
+              "cache_publication": 0.2048840033239685,
+              "cache_to_render": 14.707080001244321,
+              "qt_scale_pixmap": 0.891771098395111,
+              "render_to_paint": 2.3418945056619123,
+              "capture_to_receive": 78.26201049465453,
+              "capture_to_qt_paint": 91.28361650800798
+            }
+          },
+          "back": {
+            "paint_fps_median": 29.095990988516867,
+            "capture_to_qt_paint_ms_median_of_percentiles": {
+              "p50": 72.03277500229888,
+              "p95": 89.65466999507044,
+              "p99": 93.34024655909147
+            },
+            "paint_p95_range_ms": [
+              87.77631354896585,
+              90.67135900113499
+            ],
+            "stage_p95_ms_median": {
+              "capture_to_encoder_input": 32.84981750039151,
+              "encoder_queue": 1.1555434975889511,
+              "encode_including_color_conversion": 6.343692999507766,
+              "encode_end_to_decode_start": 40.27249799401034,
+              "decode": 2.1699071054172228,
+              "decode_to_track_recv": 1.391587000398431,
+              "receive_bgr_conversion": 0.45964150194777176,
+              "watermark_probe": 0.17312850104644895,
+              "cache_publication": 0.1461990032112226,
+              "cache_to_render": 15.388835505291354,
+              "qt_scale_pixmap": 0.6108502508141097,
+              "render_to_paint": 2.2992000012891367,
+              "capture_to_receive": 76.26855450507719,
+              "capture_to_qt_paint": 89.65466999507044
+            }
+          },
+          "left": {
+            "paint_fps_median": 29.095990988516867,
+            "capture_to_qt_paint_ms_median_of_percentiles": {
+              "p50": 69.16631100466475,
+              "p95": 88.24599900253816,
+              "p99": 93.22450839099477
+            },
+            "paint_p95_range_ms": [
+              86.58577849564608,
+              88.37271000084002
+            ],
+            "stage_p95_ms_median": {
+              "capture_to_encoder_input": 32.28113215373014,
+              "encoder_queue": 1.049017497280147,
+              "encode_including_color_conversion": 5.693763053568544,
+              "encode_end_to_decode_start": 39.11733930071932,
+              "decode": 1.8894878085120577,
+              "decode_to_track_recv": 1.3607258559204636,
+              "receive_bgr_conversion": 0.4948839996359311,
+              "watermark_probe": 0.19331249495735392,
+              "cache_publication": 0.1662214926909655,
+              "cache_to_render": 15.290432995243464,
+              "qt_scale_pixmap": 0.578963001316879,
+              "render_to_paint": 1.626386001589708,
+              "capture_to_receive": 76.30949480153504,
+              "capture_to_qt_paint": 88.24599900253816
+            }
+          },
+          "right": {
+            "paint_fps_median": 29.077405344038116,
+            "capture_to_qt_paint_ms_median_of_percentiles": {
+              "p50": 70.70803300302941,
+              "p95": 88.19572350330418,
+              "p99": 94.99730712384917
+            },
+            "paint_p95_range_ms": [
+              88.06686940370128,
+              90.34683349455008
+            ],
+            "stage_p95_ms_median": {
+              "capture_to_encoder_input": 32.867821995751,
+              "encoder_queue": 0.8614170073997229,
+              "encode_including_color_conversion": 5.281693498545792,
+              "encode_end_to_decode_start": 39.28545999224298,
+              "decode": 1.9736415051738732,
+              "decode_to_track_recv": 1.1631839952315204,
+              "receive_bgr_conversion": 0.44930900185136124,
+              "watermark_probe": 0.14634999388363212,
+              "cache_publication": 0.12315200729062781,
+              "cache_to_render": 15.807977004442364,
+              "qt_scale_pixmap": 0.5939364928053692,
+              "render_to_paint": 1.789404996088706,
+              "capture_to_receive": 76.20666099683149,
+              "capture_to_qt_paint": 88.19572350330418
+            }
+          }
+        }
+      },
+      "first_front_paint_ms_median": 152.74775699072052,
+      "reconnect_all_views_painted_ms_median": 232.48375399271026,
+      "reconnect_new_control_epoch_ms_median": 785.7421910011908
+    }
+  }
+}

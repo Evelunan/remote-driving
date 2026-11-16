@@ -1,0 +1,3677 @@
+{
+  "schema": "rd-media-benchmark/1",
+  "label": "baseline-b18",
+  "scope": "single-process loopback software pipeline; synthetic camera read completion to Qt offscreen paint; mock actuator",
+  "topology": "GUI main thread; one backend asyncio thread for server/media/control; native capture/codec/actuator threads",
+  "physical_display_or_stop_verified": false,
+  "gpu_metrics": null,
+  "python": "3.12.16",
+  "platform": "Linux-6.18.58.1-microsoft-standard-WSL2-x86_64-with-glibc2.43",
+  "cpu_model": "11th Gen Intel(R) Core(TM) i7-11800H @ 2.30GHz",
+  "cpu_count": 16,
+  "qt_platform": "offscreen",
+  "versions": {
+    "aiortc": "1.14.0",
+    "av": "16.1.0",
+    "numpy": "2.4.4",
+    "opencv-python": "4.13.0.92",
+    "PyQt6": "6.11.0",
+    "aioquic": "1.3.0",
+    "websockets": "16.0"
+  },
+  "git_commit": "ae53a1f4e5753885a27e940b0bff8d46dda42625",
+  "git_dirty": true,
+  "source_sha256": {
+    "apps/driving/src/rd_driving/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "apps/driving/src/rd_driving/app/__init__.py": "f8bb0ec1954cadd26d7beb3432da798a7f28e6c8519c939120d30fc859e335dd",
+    "apps/driving/src/rd_driving/app/control_client.py": "a2225adca04bd2e7b77f0300a0a547d7ea96dc9413381a4b8eb52917384e9872",
+    "apps/driving/src/rd_driving/app/input_service.py": "dedbdc4d35f0456b0d07707c58900c7c0a779f632d6e60d4712eea72b29d11bd",
+    "apps/driving/src/rd_driving/branding.py": "7a3eb0a50c3c9dcf33e446d5eb7a9c4151fb933d191ad85cc17b73e032cd58d3",
+    "apps/driving/src/rd_driving/cli.py": "c6bf7fe93f596b114599832848ccb2eb785e564f1bb0ca293353085bf207f28c",
+    "apps/driving/src/rd_driving/common/constants.py": "15a838715e166001c3b0a7b5071b88b99dfe393edc459b95785d985296927dc5",
+    "apps/driving/src/rd_driving/factories/__init__.py": "7ecc58a2fbb17ecc34e7f0333aa9accaf99e4855efaa9286d6b231dd71ef7c60",
+    "apps/driving/src/rd_driving/factories/control_factory.py": "f956a431ebc3bad68f71bd38147043d540ba8b89b0a8ad2732da64b2658f643c",
+    "apps/driving/src/rd_driving/factories/ui_factory.py": "90467b5599b7c875bf9c3367d3f5d3e486a1291228f5adf9eaf153b00eba1302",
+    "apps/driving/src/rd_driving/factories/video_factory.py": "c3ad55af3804966bc895862ec1c3f23be8c5eee7d9631f23a317324e7b251be9",
+    "apps/driving/src/rd_driving/infrastructure/communication/__init__.py": "4232a4c04e184fa221ceae3c1e74fe756651188ed53317b5ceaaa92d2853c660",
+    "apps/driving/src/rd_driving/infrastructure/communication/async_queue.py": "667da5402d6a653bd8eafabfc02fc09d0bf3ae847c323e5c79fa91ac4a9ddc4f",
+    "apps/driving/src/rd_driving/infrastructure/communication/control_states.py": "a86c865fbb6e14b0895cba2b67af959be49f7a5333cb16e3827bb6f3f6413d1d",
+    "apps/driving/src/rd_driving/infrastructure/communication/latest_value_queue.py": "1a27fe957c8721573a0d012a82f0aafbf848ee95591f1d7411c77d60270cfeb2",
+    "apps/driving/src/rd_driving/infrastructure/device/__init__.py": "96f27e80c0593692d41d53477dcee469f62b8c5a329a6cc035523e3e9abbf748",
+    "apps/driving/src/rd_driving/infrastructure/device/input_config.py": "12115d36acb1d16bb4796cef826633a7d37ecef191f38c5033f55e7eb7e4ab11",
+    "apps/driving/src/rd_driving/infrastructure/device/usb_connector.py": "0a2acef9a62eef000305791e4bd1cd3dac5fb8cb84219ca3011b06fc0ba34e84",
+    "apps/driving/src/rd_driving/infrastructure/processing/__init__.py": "29cb97edf889f3dde90d203c78fcd07a576d39f523cfbffee2a6eb6e5180e833",
+    "apps/driving/src/rd_driving/infrastructure/processing/analog_calculator.py": "a379b12813a8aba8b9c2cea8c469ec9a2fddec33cdd0bc005ee5d1493a3c786c",
+    "apps/driving/src/rd_driving/infrastructure/processing/data_processor.py": "d93080e5a9230b3d4d613c0c20f957c89765620f159ae9afa5cd859f358d906c",
+    "apps/driving/src/rd_driving/infrastructure/protocol/__init__.py": "50e5dc004a146f6d5f90701ecc57b4d5d67f55133c996a421b4f40d61de4726a",
+    "apps/driving/src/rd_driving/infrastructure/protocol/codec.py": "c8740399549e1ce70aafe0635c6750c6a96979af6b31a88382be5ff81eabea90",
+    "apps/driving/src/rd_driving/infrastructure/protocol/driving_protocol.py": "265866cb5c5d301e7754f5202ddce4972239761c9549635587d9b1ea795f9dc8",
+    "apps/driving/src/rd_driving/infrastructure/video/__init__.py": "f77c1ec8a619428646d8aa8f389ce4b8284be8cdf8289b1a71e82b818921af67",
+    "apps/driving/src/rd_driving/infrastructure/video/frame_buffer.py": "cc0912686e30c479f02b185fbf52860a590311353cb3980b4ebc58afb205f620",
+    "apps/driving/src/rd_driving/infrastructure/video/multi_camera_display.py": "6f37ccdb70a5629b90ac525340be29e9a1e68a5f891aee648bcf45152e95b69b",
+    "apps/driving/src/rd_driving/infrastructure/video/peer_connection.py": "9438828bb3807bfce0e01a67ed3f83304894af4152e49c3dc7141de950844cee",
+    "apps/driving/src/rd_driving/infrastructure/video/signaling_client_.py": "4e1c8afdfb5c4db59bb6ac0dd2cc734ddbf67e6d591384fe73ed231ed6f70d81",
+    "apps/driving/src/rd_driving/infrastructure/video/webrtc_reciver.py": "960922559f9efc5c51ab3f6293f3dbe6a22342b3bb96f29341b62155b7d88482",
+    "apps/driving/src/rd_driving/infrastructure/workers/__init__.py": "7482d477873940de5eedce69a407ec18984960c4890bf9cb7adfe11b8d4bd067",
+    "apps/driving/src/rd_driving/infrastructure/workers/control_system_thread.py": "489f39ffb186ffe9ec6dbda3902459616aa254e467e1e251f0d9a80c9a0223ea",
+    "apps/driving/src/rd_driving/infrastructure/workers/signal_bridge.py": "10fc8a2298fffe502eaf224780386cd75897899cdeb918c1fcdb9994851c3651",
+    "apps/driving/src/rd_driving/infrastructure/workers/vehicle_status_thread.py": "fbfd9b737f7f49c018e1916413268ec7a3c0f281ac7922d06172e490c3811c2d",
+    "apps/driving/src/rd_driving/infrastructure/workers/video_reciver_thread.py": "3fc53cd8b2a43ff4e95c6f6c99d991064d6fb39e70601d21381bf58abe97ab7a",
+    "apps/driving/src/rd_driving/interfaces/__init__.py": "ec864a70540bad48a0c5c0cbf89436fb1b1bfb04ada60e249f2c9f2ca256e9c7",
+    "apps/driving/src/rd_driving/interfaces/communication.py": "1a3e29dc85b632fcb0cb6261b80135d098f6ebe22b00e136dfad8a6aa27adcdc",
+    "apps/driving/src/rd_driving/interfaces/device.py": "a2320e620f159c3a6cbfcc94a45b27dedbb01b2e7849babd76f082b8e30135f3",
+    "apps/driving/src/rd_driving/interfaces/processor.py": "ea16419b6bcfe4bd3b8d7c2144440d8b527977369c09aac845de8d35d5a57d70",
+    "apps/driving/src/rd_driving/interfaces/ui.py": "cc14f78097d6deedca4fd4ead48b63c58001534d08cc9383ed7c0779cf79c265",
+    "apps/driving/src/rd_driving/interfaces/video.py": "27940011d97cdf74b1620d478318e5e18dcedb63d08198c612b82ac56adaa21e",
+    "apps/driving/src/rd_driving/main_window.py": "f271a213f2ba14432e673b0d49a346cc2296953ced7df1aa4415cac7f8c59faa",
+    "apps/driving/src/rd_driving/ui/components/__init__.py": "68d21b9035e181a3ab8901b9e8feab4d88a35eb7a5ec1196a655b43a9f6f7d34",
+    "apps/driving/src/rd_driving/ui/components/connection_item.py": "bc4663c5f271bd01e139dbc70b8310f07d220f0fa29663c32d95c784329103bb",
+    "apps/driving/src/rd_driving/ui/components/data_card.py": "e2bf182dcd34cca13a507538e9823102926673c4b522e1395b0d91e5142fb7b6",
+    "apps/driving/src/rd_driving/ui/components/stat_item.py": "c857ff06682663a83fbcf4543d165908bcd4ff59410ebb11e0f6b176b103309f",
+    "apps/driving/src/rd_driving/ui/components/status_indicator.py": "1e46182779a871b7d332efe469c10efa63b0f14e326315e3231ef1835c98be22",
+    "apps/driving/src/rd_driving/ui/components/video_display.py": "b32bd9701ce97404bc2ecf0dcb0839883896067c51eec0cb8bd2282ff3df87f8",
+    "apps/driving/src/rd_driving/ui/themes/__init__.py": "d941de5ebfe4b8fc7795b143d8c4ffdb08df1bb6c93c5b32e49e2a9ceb8adab2",
+    "apps/driving/src/rd_driving/ui/themes/base_theme.py": "39aa8d20ccfade183aa8281138e51bbfcaf719b77db945cbdb982632ed6e00bd",
+    "apps/driving/src/rd_driving/ui/themes/dark_tech_theme.py": "72e72ca2222d046beaefc8359351ab3ba18cf82da4050d72fb6e4b56889526b7",
+    "apps/driving/src/rd_driving/ui/themes/modern_glass_theme.py": "7beb34647547af348d7d2468c8a03b79fdb0018947d65a12b1d3d1d427d83201",
+    "apps/driving/src/rd_driving/ui/widgets/__init__.py": "705d3f4f802a729cf275b96fb794fb08b63af6a436ee5b4ccd3e956c18b48a13",
+    "apps/driving/src/rd_driving/ui/widgets/control_panel.py": "de5e54c9bb4e2e62dc7373b847ba98f3fbda0ca4f8a0838616b09d91f0188d09",
+    "apps/driving/src/rd_driving/ui/widgets/gl_multi_video_widget.py": "b9d04d8568333fbc367e7bd0f80de23541a130e05b839883eda9f717d6a43f6d",
+    "apps/driving/src/rd_driving/ui/widgets/login_window.py": "245e8b0496a62479e7940aeda5f82f038d04b8662b4b9f2f3e583e75e49d7002",
+    "apps/driving/src/rd_driving/ui/widgets/multi_video_widget.py": "03b241e8e401e6387f97deb15018acd152bdef08c58359c558252df8c35e01f9",
+    "apps/driving/src/rd_driving/ui/widgets/navbar.py": "e5355bf1f8631dfe84f6205b3cc25a09098f6c30c51ff849c70a261d74a49688",
+    "apps/driving/src/rd_driving/ui/widgets/video_panel.py": "9cbe6b284d5c3455b8d9c521377126caa9c13c99a1ea2a3c5b0de57c763b61bd",
+    "apps/server/src/rd_server/__init__.py": "e2c584dae1124a19e14a7368ec485cc4f3194794e35dd8917c381efc407206b7",
+    "apps/server/src/rd_server/main.py": "0b49e97b9b1a40dd18db8f9e94ab2fad40793eef854ef3c33a1bfe19b410cfef",
+    "apps/server/src/rd_server/relay/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "apps/server/src/rd_server/relay/common/constants.py": "4035a8d2ab6d2ad824c2d2514cb31ae5ebf6286851cb786ce58fddbff71b279b",
+    "apps/server/src/rd_server/relay/control_service.py": "8f6371ea1213f50f73ac354a059df93d4f7dccdd2bcab8164ce1cee7470d4345",
+    "apps/server/src/rd_server/relay/registry.py": "7576ad15029256fcb4845f7351a8d83fd1efb0a10ffffc463ad634a90c367e70",
+    "apps/server/src/rd_server/relay/service.py": "0cfad0617d03f73e461667c46989bbcfa275848a4f2c1021984a128bf50e0e5f",
+    "apps/server/src/rd_server/relay/services/__init__.py": "95df8071f063640d3de7246b99b5813c4ec2ca6f5a554444fef10600fc6164df",
+    "apps/server/src/rd_server/relay/services/codec.py": "c8740399549e1ce70aafe0635c6750c6a96979af6b31a88382be5ff81eabea90",
+    "apps/server/src/rd_server/relay/services/relay_protocol.py": "121a71c91fc0bfd89830b4e4e85542c1e660d7533deb6329e434be1594ca73ca",
+    "apps/server/src/rd_server/relay/services/session_manager.py": "d907d830c0dda9cb6a33892b8538749a0347f73d4ec1326e9cf338ec41367b85",
+    "apps/server/src/rd_server/runtime.py": "37418180a361ef2a9588727ce438884157a5dee26dd154ee7a4eba1d0c3ac568",
+    "apps/server/src/rd_server/signaling/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "apps/server/src/rd_server/signaling/common/__init__.py": "daba4de865be25e6ef34110a62e88f6b49f337f705b61abcb9796282da815148",
+    "apps/server/src/rd_server/signaling/common/constants.py": "642d80512f780f44afc70074a30deed8372955d76d71bfe11ba33a2c607dbbab",
+    "apps/server/src/rd_server/signaling/models/__init__.py": "a98d8ea6db48fedfa0817dd6f9909db8068892d26d0b9d0619853ed783ea73d3",
+    "apps/server/src/rd_server/signaling/models/peer.py": "f91485e614bd3f42da6cb3e578e1406df4cf13c743f64aa6feb1325cf5036c3b",
+    "apps/server/src/rd_server/signaling/models/room.py": "274304138d435d87c5d36c39516210c90f0d2ed1f901caa448fc11f214465c1c",
+    "apps/server/src/rd_server/signaling/server/__init__.py": "0fdd9b2cd045db2fd93684111aef0ff246f9b34f588ca672fb80f69519f84c91",
+    "apps/server/src/rd_server/signaling/server/signaling_server.py": "360cb26f1a473f91e9a3aecef283aac2139ab974685a0f382bd3ef2575698e75",
+    "apps/server/src/rd_server/signaling/services/__init__.py": "58f824dd41b56b6568d876a767e9aa99f682c03875f225ba3cac4c8e8de79898",
+    "apps/server/src/rd_server/signaling/services/room_manager.py": "9187c87a00069f7dda02b9e96d31a416f01add50fb0d5b05313f3e87e8d8f315",
+    "apps/vehicle/src/rd_vehicle/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "apps/vehicle/src/rd_vehicle/application/__init__.py": "7e714803b2bbd4a989ff3fae7c908a2e3fe2a70005d97f932d41bb4b616f5183",
+    "apps/vehicle/src/rd_vehicle/application/control_client.py": "7b1e7dfda822361882c2a1cea7ffe4fa93b1acf5d172697378fcb4bfe5e1efb5",
+    "apps/vehicle/src/rd_vehicle/application/multi_camera_manager.py": "a6839263fddbb3848fcab1cca876290cda5de12541c7079f5e1978e43fb8b9c1",
+    "apps/vehicle/src/rd_vehicle/common/constants.py": "74e7a8c18c1ab538c3346ba9af99db1f5daa025f5a00b335afa921e7362bc243",
+    "apps/vehicle/src/rd_vehicle/common/utils.py": "e9b3b5cb2051de4b462a96b363080c4d53eb22168be7f2e72755cbf0295c3599",
+    "apps/vehicle/src/rd_vehicle/infrastructure/cameras/__init__.py": "4d4838d7d99aa1aea1a8b3196a870ee80c732462e596489105e87caf02629442",
+    "apps/vehicle/src/rd_vehicle/infrastructure/cameras/buffer.py": "c4db65fcb1db00495d5a95b9ccfe10c13b34f799c150b726a2f9b53f2ea74d07",
+    "apps/vehicle/src/rd_vehicle/infrastructure/cameras/test_camera.py": "9cf6c1a53ee94b085dd2df0aa609a631b4b921174ed70ba1db2aa74abb8843e5",
+    "apps/vehicle/src/rd_vehicle/infrastructure/cameras/thread_camera.py": "4f8eeb61374f9fb2d1a4708c7d7c4c1e9fe793a2e098091a4b04ac0dd7f64971",
+    "apps/vehicle/src/rd_vehicle/infrastructure/cameras/usb_camera.py": "73d79e2773dbf34b2437965960419d36ca435257595f10ba7f20d6d9414671f6",
+    "apps/vehicle/src/rd_vehicle/infrastructure/compositors/__init__.py": "44d7eb568b317fb4b9ce29874f31dd1ae0afdd229582d7d7ce8c05f61be1ced5",
+    "apps/vehicle/src/rd_vehicle/infrastructure/compositors/driving_compositor.py": "a241ef82c364cd490e0eaac21de16aa1fba636b857e3e346c805f981cf9805e9",
+    "apps/vehicle/src/rd_vehicle/infrastructure/controller/__init__.py": "df3c950ea4cfbd999756cf1725d3510630defe8b034d93afbfea545c7771ef68",
+    "apps/vehicle/src/rd_vehicle/infrastructure/controller/mock_controller.py": "3ec941e3295660bbad0287841eea953fb1f106633c056db5b6fc9945bc2f5879",
+    "apps/vehicle/src/rd_vehicle/infrastructure/controller/motion.py": "617c2bb34bbda99e72d80ed8e816e3811a89e09df646788bb1b2d6c0934ed82d",
+    "apps/vehicle/src/rd_vehicle/infrastructure/controller/ros2_cmd_vel_controller.py": "a4762b98e066b776a1325c36ccb7c259e496d1fe5d4ab8bddb314d5384ec5a2e",
+    "apps/vehicle/src/rd_vehicle/infrastructure/controller/serial_controller.py": "1b8490c7925118e5f3e8aa0f2498bd7ceb206df4bf083145a8ff8d54dd30af41",
+    "apps/vehicle/src/rd_vehicle/infrastructure/protocol/__init__.py": "5e496dcf7e4291a903aeb9ea5288d3d1fe85c4b3922b6b85d0f789458ec8ab5b",
+    "apps/vehicle/src/rd_vehicle/infrastructure/protocol/codec.py": "c8740399549e1ce70aafe0635c6750c6a96979af6b31a88382be5ff81eabea90",
+    "apps/vehicle/src/rd_vehicle/infrastructure/protocol/vehicle_protocol.py": "80b64df5f39aea3ce7674d56565df57c5f95bbb6d4424f1606304c78044caeac",
+    "apps/vehicle/src/rd_vehicle/infrastructure/streams/__init__.py": "3497f4484896c0528e35f9a6a1276e2b02882a1832307bca62e2b8c8e5578c2e",
+    "apps/vehicle/src/rd_vehicle/infrastructure/streams/peer_connection.py": "9438828bb3807bfce0e01a67ed3f83304894af4152e49c3dc7141de950844cee",
+    "apps/vehicle/src/rd_vehicle/infrastructure/streams/signaling_client.py": "4e1c8afdfb5c4db59bb6ac0dd2cc734ddbf67e6d591384fe73ed231ed6f70d81",
+    "apps/vehicle/src/rd_vehicle/infrastructure/streams/track_manager.py": "1271ecb9e9eba903b3221f54606b4fb3421983fac0eea65bfa3d2a667b379438",
+    "apps/vehicle/src/rd_vehicle/infrastructure/streams/video_track.py": "17e3e0d9d63a1a92ecb127b458a03022d301b003acc1f944380e74dee8445989",
+    "apps/vehicle/src/rd_vehicle/infrastructure/streams/webrtc_streamer.py": "170dae28fc8eb40aedf78a64b888e161b91096bf27edc99701fed268eb9817f3",
+    "apps/vehicle/src/rd_vehicle/interfaces/__init__.py": "24c4af39fb180a1f6ab67980481be6a9d9d654b3cbc40b1331ca201a22ca8406",
+    "apps/vehicle/src/rd_vehicle/interfaces/icamera.py": "3340bce3c5e837494bd0d6fa4e7f842e5ddd5c369bfe55d5706452030eaaeb87",
+    "apps/vehicle/src/rd_vehicle/interfaces/icompositor.py": "ca76000f2b14124ddd74b88da028e1673ea7ec998d4f133db7364fbb96a3137e",
+    "apps/vehicle/src/rd_vehicle/interfaces/icontroller.py": "8342b34ac2f1496aadcdc3e72ac9acf6f3f1134f0c7a097894b119a7be206c9c",
+    "apps/vehicle/src/rd_vehicle/interfaces/istream.py": "4d76433e7f0eb5bcb53cd1a2238e77398446bff41b73211d22c433a2fd43e2b3",
+    "apps/vehicle/src/rd_vehicle/main.py": "7749b364726460f749fff07734c0c13003ef100d6d518bdb25099ced194a7415",
+    "apps/vehicle/src/rd_vehicle/processes.py": "7c30b3df399c0193607117a39171c5ba80894299842ddde20ff5a03ea7393d15",
+    "packages/rd-core/src/rd_core/__init__.py": "578e18de95ebbd8f10a2189a653851a5707c3c1a6d547a4876c9c6c444556966",
+    "packages/rd-core/src/rd_core/auth.py": "ea2902f3a56e611360b6750f2cd3987020a40537f7939285aba1471d21a3df12",
+    "packages/rd-core/src/rd_core/cli.py": "5d48dd20b6932d4a317a0d44c3fbb8bf8dbc61adc328df4929502954dfbad53b",
+    "packages/rd-core/src/rd_core/configuration.py": "ca93c702f1aef0ae4f66d67067fc7355a2f0ee10c966e8daf1684fdf05287abc",
+    "packages/rd-core/src/rd_core/control.py": "9e282d3014448d080a9720f8f7985af7bdd50a2eab1ff404eab73ff4ab0268d8",
+    "packages/rd-core/src/rd_core/legacy_codec.py": "84e1dbb7b053470e7b45d64082af3b43031be6fd82b39d4b04b4bcfdab70d60e",
+    "packages/rd-core/src/rd_core/logging.py": "85ab26e2b23c444768b1b1bbf272f013bf2df0f8046605f7cd6f910accf5a0a2",
+    "packages/rd-core/src/rd_core/samples.py": "cb87aa74a2234d38400c08440f8ac0a34d371057480bebbef7d54c38935e24bc",
+    "packages/rd-core/src/rd_core/settings.py": "d36b7047b3377e121d7fbe5b4fd211c41e131c0bcdd6b09b491a106697006136",
+    "packages/rd-core/src/rd_core/video_safety.py": "4761247cd1d5102f04dc4907e5e367bb8ba03f470c9749254cb61f45cacf42c9",
+    "packages/rd-core/src/rd_core/wire.py": "9ef7f340d3d0e401f429f6bb71d59853809ad16aa7f71ea30b22b107830f8971",
+    "packages/rd-quic/src/rd_quic/__init__.py": "dc0a34d00580a1c4fc1dd73717ab0b87e4311f287de3ea05b35755f2541396fa",
+    "packages/rd-quic/src/rd_quic/client.py": "7eb32f7d926683d244693b8c10d8de31514eee38a46de02bdef0b958aefddd59",
+    "packages/rd-quic/src/rd_quic/compat.py": "5c4ee161919a45916a74e81f6d6076e39cbf182f31f9c101cb864d7c918e2b37",
+    "packages/rd-quic/src/rd_quic/framing.py": "ccbc4b0175218193219e437e0aacc541823a88b0bdf99a7881f505d7ecac211c",
+    "packages/rd-quic/src/rd_quic/protocol.py": "e705237631a2b8fec29a91cd6f247bb967265a743bf1ed45df52bd1f753c13d7",
+    "packages/rd-webrtc/src/rd_webrtc/__init__.py": "e1ca1c281a22df76e1764579d5cd8a30ddba88322ecab3afedcadc749b8bd747",
+    "packages/rd-webrtc/src/rd_webrtc/opencv.py": "4d17df46a8ff23ab1d15c005b001660651e724f26d9254c52b4e8e0730385db0",
+    "packages/rd-webrtc/src/rd_webrtc/peer.py": "be5aecc192679f60acb185d71dab3083bb92496db00be773e2d3c9d7e9134c97",
+    "packages/rd-webrtc/src/rd_webrtc/session.py": "cb849e9eab1e1a3c1d96fd754682a583a2f25240b352986fe13821914904432c",
+    "packages/rd-webrtc/src/rd_webrtc/signaling.py": "8034dd8f4f014e0897c2e4602d8d719c37a1a5dafc02e612de2ce0cce77ecc8b",
+    "packages/rd-webrtc/src/rd_webrtc/video.py": "4fecc5632ccd25a8ecd6c762579303b3eb8cffe46a3cdf36f7d97a4b83acc84b",
+    "scripts/benchmark_media.py": "3d29d9634dd5425732ecea48358e7acbd390c1c15daa9a4e8ee2999ecceb28fd",
+    "scripts/media_probe.py": "451f781fe0202b842519e37a38386c02dee056c24bbe46d2bcd125c9a16697f9"
+  },
+  "workload": {
+    "views": 1,
+    "profile": "production",
+    "seconds_per_phase": 10.0,
+    "warmup_seconds": 2,
+    "capture_fps": 30,
+    "ui_poll_ms": 16,
+    "widget_size": [
+      1280,
+      720
+    ],
+    "subscribers": 1,
+    "seed": 42,
+    "scene": "moving-texture"
+  },
+  "encoder_instances": [
+    {
+      "mime_type": "video/VP8",
+      "clock_rate": 90000,
+      "implementation": "Vp8Encoder",
+      "view": "front",
+      "codec": "libvpx",
+      "thread_count": 2,
+      "pixel_format": "yuv420p"
+    },
+    {
+      "mime_type": "video/VP8",
+      "clock_rate": 90000,
+      "implementation": "Vp8Encoder",
+      "view": "front",
+      "codec": "libvpx",
+      "thread_count": 2,
+      "pixel_format": "yuv420p"
+    }
+  ],
+  "measurement_errors": {},
+  "probe_frame_records": 762,
+  "valid": true,
+  "first_paint_ms": {
+    "front": 126.40428601298481
+  },
+  "initial_control_ready_ms": 686.3724610011559,
+  "steady": {
+    "seconds": 10.007299150995095,
+    "views": {
+      "front": {
+        "rates": {
+          "capture": {
+            "count": 298,
+            "fps": 29.77826439518077,
+            "per_second_fps": [
+              29.0,
+              30.0,
+              30.0,
+              30.0,
+              30.0,
+              30.0,
+              29.0,
+              30.0,
+              30.0,
+              30.0,
+              0.0
+            ]
+          },
+          "encoder_input": {
+            "count": 290,
+            "fps": 28.978847901350413,
+            "per_second_fps": [
+              29.0,
+              29.0,
+              29.0,
+              29.0,
+              29.0,
+              29.0,
+              29.0,
+              29.0,
+              29.0,
+              29.0,
+              0.0
+            ]
+          },
+          "encode_end": {
+            "count": 290,
+            "fps": 28.978847901350413,
+            "per_second_fps": [
+              29.0,
+              29.0,
+              29.0,
+              29.0,
+              29.0,
+              29.0,
+              29.0,
+              29.0,
+              29.0,
+              29.0,
+              0.0
+            ]
+          },
+          "decode_end": {
+            "count": 290,
+            "fps": 28.978847901350413,
+            "per_second_fps": [
+              29.0,
+              28.0,
+              30.0,
+              29.0,
+              29.0,
+              29.0,
+              29.0,
+              29.0,
+              29.0,
+              29.0,
+              0.0
+            ]
+          },
+          "callback": {
+            "count": 290,
+            "fps": 28.978847901350413,
+            "per_second_fps": [
+              28.0,
+              29.0,
+              30.0,
+              29.0,
+              29.0,
+              29.0,
+              29.0,
+              29.0,
+              29.0,
+              29.0,
+              0.0
+            ]
+          },
+          "paint": {
+            "count": 289,
+            "fps": 28.87892083962162,
+            "per_second_fps": [
+              28.0,
+              29.0,
+              29.0,
+              29.0,
+              29.0,
+              29.0,
+              29.0,
+              29.0,
+              29.0,
+              29.0,
+              0.0
+            ]
+          }
+        },
+        "latency_ms": {
+          "capture_to_encoder_input": {
+            "count": 290,
+            "p50": 17.70499900158029,
+            "p95": 32.6119101511722,
+            "p99": 33.85273987893015,
+            "max": 34.6568889945047
+          },
+          "encoder_queue": {
+            "count": 290,
+            "p50": 0.13835449499310926,
+            "p95": 0.3438378997088877,
+            "p99": 0.491629526513862,
+            "max": 0.6855109968455508
+          },
+          "encode_including_color_conversion": {
+            "count": 290,
+            "p50": 4.58171949867392,
+            "p95": 6.625871606229339,
+            "p99": 16.969525435270075,
+            "max": 25.39250999689102
+          },
+          "encode_end_to_decode_start": {
+            "count": 290,
+            "p50": 35.519537996151485,
+            "p95": 38.21308170154225,
+            "p99": 48.232760339160485,
+            "max": 57.181932003004476
+          },
+          "decode": {
+            "count": 290,
+            "p50": 1.4678465013275854,
+            "p95": 2.5938817947462667,
+            "p99": 2.955235303670634,
+            "max": 3.351920997374691
+          },
+          "decode_to_track_recv": {
+            "count": 290,
+            "p50": 0.14381050277734175,
+            "p95": 0.328009595250478,
+            "p99": 0.5680355666845571,
+            "max": 0.9762140107341111
+          },
+          "receive_bgr_conversion": {
+            "count": 290,
+            "p50": 0.5274094946798868,
+            "p95": 0.7162496462115088,
+            "p99": 1.0481000182335292,
+            "max": 1.510059999418445
+          },
+          "watermark_probe": {
+            "count": 290,
+            "p50": 0.09043949830811471,
+            "p95": 0.13443365096463825,
+            "p99": 0.181065073265927,
+            "max": 0.20325099467299879
+          },
+          "cache_publication": {
+            "count": 290,
+            "p50": 0.1281254953937605,
+            "p95": 0.20638224887079568,
+            "p99": 0.708791803335771,
+            "max": 0.7896299939602613
+          },
+          "cache_to_render": {
+            "count": 289,
+            "p50": 8.397027995670214,
+            "p95": 15.295121594681401,
+            "p99": 16.14055936341174,
+            "max": 16.235107003012672
+          },
+          "qt_scale_pixmap": {
+            "count": 289,
+            "p50": 0.6259729998419061,
+            "p95": 0.9063319972483441,
+            "p99": 1.1706106428755452,
+            "max": 1.3862769992556423
+          },
+          "render_to_paint": {
+            "count": 289,
+            "p50": 0.5537859979085624,
+            "p95": 1.0672558040823785,
+            "p99": 1.3353153585921977,
+            "max": 2.0871220040135086
+          },
+          "capture_to_receive": {
+            "count": 290,
+            "p50": 60.89140200492693,
+            "p95": 75.28252319461899,
+            "p99": 79.9982148858544,
+            "max": 90.31600400339812
+          },
+          "capture_to_qt_paint": {
+            "count": 289,
+            "p50": 69.52111200371291,
+            "p95": 87.95590000227092,
+            "p99": 93.52390895364806,
+            "max": 104.694081004709
+          }
+        },
+        "presentation_gap_ms": {
+          "count": 290,
+          "p50": 32.12508249998791,
+          "p95": 48.468426753242966,
+          "p99": 49.56061544653494,
+          "max": 63.94817899854388
+        },
+        "gaps_over_500ms": 0
+      }
+    },
+    "samples": {
+      "gui_timer_lag_ms": {
+        "count": 1001,
+        "p50": 0.1682779932161791,
+        "p95": 0.9289589890977366,
+        "p99": 1.4055870071751995,
+        "max": 11.17749500030186
+      },
+      "backend_event_loop_lag_ms": {
+        "count": 940,
+        "p50": 0.5850160086993128,
+        "p95": 1.1876096512423826,
+        "p99": 1.9882793327269614,
+        "max": 11.665294994600117
+      },
+      "rss_mib": {
+        "count": 94,
+        "p50": 272.51953125,
+        "p95": 308.5392578125,
+        "p99": 308.574765625,
+        "max": 308.58203125
+      },
+      "python_threads": {
+        "count": 94,
+        "p50": 8.0,
+        "p95": 8.0,
+        "p99": 8.0,
+        "max": 8.0
+      },
+      "native_threads": {
+        "count": 94,
+        "p50": 66.0,
+        "p95": 66.0,
+        "p99": 66.0,
+        "max": 66.0
+      },
+      "process_cpu_percent_one_core": {
+        "count": 94,
+        "p50": 53.56263884501026,
+        "p95": 63.55602208925496,
+        "p99": 72.82254392973577,
+        "max": 78.40012703565003
+      },
+      "control_sample_to_mock_submit_ms": {
+        "count": 500,
+        "p50": 7.161595502111595,
+        "p95": 12.072013496799627,
+        "p99": 12.92663231914048,
+        "max": 23.427722990163602
+      },
+      "control_sample_to_ack_ms": {
+        "count": 500,
+        "p50": 8.14354849717347,
+        "p95": 13.02267010178184,
+        "p99": 14.11590313611668,
+        "max": 24.18255599332042
+      }
+    },
+    "process_cpu_percent_one_core": 54.86711159677904,
+    "network": {
+      "seconds": 10.007623849000083,
+      "streams": [
+        {
+          "id": "outbound-rtp_124144512816320",
+          "view": "front",
+          "rtp_payload_kbps": 700.7241784672658,
+          "packets_sent": 818
+        },
+        {
+          "id": "remote-inbound-rtp_124144512816320",
+          "rtcp_rtt_ms_at_end": 1.0864250406185738
+        },
+        {
+          "id": "inbound-rtp_124144513024272",
+          "packets_received": 818,
+          "packets_lost_delta": 0,
+          "jitter_ms_at_end": 1.7222222222222223
+        }
+      ],
+      "selected_paths": [
+        {
+          "role": "publisher",
+          "local": "127.0.0.1",
+          "remote": "127.0.0.1",
+          "local_type": "host",
+          "remote_type": "host"
+        },
+        {
+          "role": "receiver",
+          "local": "127.0.0.1",
+          "remote": "127.0.0.1",
+          "local_type": "host",
+          "remote_type": "host"
+        }
+      ]
+    }
+  },
+  "reconnect_all_views_painted_ms": 204.7388850041898,
+  "reconnect_new_control_epoch_ms": 728.5269770072773,
+  "recovered": {
+    "seconds": 10.009083441007533,
+    "views": {
+      "front": {
+        "rates": {
+          "capture": {
+            "count": 298,
+            "fps": 29.77295591113613,
+            "per_second_fps": [
+              29.0,
+              30.0,
+              30.0,
+              30.0,
+              29.0,
+              30.0,
+              30.0,
+              30.0,
+              30.0,
+              29.0,
+              110.09043810277147
+            ]
+          },
+          "encoder_input": {
+            "count": 290,
+            "fps": 28.973681926944558,
+            "per_second_fps": [
+              29.0,
+              28.0,
+              30.0,
+              29.0,
+              29.0,
+              29.0,
+              29.0,
+              29.0,
+              29.0,
+              29.0,
+              0.0
+            ]
+          },
+          "encode_end": {
+            "count": 291,
+            "fps": 29.073591174968502,
+            "per_second_fps": [
+              29.0,
+              29.0,
+              29.0,
+              30.0,
+              28.0,
+              29.0,
+              29.0,
+              29.0,
+              30.0,
+              29.0,
+              0.0
+            ]
+          },
+          "decode_end": {
+            "count": 291,
+            "fps": 29.073591174968502,
+            "per_second_fps": [
+              29.0,
+              29.0,
+              29.0,
+              29.0,
+              29.0,
+              29.0,
+              29.0,
+              29.0,
+              30.0,
+              28.0,
+              110.09043810277147
+            ]
+          },
+          "callback": {
+            "count": 291,
+            "fps": 29.073591174968502,
+            "per_second_fps": [
+              29.0,
+              29.0,
+              29.0,
+              29.0,
+              29.0,
+              29.0,
+              29.0,
+              29.0,
+              30.0,
+              28.0,
+              110.09043810277147
+            ]
+          },
+          "paint": {
+            "count": 290,
+            "fps": 28.973681926944558,
+            "per_second_fps": [
+              29.0,
+              29.0,
+              29.0,
+              29.0,
+              29.0,
+              29.0,
+              29.0,
+              29.0,
+              29.0,
+              29.0,
+              0.0
+            ]
+          }
+        },
+        "latency_ms": {
+          "capture_to_encoder_input": {
+            "count": 290,
+            "p50": 16.762822000600863,
+            "p95": 32.39630455354928,
+            "p99": 33.69738658540882,
+            "max": 34.912219998659566
+          },
+          "encoder_queue": {
+            "count": 291,
+            "p50": 0.13220500841271132,
+            "p95": 0.41020500066224486,
+            "p99": 0.7949122969876055,
+            "max": 0.9434789972146973
+          },
+          "encode_including_color_conversion": {
+            "count": 291,
+            "p50": 4.662670995458029,
+            "p95": 7.059512994601391,
+            "p99": 12.062455400882968,
+            "max": 26.191768003627658
+          },
+          "encode_end_to_decode_start": {
+            "count": 291,
+            "p50": 35.475823999149725,
+            "p95": 37.73487199941883,
+            "p99": 45.25979410973394,
+            "max": 59.255436004605144
+          },
+          "decode": {
+            "count": 291,
+            "p50": 1.4553159999195486,
+            "p95": 2.352117000555154,
+            "p99": 3.256904103909622,
+            "max": 3.798389996518381
+          },
+          "decode_to_track_recv": {
+            "count": 291,
+            "p50": 0.14798900519963354,
+            "p95": 0.35793699498753995,
+            "p99": 0.45137729903217577,
+            "max": 0.6433550006477162
+          },
+          "receive_bgr_conversion": {
+            "count": 291,
+            "p50": 0.5231429968262091,
+            "p95": 0.6891364973853342,
+            "p99": 0.8919457017327665,
+            "max": 1.4026369899511337
+          },
+          "watermark_probe": {
+            "count": 291,
+            "p50": 0.0927359942579642,
+            "p95": 0.1231660062330775,
+            "p99": 0.1422854067641312,
+            "max": 0.1930819998960942
+          },
+          "cache_publication": {
+            "count": 291,
+            "p50": 0.13617999502457678,
+            "p95": 0.18567450024420395,
+            "p99": 0.22794070246163775,
+            "max": 0.3378889960004017
+          },
+          "cache_to_render": {
+            "count": 291,
+            "p50": 8.127745997626334,
+            "p95": 14.919188994099386,
+            "p99": 15.957461096695633,
+            "max": 27.969652001047507
+          },
+          "qt_scale_pixmap": {
+            "count": 290,
+            "p50": 0.6287145006353967,
+            "p95": 0.979624647879973,
+            "p99": 1.2490839700330982,
+            "max": 4.1365469951415434
+          },
+          "render_to_paint": {
+            "count": 290,
+            "p50": 0.5589254942606203,
+            "p95": 0.9241597559594087,
+            "p99": 1.123891950410325,
+            "max": 1.5400440024677664
+          },
+          "capture_to_receive": {
+            "count": 291,
+            "p50": 59.43275400204584,
+            "p95": 75.69952600169927,
+            "p99": 79.41033989918651,
+            "max": 86.09330499893986
+          },
+          "capture_to_qt_paint": {
+            "count": 290,
+            "p50": 69.27448499482125,
+            "p95": 89.02659995583237,
+            "p99": 93.28277389300638,
+            "max": 97.42899698903784
+          }
+        },
+        "presentation_gap_ms": {
+          "count": 291,
+          "p50": 32.09067300485913,
+          "p95": 48.41499400208704,
+          "p99": 50.50141480023768,
+          "max": 64.82149900693912
+        },
+        "gaps_over_500ms": 0
+      }
+    },
+    "samples": {
+      "gui_timer_lag_ms": {
+        "count": 1000,
+        "p50": 0.15897250181296818,
+        "p95": 0.7466914021642875,
+        "p99": 1.118587526725605,
+        "max": 21.03045301395468
+      },
+      "backend_event_loop_lag_ms": {
+        "count": 943,
+        "p50": 0.5492190102813765,
+        "p95": 1.1624311038758606,
+        "p99": 1.691521349712282,
+        "max": 14.63534400681965
+      },
+      "rss_mib": {
+        "count": 95,
+        "p50": 310.21484375,
+        "p95": 312.202734375,
+        "p99": 312.261953125,
+        "max": 312.265625
+      },
+      "python_threads": {
+        "count": 95,
+        "p50": 8.0,
+        "p95": 8.0,
+        "p99": 8.0,
+        "max": 8.0
+      },
+      "native_threads": {
+        "count": 95,
+        "p50": 66.0,
+        "p95": 66.0,
+        "p99": 66.0,
+        "max": 66.0
+      },
+      "process_cpu_percent_one_core": {
+        "count": 95,
+        "p50": 54.92392087422964,
+        "p95": 65.51056722986307,
+        "p99": 79.21833704571327,
+        "max": 88.4916547053244
+      },
+      "control_sample_to_mock_submit_ms": {
+        "count": 501,
+        "p50": 7.209147996036336,
+        "p95": 11.98766499874182,
+        "p99": 12.483612998039462,
+        "max": 26.67884099355433
+      },
+      "control_sample_to_ack_ms": {
+        "count": 501,
+        "p50": 8.106307010166347,
+        "p95": 12.966413996764459,
+        "p99": 13.65111100312788,
+        "max": 27.719442994566634
+      }
+    },
+    "process_cpu_percent_one_core": 55.95675769924661,
+    "network": {
+      "seconds": 10.009944056000677,
+      "streams": [
+        {
+          "id": "outbound-rtp_124144476907584",
+          "view": "front",
+          "rtp_payload_kbps": 671.1749798414204,
+          "packets_sent": 791
+        },
+        {
+          "id": "remote-inbound-rtp_124144476907584",
+          "rtcp_rtt_ms_at_end": 1.3934051585133722
+        },
+        {
+          "id": "inbound-rtp_124144477225376",
+          "packets_received": 791,
+          "packets_lost_delta": 0,
+          "jitter_ms_at_end": 3.7222222222222223
+        }
+      ],
+      "selected_paths": [
+        {
+          "role": "publisher",
+          "local": "127.0.0.1",
+          "remote": "127.0.0.1",
+          "local_type": "host",
+          "remote_type": "host"
+        },
+        {
+          "role": "receiver",
+          "local": "127.0.0.1",
+          "remote": "127.0.0.1",
+          "local_type": "host",
+          "remote_type": "host"
+        }
+      ]
+    }
+  },
+  "cameras": [
+    {
+      "backend": "synthetic",
+      "seed": 4277887776,
+      "width": 1080,
+      "height": 720,
+      "target_fps": 30,
+      "scene": "moving-texture"
+    }
+  ],
+  "network_samples": [
+    {
+      "timestamp": 124174.332380203,
+      "streams": [],
+      "paths": []
+    },
+    {
+      "timestamp": 124175.340137645,
+      "streams": [
+        {
+          "timestamp": "2026-11-16T10:03:38.805183+00:00",
+          "type": "outbound-rtp",
+          "id": "outbound-rtp_124144512816320",
+          "ssrc": 1429387142,
+          "kind": "video",
+          "transportId": "transport_124144512468224",
+          "packetsSent": 67,
+          "bytesSent": 67119,
+          "trackId": "124144534367280",
+          "role": "publisher",
+          "peer": "b0910e4a-48a6-4b3a-9c8f-ff1e505757a1",
+          "view": "front"
+        },
+        {
+          "timestamp": "2026-11-16T10:03:38.805219+00:00",
+          "type": "transport",
+          "id": "transport_124144512468224",
+          "packetsSent": 69,
+          "packetsReceived": 2,
+          "bytesSent": 71195,
+          "bytesReceived": 834,
+          "iceRole": "controlling",
+          "dtlsState": "connected",
+          "role": "publisher",
+          "peer": "b0910e4a-48a6-4b3a-9c8f-ff1e505757a1"
+        },
+        {
+          "timestamp": "2026-11-16T10:03:38.805362+00:00",
+          "type": "outbound-rtp",
+          "id": "outbound-rtp_124144513024176",
+          "ssrc": 123460688,
+          "kind": "video",
+          "transportId": "transport_124144513025136",
+          "packetsSent": 0,
+          "bytesSent": 0,
+          "trackId": "20360472",
+          "role": "receiver",
+          "peer": "d8a76352-a9c3-4ef7-9d74-3db168d3b923"
+        },
+        {
+          "timestamp": "2026-11-16T10:03:38.805383+00:00",
+          "type": "transport",
+          "id": "transport_124144513025136",
+          "packetsSent": 2,
+          "packetsReceived": 69,
+          "bytesSent": 834,
+          "bytesReceived": 71195,
+          "iceRole": "controlled",
+          "dtlsState": "connected",
+          "role": "receiver",
+          "peer": "d8a76352-a9c3-4ef7-9d74-3db168d3b923"
+        },
+        {
+          "timestamp": "2026-11-16T10:03:38.805372+00:00",
+          "type": "inbound-rtp",
+          "id": "inbound-rtp_124144513024272",
+          "ssrc": 1429387142,
+          "kind": "video",
+          "transportId": "transport_124144513025136",
+          "packetsReceived": 67,
+          "packetsLost": 0,
+          "jitter": 205,
+          "role": "receiver",
+          "peer": "d8a76352-a9c3-4ef7-9d74-3db168d3b923"
+        }
+      ],
+      "paths": [
+        {
+          "role": "publisher",
+          "local": "127.0.0.1",
+          "remote": "127.0.0.1",
+          "local_type": "host",
+          "remote_type": "host"
+        },
+        {
+          "role": "receiver",
+          "local": "127.0.0.1",
+          "remote": "127.0.0.1",
+          "local_type": "host",
+          "remote_type": "host"
+        }
+      ]
+    },
+    {
+      "timestamp": 124176.342123055,
+      "streams": [
+        {
+          "timestamp": "2026-11-16T10:03:39.807186+00:00",
+          "type": "outbound-rtp",
+          "id": "outbound-rtp_124144512816320",
+          "ssrc": 1429387142,
+          "kind": "video",
+          "transportId": "transport_124144512468224",
+          "packetsSent": 127,
+          "bytesSent": 123397,
+          "trackId": "124144534367280",
+          "role": "publisher",
+          "peer": "b0910e4a-48a6-4b3a-9c8f-ff1e505757a1",
+          "view": "front"
+        },
+        {
+          "timestamp": "2026-11-16T10:03:39.807240+00:00",
+          "type": "transport",
+          "id": "transport_124144512468224",
+          "packetsSent": 130,
+          "packetsReceived": 3,
+          "bytesSent": 129969,
+          "bytesReceived": 886,
+          "iceRole": "controlling",
+          "dtlsState": "connected",
+          "role": "publisher",
+          "peer": "b0910e4a-48a6-4b3a-9c8f-ff1e505757a1"
+        },
+        {
+          "timestamp": "2026-11-16T10:03:38.807785+00:00",
+          "type": "remote-inbound-rtp",
+          "id": "remote-inbound-rtp_124144512816320",
+          "ssrc": 123460688,
+          "kind": "video",
+          "transportId": "transport_124144512468224",
+          "packetsReceived": 67,
+          "packetsLost": 0,
+          "jitter": 205,
+          "roundTripTime": null,
+          "fractionLost": 0,
+          "role": "publisher",
+          "peer": "b0910e4a-48a6-4b3a-9c8f-ff1e505757a1"
+        },
+        {
+          "timestamp": "2026-11-16T10:03:39.807403+00:00",
+          "type": "outbound-rtp",
+          "id": "outbound-rtp_124144513024176",
+          "ssrc": 123460688,
+          "kind": "video",
+          "transportId": "transport_124144513025136",
+          "packetsSent": 0,
+          "bytesSent": 0,
+          "trackId": "20360472",
+          "role": "receiver",
+          "peer": "d8a76352-a9c3-4ef7-9d74-3db168d3b923"
+        },
+        {
+          "timestamp": "2026-11-16T10:03:39.807425+00:00",
+          "type": "transport",
+          "id": "transport_124144513025136",
+          "packetsSent": 3,
+          "packetsReceived": 130,
+          "bytesSent": 886,
+          "bytesReceived": 129969,
+          "iceRole": "controlled",
+          "dtlsState": "connected",
+          "role": "receiver",
+          "peer": "d8a76352-a9c3-4ef7-9d74-3db168d3b923"
+        },
+        {
+          "timestamp": "2026-11-16T10:03:39.807416+00:00",
+          "type": "inbound-rtp",
+          "id": "inbound-rtp_124144513024272",
+          "ssrc": 1429387142,
+          "kind": "video",
+          "transportId": "transport_124144513025136",
+          "packetsReceived": 127,
+          "packetsLost": 0,
+          "jitter": 188,
+          "role": "receiver",
+          "peer": "d8a76352-a9c3-4ef7-9d74-3db168d3b923"
+        },
+        {
+          "timestamp": "2026-11-16T10:03:38.950878+00:00",
+          "type": "remote-outbound-rtp",
+          "id": "remote-outbound-rtp_124144513024272",
+          "ssrc": 1429387142,
+          "kind": "video",
+          "transportId": "transport_124144513025136",
+          "packetsSent": 75,
+          "bytesSent": 74215,
+          "remoteTimestamp": "2026-11-16T10:03:38.917809+00:00",
+          "role": "receiver",
+          "peer": "d8a76352-a9c3-4ef7-9d74-3db168d3b923"
+        }
+      ],
+      "paths": [
+        {
+          "role": "publisher",
+          "local": "127.0.0.1",
+          "remote": "127.0.0.1",
+          "local_type": "host",
+          "remote_type": "host"
+        },
+        {
+          "role": "receiver",
+          "local": "127.0.0.1",
+          "remote": "127.0.0.1",
+          "local_type": "host",
+          "remote_type": "host"
+        }
+      ]
+    },
+    {
+      "timestamp": 124177.342022438,
+      "streams": [
+        {
+          "timestamp": "2026-11-16T10:03:40.809384+00:00",
+          "type": "outbound-rtp",
+          "id": "outbound-rtp_124144512816320",
+          "ssrc": 1429387142,
+          "kind": "video",
+          "transportId": "transport_124144512468224",
+          "packetsSent": 193,
+          "bytesSent": 191452,
+          "trackId": "124144534367280",
+          "role": "publisher",
+          "peer": "b0910e4a-48a6-4b3a-9c8f-ff1e505757a1",
+          "view": "front"
+        },
+        {
+          "timestamp": "2026-11-16T10:03:40.809406+00:00",
+          "type": "transport",
+          "id": "transport_124144512468224",
+          "packetsSent": 197,
+          "packetsReceived": 4,
+          "bytesSent": 200760,
+          "bytesReceived": 938,
+          "iceRole": "controlling",
+          "dtlsState": "connected",
+          "role": "publisher",
+          "peer": "b0910e4a-48a6-4b3a-9c8f-ff1e505757a1"
+        },
+        {
+          "timestamp": "2026-11-16T10:03:39.951490+00:00",
+          "type": "remote-inbound-rtp",
+          "id": "remote-inbound-rtp_124144512816320",
+          "ssrc": 123460688,
+          "kind": "video",
+          "transportId": "transport_124144512468224",
+          "packetsReceived": 135,
+          "packetsLost": 0,
+          "jitter": 173,
+          "roundTripTime": 0.0008709430694580078,
+          "fractionLost": 0,
+          "role": "publisher",
+          "peer": "b0910e4a-48a6-4b3a-9c8f-ff1e505757a1"
+        },
+        {
+          "timestamp": "2026-11-16T10:03:40.809537+00:00",
+          "type": "outbound-rtp",
+          "id": "outbound-rtp_124144513024176",
+          "ssrc": 123460688,
+          "kind": "video",
+          "transportId": "transport_124144513025136",
+          "packetsSent": 0,
+          "bytesSent": 0,
+          "trackId": "20360472",
+          "role": "receiver",
+          "peer": "d8a76352-a9c3-4ef7-9d74-3db168d3b923"
+        },
+        {
+          "timestamp": "2026-11-16T10:03:40.809550+00:00",
+          "type": "transport",
+          "id": "transport_124144513025136",
+          "packetsSent": 4,
+          "packetsReceived": 197,
+          "bytesSent": 938,
+          "bytesReceived": 200760,
+          "iceRole": "controlled",
+          "dtlsState": "connected",
+          "role": "receiver",
+          "peer": "d8a76352-a9c3-4ef7-9d74-3db168d3b923"
+        },
+        {
+          "timestamp": "2026-11-16T10:03:40.809546+00:00",
+          "type": "inbound-rtp",
+          "id": "inbound-rtp_124144513024272",
+          "ssrc": 1429387142,
+          "kind": "video",
+          "transportId": "transport_124144513025136",
+          "packetsReceived": 193,
+          "packetsLost": 0,
+          "jitter": 366,
+          "role": "receiver",
+          "peer": "d8a76352-a9c3-4ef7-9d74-3db168d3b923"
+        },
+        {
+          "timestamp": "2026-11-16T10:03:40.146238+00:00",
+          "type": "remote-outbound-rtp",
+          "id": "remote-outbound-rtp_124144513024272",
+          "ssrc": 1429387142,
+          "kind": "video",
+          "transportId": "transport_124144513025136",
+          "packetsSent": 150,
+          "bytesSent": 147448,
+          "remoteTimestamp": "2026-11-16T10:03:40.137221+00:00",
+          "role": "receiver",
+          "peer": "d8a76352-a9c3-4ef7-9d74-3db168d3b923"
+        }
+      ],
+      "paths": [
+        {
+          "role": "publisher",
+          "local": "127.0.0.1",
+          "remote": "127.0.0.1",
+          "local_type": "host",
+          "remote_type": "host"
+        },
+        {
+          "role": "receiver",
+          "local": "127.0.0.1",
+          "remote": "127.0.0.1",
+          "local_type": "host",
+          "remote_type": "host"
+        }
+      ]
+    },
+    {
+      "timestamp": 124178.348447596,
+      "streams": [
+        {
+          "timestamp": "2026-11-16T10:03:41.814412+00:00",
+          "type": "outbound-rtp",
+          "id": "outbound-rtp_124144512816320",
+          "ssrc": 1429387142,
+          "kind": "video",
+          "transportId": "transport_124144512468224",
+          "packetsSent": 249,
+          "bytesSent": 246550,
+          "trackId": "124144534367280",
+          "role": "publisher",
+          "peer": "b0910e4a-48a6-4b3a-9c8f-ff1e505757a1",
+          "view": "front"
+        },
+        {
+          "timestamp": "2026-11-16T10:03:41.814434+00:00",
+          "type": "transport",
+          "id": "transport_124144512468224",
+          "packetsSent": 254,
+          "packetsReceived": 7,
+          "bytesSent": 258194,
+          "bytesReceived": 1078,
+          "iceRole": "controlling",
+          "dtlsState": "connected",
+          "role": "publisher",
+          "peer": "b0910e4a-48a6-4b3a-9c8f-ff1e505757a1"
+        },
+        {
+          "timestamp": "2026-11-16T10:03:41.279035+00:00",
+          "type": "remote-inbound-rtp",
+          "id": "remote-inbound-rtp_124144512816320",
+          "ssrc": 123460688,
+          "kind": "video",
+          "transportId": "transport_124144512468224",
+          "packetsReceived": 217,
+          "packetsLost": 0,
+          "jitter": 239,
+          "roundTripTime": 0.0008640766143798828,
+          "fractionLost": 0,
+          "role": "publisher",
+          "peer": "b0910e4a-48a6-4b3a-9c8f-ff1e505757a1"
+        },
+        {
+          "timestamp": "2026-11-16T10:03:41.814596+00:00",
+          "type": "outbound-rtp",
+          "id": "outbound-rtp_124144513024176",
+          "ssrc": 123460688,
+          "kind": "video",
+          "transportId": "transport_124144513025136",
+          "packetsSent": 0,
+          "bytesSent": 0,
+          "trackId": "20360472",
+          "role": "receiver",
+          "peer": "d8a76352-a9c3-4ef7-9d74-3db168d3b923"
+        },
+        {
+          "timestamp": "2026-11-16T10:03:41.814613+00:00",
+          "type": "transport",
+          "id": "transport_124144513025136",
+          "packetsSent": 7,
+          "packetsReceived": 254,
+          "bytesSent": 1078,
+          "bytesReceived": 258194,
+          "iceRole": "controlled",
+          "dtlsState": "connected",
+          "role": "receiver",
+          "peer": "d8a76352-a9c3-4ef7-9d74-3db168d3b923"
+        },
+        {
+          "timestamp": "2026-11-16T10:03:41.814608+00:00",
+          "type": "inbound-rtp",
+          "id": "inbound-rtp_124144513024272",
+          "ssrc": 1429387142,
+          "kind": "video",
+          "transportId": "transport_124144513025136",
+          "packetsReceived": 249,
+          "packetsLost": 0,
+          "jitter": 175,
+          "role": "receiver",
+          "peer": "d8a76352-a9c3-4ef7-9d74-3db168d3b923"
+        },
+        {
+          "timestamp": "2026-11-16T10:03:41.610174+00:00",
+          "type": "remote-outbound-rtp",
+          "id": "remote-outbound-rtp_124144513024272",
+          "ssrc": 1429387142,
+          "kind": "video",
+          "transportId": "transport_124144513025136",
+          "packetsSent": 237,
+          "bytesSent": 234503,
+          "remoteTimestamp": "2026-11-16T10:03:41.607328+00:00",
+          "role": "receiver",
+          "peer": "d8a76352-a9c3-4ef7-9d74-3db168d3b923"
+        }
+      ],
+      "paths": [
+        {
+          "role": "publisher",
+          "local": "127.0.0.1",
+          "remote": "127.0.0.1",
+          "local_type": "host",
+          "remote_type": "host"
+        },
+        {
+          "role": "receiver",
+          "local": "127.0.0.1",
+          "remote": "127.0.0.1",
+          "local_type": "host",
+          "remote_type": "host"
+        }
+      ]
+    },
+    {
+      "timestamp": 124179.351384103,
+      "streams": [
+        {
+          "timestamp": "2026-11-16T10:03:42.816410+00:00",
+          "type": "outbound-rtp",
+          "id": "outbound-rtp_124144512816320",
+          "ssrc": 1429387142,
+          "kind": "video",
+          "transportId": "transport_124144512468224",
+          "packetsSent": 326,
+          "bytesSent": 324086,
+          "trackId": "124144534367280",
+          "role": "publisher",
+          "peer": "b0910e4a-48a6-4b3a-9c8f-ff1e505757a1",
+          "view": "front"
+        },
+        {
+          "timestamp": "2026-11-16T10:03:42.816430+00:00",
+          "type": "transport",
+          "id": "transport_124144512468224",
+          "packetsSent": 332,
+          "packetsReceived": 10,
+          "bytesSent": 338906,
+          "bytesReceived": 1218,
+          "iceRole": "controlling",
+          "dtlsState": "connected",
+          "role": "publisher",
+          "peer": "b0910e4a-48a6-4b3a-9c8f-ff1e505757a1"
+        },
+        {
+          "timestamp": "2026-11-16T10:03:42.473071+00:00",
+          "type": "remote-inbound-rtp",
+          "id": "remote-inbound-rtp_124144512816320",
+          "ssrc": 123460688,
+          "kind": "video",
+          "transportId": "transport_124144512468224",
+          "packetsReceived": 306,
+          "packetsLost": 0,
+          "jitter": 212,
+          "roundTripTime": 0.0009936022758483885,
+          "fractionLost": 0,
+          "role": "publisher",
+          "peer": "b0910e4a-48a6-4b3a-9c8f-ff1e505757a1"
+        },
+        {
+          "timestamp": "2026-11-16T10:03:42.816578+00:00",
+          "type": "outbound-rtp",
+          "id": "outbound-rtp_124144513024176",
+          "ssrc": 123460688,
+          "kind": "video",
+          "transportId": "transport_124144513025136",
+          "packetsSent": 0,
+          "bytesSent": 0,
+          "trackId": "20360472",
+          "role": "receiver",
+          "peer": "d8a76352-a9c3-4ef7-9d74-3db168d3b923"
+        },
+        {
+          "timestamp": "2026-11-16T10:03:42.816593+00:00",
+          "type": "transport",
+          "id": "transport_124144513025136",
+          "packetsSent": 10,
+          "packetsReceived": 332,
+          "bytesSent": 1218,
+          "bytesReceived": 338906,
+          "iceRole": "controlled",
+          "dtlsState": "connected",
+          "role": "receiver",
+          "peer": "d8a76352-a9c3-4ef7-9d74-3db168d3b923"
+        },
+        {
+          "timestamp": "2026-11-16T10:03:42.816588+00:00",
+          "type": "inbound-rtp",
+          "id": "inbound-rtp_124144513024272",
+          "ssrc": 1429387142,
+          "kind": "video",
+          "transportId": "transport_124144513025136",
+          "packetsReceived": 326,
+          "packetsLost": 0,
+          "jitter": 140,
+          "role": "receiver",
+          "peer": "d8a76352-a9c3-4ef7-9d74-3db168d3b923"
+        },
+        {
+          "timestamp": "2026-11-16T10:03:42.782300+00:00",
+          "type": "remote-outbound-rtp",
+          "id": "remote-outbound-rtp_124144513024272",
+          "ssrc": 1429387142,
+          "kind": "video",
+          "transportId": "transport_124144513025136",
+          "packetsSent": 324,
+          "bytesSent": 322089,
+          "remoteTimestamp": "2026-11-16T10:03:42.774925+00:00",
+          "role": "receiver",
+          "peer": "d8a76352-a9c3-4ef7-9d74-3db168d3b923"
+        }
+      ],
+      "paths": [
+        {
+          "role": "publisher",
+          "local": "127.0.0.1",
+          "remote": "127.0.0.1",
+          "local_type": "host",
+          "remote_type": "host"
+        },
+        {
+          "role": "receiver",
+          "local": "127.0.0.1",
+          "remote": "127.0.0.1",
+          "local_type": "host",
+          "remote_type": "host"
+        }
+      ]
+    },
+    {
+      "timestamp": 124180.359043907,
+      "streams": [
+        {
+          "timestamp": "2026-11-16T10:03:43.824088+00:00",
+          "type": "outbound-rtp",
+          "id": "outbound-rtp_124144512816320",
+          "ssrc": 1429387142,
+          "kind": "video",
+          "transportId": "transport_124144512468224",
+          "packetsSent": 404,
+          "bytesSent": 406719,
+          "trackId": "124144534367280",
+          "role": "publisher",
+          "peer": "b0910e4a-48a6-4b3a-9c8f-ff1e505757a1",
+          "view": "front"
+        },
+        {
+          "timestamp": "2026-11-16T10:03:43.824112+00:00",
+          "type": "transport",
+          "id": "transport_124144512468224",
+          "packetsSent": 411,
+          "packetsReceived": 13,
+          "bytesSent": 424755,
+          "bytesReceived": 1358,
+          "iceRole": "controlling",
+          "dtlsState": "connected",
+          "role": "publisher",
+          "peer": "b0910e4a-48a6-4b3a-9c8f-ff1e505757a1"
+        },
+        {
+          "timestamp": "2026-11-16T10:03:43.807314+00:00",
+          "type": "remote-inbound-rtp",
+          "id": "remote-inbound-rtp_124144512816320",
+          "ssrc": 123460688,
+          "kind": "video",
+          "transportId": "transport_124144512468224",
+          "packetsReceived": 402,
+          "packetsLost": 0,
+          "jitter": 264,
+          "roundTripTime": 0.000993120551109314,
+          "fractionLost": 0,
+          "role": "publisher",
+          "peer": "b0910e4a-48a6-4b3a-9c8f-ff1e505757a1"
+        },
+        {
+          "timestamp": "2026-11-16T10:03:43.824251+00:00",
+          "type": "outbound-rtp",
+          "id": "outbound-rtp_124144513024176",
+          "ssrc": 123460688,
+          "kind": "video",
+          "transportId": "transport_124144513025136",
+          "packetsSent": 0,
+          "bytesSent": 0,
+          "trackId": "20360472",
+          "role": "receiver",
+          "peer": "d8a76352-a9c3-4ef7-9d74-3db168d3b923"
+        },
+        {
+          "timestamp": "2026-11-16T10:03:43.824268+00:00",
+          "type": "transport",
+          "id": "transport_124144513025136",
+          "packetsSent": 13,
+          "packetsReceived": 411,
+          "bytesSent": 1358,
+          "bytesReceived": 424755,
+          "iceRole": "controlled",
+          "dtlsState": "connected",
+          "role": "receiver",
+          "peer": "d8a76352-a9c3-4ef7-9d74-3db168d3b923"
+        },
+        {
+          "timestamp": "2026-11-16T10:03:43.824262+00:00",
+          "type": "inbound-rtp",
+          "id": "inbound-rtp_124144513024272",
+          "ssrc": 1429387142,
+          "kind": "video",
+          "transportId": "transport_124144513025136",
+          "packetsReceived": 404,
+          "packetsLost": 0,
+          "jitter": 271,
+          "role": "receiver",
+          "peer": "d8a76352-a9c3-4ef7-9d74-3db168d3b923"
+        },
+        {
+          "timestamp": "2026-11-16T10:03:43.309113+00:00",
+          "type": "remote-outbound-rtp",
+          "id": "remote-outbound-rtp_124144513024272",
+          "ssrc": 1429387142,
+          "kind": "video",
+          "transportId": "transport_124144513025136",
+          "packetsSent": 359,
+          "bytesSent": 357731,
+          "remoteTimestamp": "2026-11-16T10:03:43.289914+00:00",
+          "role": "receiver",
+          "peer": "d8a76352-a9c3-4ef7-9d74-3db168d3b923"
+        }
+      ],
+      "paths": [
+        {
+          "role": "publisher",
+          "local": "127.0.0.1",
+          "remote": "127.0.0.1",
+          "local_type": "host",
+          "remote_type": "host"
+        },
+        {
+          "role": "receiver",
+          "local": "127.0.0.1",
+          "remote": "127.0.0.1",
+          "local_type": "host",
+          "remote_type": "host"
+        }
+      ]
+    },
+    {
+      "timestamp": 124181.367483096,
+      "streams": [
+        {
+          "timestamp": "2026-11-16T10:03:44.832508+00:00",
+          "type": "outbound-rtp",
+          "id": "outbound-rtp_124144512816320",
+          "ssrc": 1429387142,
+          "kind": "video",
+          "transportId": "transport_124144512468224",
+          "packetsSent": 471,
+          "bytesSent": 474816,
+          "trackId": "124144534367280",
+          "role": "publisher",
+          "peer": "b0910e4a-48a6-4b3a-9c8f-ff1e505757a1",
+          "view": "front"
+        },
+        {
+          "timestamp": "2026-11-16T10:03:44.832531+00:00",
+          "type": "transport",
+          "id": "transport_124144512468224",
+          "packetsSent": 479,
+          "packetsReceived": 15,
+          "bytesSent": 495628,
+          "bytesReceived": 1446,
+          "iceRole": "controlling",
+          "dtlsState": "connected",
+          "role": "publisher",
+          "peer": "b0910e4a-48a6-4b3a-9c8f-ff1e505757a1"
+        },
+        {
+          "timestamp": "2026-11-16T10:03:43.807314+00:00",
+          "type": "remote-inbound-rtp",
+          "id": "remote-inbound-rtp_124144512816320",
+          "ssrc": 123460688,
+          "kind": "video",
+          "transportId": "transport_124144512468224",
+          "packetsReceived": 402,
+          "packetsLost": 0,
+          "jitter": 264,
+          "roundTripTime": 0.000993120551109314,
+          "fractionLost": 0,
+          "role": "publisher",
+          "peer": "b0910e4a-48a6-4b3a-9c8f-ff1e505757a1"
+        },
+        {
+          "timestamp": "2026-11-16T10:03:44.832659+00:00",
+          "type": "outbound-rtp",
+          "id": "outbound-rtp_124144513024176",
+          "ssrc": 123460688,
+          "kind": "video",
+          "transportId": "transport_124144513025136",
+          "packetsSent": 0,
+          "bytesSent": 0,
+          "trackId": "20360472",
+          "role": "receiver",
+          "peer": "d8a76352-a9c3-4ef7-9d74-3db168d3b923"
+        },
+        {
+          "timestamp": "2026-11-16T10:03:44.832692+00:00",
+          "type": "transport",
+          "id": "transport_124144513025136",
+          "packetsSent": 15,
+          "packetsReceived": 479,
+          "bytesSent": 1446,
+          "bytesReceived": 495628,
+          "iceRole": "controlled",
+          "dtlsState": "connected",
+          "role": "receiver",
+          "peer": "d8a76352-a9c3-4ef7-9d74-3db168d3b923"
+        },
+        {
+          "timestamp": "2026-11-16T10:03:44.832671+00:00",
+          "type": "inbound-rtp",
+          "id": "inbound-rtp_124144513024272",
+          "ssrc": 1429387142,
+          "kind": "video",
+          "transportId": "transport_124144513025136",
+          "packetsReceived": 471,
+          "packetsLost": 0,
+          "jitter": 215,
+          "role": "receiver",
+          "peer": "d8a76352-a9c3-4ef7-9d74-3db168d3b923"
+        },
+        {
+          "timestamp": "2026-11-16T10:03:44.414600+00:00",
+          "type": "remote-outbound-rtp",
+          "id": "remote-outbound-rtp_124144513024272",
+          "ssrc": 1429387142,
+          "kind": "video",
+          "transportId": "transport_124144513025136",
+          "packetsSent": 444,
+          "bytesSent": 448257,
+          "remoteTimestamp": "2026-11-16T10:03:44.390996+00:00",
+          "role": "receiver",
+          "peer": "d8a76352-a9c3-4ef7-9d74-3db168d3b923"
+        }
+      ],
+      "paths": [
+        {
+          "role": "publisher",
+          "local": "127.0.0.1",
+          "remote": "127.0.0.1",
+          "local_type": "host",
+          "remote_type": "host"
+        },
+        {
+          "role": "receiver",
+          "local": "127.0.0.1",
+          "remote": "127.0.0.1",
+          "local_type": "host",
+          "remote_type": "host"
+        }
+      ]
+    },
+    {
+      "timestamp": 124182.370057693,
+      "streams": [
+        {
+          "timestamp": "2026-11-16T10:03:45.835075+00:00",
+          "type": "outbound-rtp",
+          "id": "outbound-rtp_124144512816320",
+          "ssrc": 1429387142,
+          "kind": "video",
+          "transportId": "transport_124144512468224",
+          "packetsSent": 552,
+          "bytesSent": 562760,
+          "trackId": "124144534367280",
+          "role": "publisher",
+          "peer": "b0910e4a-48a6-4b3a-9c8f-ff1e505757a1",
+          "view": "front"
+        },
+        {
+          "timestamp": "2026-11-16T10:03:45.835098+00:00",
+          "type": "transport",
+          "id": "transport_124144512468224",
+          "packetsSent": 560,
+          "packetsReceived": 18,
+          "bytesSent": 586812,
+          "bytesReceived": 1586,
+          "iceRole": "controlling",
+          "dtlsState": "connected",
+          "role": "publisher",
+          "peer": "b0910e4a-48a6-4b3a-9c8f-ff1e505757a1"
+        },
+        {
+          "timestamp": "2026-11-16T10:03:45.013448+00:00",
+          "type": "remote-inbound-rtp",
+          "id": "remote-inbound-rtp_124144512816320",
+          "ssrc": 123460688,
+          "kind": "video",
+          "transportId": "transport_124144512468224",
+          "packetsReceived": 485,
+          "packetsLost": 0,
+          "jitter": 171,
+          "roundTripTime": 0.0009924249827861784,
+          "fractionLost": 0,
+          "role": "publisher",
+          "peer": "b0910e4a-48a6-4b3a-9c8f-ff1e505757a1"
+        },
+        {
+          "timestamp": "2026-11-16T10:03:45.835253+00:00",
+          "type": "outbound-rtp",
+          "id": "outbound-rtp_124144513024176",
+          "ssrc": 123460688,
+          "kind": "video",
+          "transportId": "transport_124144513025136",
+          "packetsSent": 0,
+          "bytesSent": 0,
+          "trackId": "20360472",
+          "role": "receiver",
+          "peer": "d8a76352-a9c3-4ef7-9d74-3db168d3b923"
+        },
+        {
+          "timestamp": "2026-11-16T10:03:45.835273+00:00",
+          "type": "transport",
+          "id": "transport_124144513025136",
+          "packetsSent": 18,
+          "packetsReceived": 560,
+          "bytesSent": 1586,
+          "bytesReceived": 586812,
+          "iceRole": "controlled",
+          "dtlsState": "connected",
+          "role": "receiver",
+          "peer": "d8a76352-a9c3-4ef7-9d74-3db168d3b923"
+        },
+        {
+          "timestamp": "2026-11-16T10:03:45.835266+00:00",
+          "type": "inbound-rtp",
+          "id": "inbound-rtp_124144513024272",
+          "ssrc": 1429387142,
+          "kind": "video",
+          "transportId": "transport_124144513025136",
+          "packetsReceived": 552,
+          "packetsLost": 0,
+          "jitter": 235,
+          "role": "receiver",
+          "peer": "d8a76352-a9c3-4ef7-9d74-3db168d3b923"
+        },
+        {
+          "timestamp": "2026-11-16T10:03:44.414600+00:00",
+          "type": "remote-outbound-rtp",
+          "id": "remote-outbound-rtp_124144513024272",
+          "ssrc": 1429387142,
+          "kind": "video",
+          "transportId": "transport_124144513025136",
+          "packetsSent": 444,
+          "bytesSent": 448257,
+          "remoteTimestamp": "2026-11-16T10:03:44.390996+00:00",
+          "role": "receiver",
+          "peer": "d8a76352-a9c3-4ef7-9d74-3db168d3b923"
+        }
+      ],
+      "paths": [
+        {
+          "role": "publisher",
+          "local": "127.0.0.1",
+          "remote": "127.0.0.1",
+          "local_type": "host",
+          "remote_type": "host"
+        },
+        {
+          "role": "receiver",
+          "local": "127.0.0.1",
+          "remote": "127.0.0.1",
+          "local_type": "host",
+          "remote_type": "host"
+        }
+      ]
+    },
+    {
+      "timestamp": 124183.379018131,
+      "streams": [
+        {
+          "timestamp": "2026-11-16T10:03:46.844106+00:00",
+          "type": "outbound-rtp",
+          "id": "outbound-rtp_124144512816320",
+          "ssrc": 1429387142,
+          "kind": "video",
+          "transportId": "transport_124144512468224",
+          "packetsSent": 645,
+          "bytesSent": 662768,
+          "trackId": "124144534367280",
+          "role": "publisher",
+          "peer": "b0910e4a-48a6-4b3a-9c8f-ff1e505757a1",
+          "view": "front"
+        },
+        {
+          "timestamp": "2026-11-16T10:03:46.844128+00:00",
+          "type": "transport",
+          "id": "transport_124144512468224",
+          "packetsSent": 654,
+          "packetsReceived": 21,
+          "bytesSent": 690636,
+          "bytesReceived": 1726,
+          "iceRole": "controlling",
+          "dtlsState": "connected",
+          "role": "publisher",
+          "peer": "b0910e4a-48a6-4b3a-9c8f-ff1e505757a1"
+        },
+        {
+          "timestamp": "2026-11-16T10:03:45.864957+00:00",
+          "type": "remote-inbound-rtp",
+          "id": "remote-inbound-rtp_124144512816320",
+          "ssrc": 123460688,
+          "kind": "video",
+          "transportId": "transport_124144512468224",
+          "packetsReceived": 555,
+          "packetsLost": 0,
+          "jitter": 229,
+          "roundTripTime": 0.0009839301738142966,
+          "fractionLost": 0,
+          "role": "publisher",
+          "peer": "b0910e4a-48a6-4b3a-9c8f-ff1e505757a1"
+        },
+        {
+          "timestamp": "2026-11-16T10:03:46.844962+00:00",
+          "type": "outbound-rtp",
+          "id": "outbound-rtp_124144513024176",
+          "ssrc": 123460688,
+          "kind": "video",
+          "transportId": "transport_124144513025136",
+          "packetsSent": 0,
+          "bytesSent": 0,
+          "trackId": "20360472",
+          "role": "receiver",
+          "peer": "d8a76352-a9c3-4ef7-9d74-3db168d3b923"
+        },
+        {
+          "timestamp": "2026-11-16T10:03:46.845008+00:00",
+          "type": "transport",
+          "id": "transport_124144513025136",
+          "packetsSent": 21,
+          "packetsReceived": 654,
+          "bytesSent": 1726,
+          "bytesReceived": 690636,
+          "iceRole": "controlled",
+          "dtlsState": "connected",
+          "role": "receiver",
+          "peer": "d8a76352-a9c3-4ef7-9d74-3db168d3b923"
+        },
+        {
+          "timestamp": "2026-11-16T10:03:46.845000+00:00",
+          "type": "inbound-rtp",
+          "id": "inbound-rtp_124144513024272",
+          "ssrc": 1429387142,
+          "kind": "video",
+          "transportId": "transport_124144513025136",
+          "packetsReceived": 645,
+          "packetsLost": 0,
+          "jitter": 336,
+          "role": "receiver",
+          "peer": "d8a76352-a9c3-4ef7-9d74-3db168d3b923"
+        },
+        {
+          "timestamp": "2026-11-16T10:03:45.888111+00:00",
+          "type": "remote-outbound-rtp",
+          "id": "remote-outbound-rtp_124144513024272",
+          "ssrc": 1429387142,
+          "kind": "video",
+          "transportId": "transport_124144513025136",
+          "packetsSent": 557,
+          "bytesSent": 568293,
+          "remoteTimestamp": "2026-11-16T10:03:45.874743+00:00",
+          "role": "receiver",
+          "peer": "d8a76352-a9c3-4ef7-9d74-3db168d3b923"
+        }
+      ],
+      "paths": [
+        {
+          "role": "publisher",
+          "local": "127.0.0.1",
+          "remote": "127.0.0.1",
+          "local_type": "host",
+          "remote_type": "host"
+        },
+        {
+          "role": "receiver",
+          "local": "127.0.0.1",
+          "remote": "127.0.0.1",
+          "local_type": "host",
+          "remote_type": "host"
+        }
+      ]
+    },
+    {
+      "timestamp": 124184.386342039,
+      "streams": [
+        {
+          "timestamp": "2026-11-16T10:03:47.851368+00:00",
+          "type": "outbound-rtp",
+          "id": "outbound-rtp_124144512816320",
+          "ssrc": 1429387142,
+          "kind": "video",
+          "transportId": "transport_124144512468224",
+          "packetsSent": 726,
+          "bytesSent": 748584,
+          "trackId": "124144534367280",
+          "role": "publisher",
+          "peer": "b0910e4a-48a6-4b3a-9c8f-ff1e505757a1",
+          "view": "front"
+        },
+        {
+          "timestamp": "2026-11-16T10:03:47.851389+00:00",
+          "type": "transport",
+          "id": "transport_124144512468224",
+          "packetsSent": 737,
+          "packetsReceived": 24,
+          "bytesSent": 779884,
+          "bytesReceived": 1866,
+          "iceRole": "controlling",
+          "dtlsState": "connected",
+          "role": "publisher",
+          "peer": "b0910e4a-48a6-4b3a-9c8f-ff1e505757a1"
+        },
+        {
+          "timestamp": "2026-11-16T10:03:47.241176+00:00",
+          "type": "remote-inbound-rtp",
+          "id": "remote-inbound-rtp_124144512816320",
+          "ssrc": 123460688,
+          "kind": "video",
+          "transportId": "transport_124144512468224",
+          "packetsReceived": 677,
+          "packetsLost": 0,
+          "jitter": 378,
+          "roundTripTime": 0.001068119269415736,
+          "fractionLost": 0,
+          "role": "publisher",
+          "peer": "b0910e4a-48a6-4b3a-9c8f-ff1e505757a1"
+        },
+        {
+          "timestamp": "2026-11-16T10:03:47.851509+00:00",
+          "type": "outbound-rtp",
+          "id": "outbound-rtp_124144513024176",
+          "ssrc": 123460688,
+          "kind": "video",
+          "transportId": "transport_124144513025136",
+          "packetsSent": 0,
+          "bytesSent": 0,
+          "trackId": "20360472",
+          "role": "receiver",
+          "peer": "d8a76352-a9c3-4ef7-9d74-3db168d3b923"
+        },
+        {
+          "timestamp": "2026-11-16T10:03:47.851525+00:00",
+          "type": "transport",
+          "id": "transport_124144513025136",
+          "packetsSent": 24,
+          "packetsReceived": 737,
+          "bytesSent": 1866,
+          "bytesReceived": 779884,
+          "iceRole": "controlled",
+          "dtlsState": "connected",
+          "role": "receiver",
+          "peer": "d8a76352-a9c3-4ef7-9d74-3db168d3b923"
+        },
+        {
+          "timestamp": "2026-11-16T10:03:47.851519+00:00",
+          "type": "inbound-rtp",
+          "id": "inbound-rtp_124144513024272",
+          "ssrc": 1429387142,
+          "kind": "video",
+          "transportId": "transport_124144513025136",
+          "packetsReceived": 726,
+          "packetsLost": 0,
+          "jitter": 172,
+          "role": "receiver",
+          "peer": "d8a76352-a9c3-4ef7-9d74-3db168d3b923"
+        },
+        {
+          "timestamp": "2026-11-16T10:03:47.628000+00:00",
+          "type": "remote-outbound-rtp",
+          "id": "remote-outbound-rtp_124144513024272",
+          "ssrc": 1429387142,
+          "kind": "video",
+          "transportId": "transport_124144513025136",
+          "packetsSent": 705,
+          "bytesSent": 726347,
+          "remoteTimestamp": "2026-11-16T10:03:47.596368+00:00",
+          "role": "receiver",
+          "peer": "d8a76352-a9c3-4ef7-9d74-3db168d3b923"
+        }
+      ],
+      "paths": [
+        {
+          "role": "publisher",
+          "local": "127.0.0.1",
+          "remote": "127.0.0.1",
+          "local_type": "host",
+          "remote_type": "host"
+        },
+        {
+          "role": "receiver",
+          "local": "127.0.0.1",
+          "remote": "127.0.0.1",
+          "local_type": "host",
+          "remote_type": "host"
+        }
+      ]
+    },
+    {
+      "timestamp": 124185.387288611,
+      "streams": [
+        {
+          "timestamp": "2026-11-16T10:03:48.852350+00:00",
+          "type": "outbound-rtp",
+          "id": "outbound-rtp_124144512816320",
+          "ssrc": 1429387142,
+          "kind": "video",
+          "transportId": "transport_124144512468224",
+          "packetsSent": 821,
+          "bytesSent": 853397,
+          "trackId": "124144534367280",
+          "role": "publisher",
+          "peer": "b0910e4a-48a6-4b3a-9c8f-ff1e505757a1",
+          "view": "front"
+        },
+        {
+          "timestamp": "2026-11-16T10:03:48.852376+00:00",
+          "type": "transport",
+          "id": "transport_124144512468224",
+          "packetsSent": 832,
+          "packetsReceived": 28,
+          "bytesSent": 888497,
+          "bytesReceived": 2058,
+          "iceRole": "controlling",
+          "dtlsState": "connected",
+          "role": "publisher",
+          "peer": "b0910e4a-48a6-4b3a-9c8f-ff1e505757a1"
+        },
+        {
+          "timestamp": "2026-11-16T10:03:48.453202+00:00",
+          "type": "remote-inbound-rtp",
+          "id": "remote-inbound-rtp_124144512816320",
+          "ssrc": 123460688,
+          "kind": "video",
+          "transportId": "transport_124144512468224",
+          "packetsReceived": 787,
+          "packetsLost": 0,
+          "jitter": 184,
+          "roundTripTime": 0.0011569743699372929,
+          "fractionLost": 0,
+          "role": "publisher",
+          "peer": "b0910e4a-48a6-4b3a-9c8f-ff1e505757a1"
+        },
+        {
+          "timestamp": "2026-11-16T10:03:48.852527+00:00",
+          "type": "outbound-rtp",
+          "id": "outbound-rtp_124144513024176",
+          "ssrc": 123460688,
+          "kind": "video",
+          "transportId": "transport_124144513025136",
+          "packetsSent": 0,
+          "bytesSent": 0,
+          "trackId": "20360472",
+          "role": "receiver",
+          "peer": "d8a76352-a9c3-4ef7-9d74-3db168d3b923"
+        },
+        {
+          "timestamp": "2026-11-16T10:03:48.852543+00:00",
+          "type": "transport",
+          "id": "transport_124144513025136",
+          "packetsSent": 28,
+          "packetsReceived": 832,
+          "bytesSent": 2058,
+          "bytesReceived": 888497,
+          "iceRole": "controlled",
+          "dtlsState": "connected",
+          "role": "receiver",
+          "peer": "d8a76352-a9c3-4ef7-9d74-3db168d3b923"
+        },
+        {
+          "timestamp": "2026-11-16T10:03:48.852538+00:00",
+          "type": "inbound-rtp",
+          "id": "inbound-rtp_124144513024272",
+          "ssrc": 1429387142,
+          "kind": "video",
+          "transportId": "transport_124144513025136",
+          "packetsReceived": 821,
+          "packetsLost": 0,
+          "jitter": 217,
+          "role": "receiver",
+          "peer": "d8a76352-a9c3-4ef7-9d74-3db168d3b923"
+        },
+        {
+          "timestamp": "2026-11-16T10:03:47.628000+00:00",
+          "type": "remote-outbound-rtp",
+          "id": "remote-outbound-rtp_124144513024272",
+          "ssrc": 1429387142,
+          "kind": "video",
+          "transportId": "transport_124144513025136",
+          "packetsSent": 705,
+          "bytesSent": 726347,
+          "remoteTimestamp": "2026-11-16T10:03:47.596368+00:00",
+          "role": "receiver",
+          "peer": "d8a76352-a9c3-4ef7-9d74-3db168d3b923"
+        }
+      ],
+      "paths": [
+        {
+          "role": "publisher",
+          "local": "127.0.0.1",
+          "remote": "127.0.0.1",
+          "local_type": "host",
+          "remote_type": "host"
+        },
+        {
+          "role": "receiver",
+          "local": "127.0.0.1",
+          "remote": "127.0.0.1",
+          "local_type": "host",
+          "remote_type": "host"
+        }
+      ]
+    },
+    {
+      "timestamp": 124186.39459211,
+      "streams": [
+        {
+          "timestamp": "2026-11-16T10:03:49.859647+00:00",
+          "type": "outbound-rtp",
+          "id": "outbound-rtp_124144512816320",
+          "ssrc": 1429387142,
+          "kind": "video",
+          "transportId": "transport_124144512468224",
+          "packetsSent": 936,
+          "bytesSent": 988088,
+          "trackId": "124144534367280",
+          "role": "publisher",
+          "peer": "b0910e4a-48a6-4b3a-9c8f-ff1e505757a1",
+          "view": "front"
+        },
+        {
+          "timestamp": "2026-11-16T10:03:49.859676+00:00",
+          "type": "transport",
+          "id": "transport_124144512468224",
+          "packetsSent": 949,
+          "packetsReceived": 31,
+          "bytesSent": 1027980,
+          "bytesReceived": 2198,
+          "iceRole": "controlling",
+          "dtlsState": "connected",
+          "role": "publisher",
+          "peer": "b0910e4a-48a6-4b3a-9c8f-ff1e505757a1"
+        },
+        {
+          "timestamp": "2026-11-16T10:03:49.466922+00:00",
+          "type": "remote-inbound-rtp",
+          "id": "remote-inbound-rtp_124144512816320",
+          "ssrc": 123460688,
+          "kind": "video",
+          "transportId": "transport_124144512468224",
+          "packetsReceived": 878,
+          "packetsLost": 0,
+          "jitter": 113,
+          "roundTripTime": 0.0010864250406185738,
+          "fractionLost": 0,
+          "role": "publisher",
+          "peer": "b0910e4a-48a6-4b3a-9c8f-ff1e505757a1"
+        },
+        {
+          "timestamp": "2026-11-16T10:03:49.859869+00:00",
+          "type": "outbound-rtp",
+          "id": "outbound-rtp_124144513024176",
+          "ssrc": 123460688,
+          "kind": "video",
+          "transportId": "transport_124144513025136",
+          "packetsSent": 0,
+          "bytesSent": 0,
+          "trackId": "20360472",
+          "role": "receiver",
+          "peer": "d8a76352-a9c3-4ef7-9d74-3db168d3b923"
+        },
+        {
+          "timestamp": "2026-11-16T10:03:49.859885+00:00",
+          "type": "transport",
+          "id": "transport_124144513025136",
+          "packetsSent": 31,
+          "packetsReceived": 949,
+          "bytesSent": 2198,
+          "bytesReceived": 1027980,
+          "iceRole": "controlled",
+          "dtlsState": "connected",
+          "role": "receiver",
+          "peer": "d8a76352-a9c3-4ef7-9d74-3db168d3b923"
+        },
+        {
+          "timestamp": "2026-11-16T10:03:49.859879+00:00",
+          "type": "inbound-rtp",
+          "id": "inbound-rtp_124144513024272",
+          "ssrc": 1429387142,
+          "kind": "video",
+          "transportId": "transport_124144513025136",
+          "packetsReceived": 936,
+          "packetsLost": 0,
+          "jitter": 359,
+          "role": "receiver",
+          "peer": "d8a76352-a9c3-4ef7-9d74-3db168d3b923"
+        },
+        {
+          "timestamp": "2026-11-16T10:03:49.533526+00:00",
+          "type": "remote-outbound-rtp",
+          "id": "remote-outbound-rtp_124144513024272",
+          "ssrc": 1429387142,
+          "kind": "video",
+          "transportId": "transport_124144513025136",
+          "packetsSent": 884,
+          "bytesSent": 925150,
+          "remoteTimestamp": "2026-11-16T10:03:49.529915+00:00",
+          "role": "receiver",
+          "peer": "d8a76352-a9c3-4ef7-9d74-3db168d3b923"
+        }
+      ],
+      "paths": [
+        {
+          "role": "publisher",
+          "local": "127.0.0.1",
+          "remote": "127.0.0.1",
+          "local_type": "host",
+          "remote_type": "host"
+        },
+        {
+          "role": "receiver",
+          "local": "127.0.0.1",
+          "remote": "127.0.0.1",
+          "local_type": "host",
+          "remote_type": "host"
+        }
+      ]
+    },
+    {
+      "timestamp": 124187.405005717,
+      "streams": [
+        {
+          "timestamp": "2026-11-16T10:03:50.870033+00:00",
+          "type": "outbound-rtp",
+          "id": "outbound-rtp_124144476907584",
+          "ssrc": 3706870117,
+          "kind": "video",
+          "transportId": "transport_124144507033728",
+          "packetsSent": 29,
+          "bytesSent": 33205,
+          "trackId": "124144506253344",
+          "role": "publisher",
+          "peer": "b0910e4a-48a6-4b3a-9c8f-ff1e505757a1",
+          "view": "front"
+        },
+        {
+          "timestamp": "2026-11-16T10:03:50.870055+00:00",
+          "type": "transport",
+          "id": "transport_124144507033728",
+          "packetsSent": 31,
+          "packetsReceived": 2,
+          "bytesSent": 35765,
+          "bytesReceived": 833,
+          "iceRole": "controlling",
+          "dtlsState": "connected",
+          "role": "publisher",
+          "peer": "b0910e4a-48a6-4b3a-9c8f-ff1e505757a1"
+        },
+        {
+          "timestamp": "2026-11-16T10:03:50.870167+00:00",
+          "type": "outbound-rtp",
+          "id": "outbound-rtp_124144477227104",
+          "ssrc": 2478114199,
+          "kind": "video",
+          "transportId": "transport_124144477174624",
+          "packetsSent": 0,
+          "bytesSent": 0,
+          "trackId": "20360472",
+          "role": "receiver",
+          "peer": "35d3706f-b9b6-4a8f-8866-7d9d81cfc5b4"
+        },
+        {
+          "timestamp": "2026-11-16T10:03:50.870181+00:00",
+          "type": "transport",
+          "id": "transport_124144477174624",
+          "packetsSent": 2,
+          "packetsReceived": 31,
+          "bytesSent": 833,
+          "bytesReceived": 35765,
+          "iceRole": "controlled",
+          "dtlsState": "connected",
+          "role": "receiver",
+          "peer": "35d3706f-b9b6-4a8f-8866-7d9d81cfc5b4"
+        },
+        {
+          "timestamp": "2026-11-16T10:03:50.870176+00:00",
+          "type": "inbound-rtp",
+          "id": "inbound-rtp_124144477225376",
+          "ssrc": 3706870117,
+          "kind": "video",
+          "transportId": "transport_124144477174624",
+          "packetsReceived": 29,
+          "packetsLost": 0,
+          "jitter": 97,
+          "role": "receiver",
+          "peer": "35d3706f-b9b6-4a8f-8866-7d9d81cfc5b4"
+        }
+      ],
+      "paths": [
+        {
+          "role": "publisher",
+          "local": "127.0.0.1",
+          "remote": "127.0.0.1",
+          "local_type": "host",
+          "remote_type": "host"
+        },
+        {
+          "role": "receiver",
+          "local": "127.0.0.1",
+          "remote": "127.0.0.1",
+          "local_type": "host",
+          "remote_type": "host"
+        }
+      ]
+    },
+    {
+      "timestamp": 124188.412091864,
+      "streams": [
+        {
+          "timestamp": "2026-11-16T10:03:51.877125+00:00",
+          "type": "outbound-rtp",
+          "id": "outbound-rtp_124144476907584",
+          "ssrc": 3706870117,
+          "kind": "video",
+          "transportId": "transport_124144507033728",
+          "packetsSent": 91,
+          "bytesSent": 87134,
+          "trackId": "124144506253344",
+          "role": "publisher",
+          "peer": "b0910e4a-48a6-4b3a-9c8f-ff1e505757a1",
+          "view": "front"
+        },
+        {
+          "timestamp": "2026-11-16T10:03:51.877162+00:00",
+          "type": "transport",
+          "id": "transport_124144507033728",
+          "packetsSent": 94,
+          "packetsReceived": 3,
+          "bytesSent": 92270,
+          "bytesReceived": 885,
+          "iceRole": "controlling",
+          "dtlsState": "connected",
+          "role": "publisher",
+          "peer": "b0910e4a-48a6-4b3a-9c8f-ff1e505757a1"
+        },
+        {
+          "timestamp": "2026-11-16T10:03:51.518426+00:00",
+          "type": "remote-inbound-rtp",
+          "id": "remote-inbound-rtp_124144476907584",
+          "ssrc": 2478114199,
+          "kind": "video",
+          "transportId": "transport_124144507033728",
+          "packetsReceived": 66,
+          "packetsLost": 0,
+          "jitter": 109,
+          "roundTripTime": null,
+          "fractionLost": 0,
+          "role": "publisher",
+          "peer": "b0910e4a-48a6-4b3a-9c8f-ff1e505757a1"
+        },
+        {
+          "timestamp": "2026-11-16T10:03:51.877309+00:00",
+          "type": "outbound-rtp",
+          "id": "outbound-rtp_124144477227104",
+          "ssrc": 2478114199,
+          "kind": "video",
+          "transportId": "transport_124144477174624",
+          "packetsSent": 0,
+          "bytesSent": 0,
+          "trackId": "20360472",
+          "role": "receiver",
+          "peer": "35d3706f-b9b6-4a8f-8866-7d9d81cfc5b4"
+        },
+        {
+          "timestamp": "2026-11-16T10:03:51.877322+00:00",
+          "type": "transport",
+          "id": "transport_124144477174624",
+          "packetsSent": 3,
+          "packetsReceived": 94,
+          "bytesSent": 885,
+          "bytesReceived": 92270,
+          "iceRole": "controlled",
+          "dtlsState": "connected",
+          "role": "receiver",
+          "peer": "35d3706f-b9b6-4a8f-8866-7d9d81cfc5b4"
+        },
+        {
+          "timestamp": "2026-11-16T10:03:51.877317+00:00",
+          "type": "inbound-rtp",
+          "id": "inbound-rtp_124144477225376",
+          "ssrc": 3706870117,
+          "kind": "video",
+          "transportId": "transport_124144477174624",
+          "packetsReceived": 91,
+          "packetsLost": 0,
+          "jitter": 296,
+          "role": "receiver",
+          "peer": "35d3706f-b9b6-4a8f-8866-7d9d81cfc5b4"
+        },
+        {
+          "timestamp": "2026-11-16T10:03:51.866562+00:00",
+          "type": "remote-outbound-rtp",
+          "id": "remote-outbound-rtp_124144477225376",
+          "ssrc": 3706870117,
+          "kind": "video",
+          "transportId": "transport_124144477174624",
+          "packetsSent": 91,
+          "bytesSent": 87134,
+          "remoteTimestamp": "2026-11-16T10:03:51.851041+00:00",
+          "role": "receiver",
+          "peer": "35d3706f-b9b6-4a8f-8866-7d9d81cfc5b4"
+        }
+      ],
+      "paths": [
+        {
+          "role": "publisher",
+          "local": "127.0.0.1",
+          "remote": "127.0.0.1",
+          "local_type": "host",
+          "remote_type": "host"
+        },
+        {
+          "role": "receiver",
+          "local": "127.0.0.1",
+          "remote": "127.0.0.1",
+          "local_type": "host",
+          "remote_type": "host"
+        }
+      ]
+    },
+    {
+      "timestamp": 124189.416341438,
+      "streams": [
+        {
+          "timestamp": "2026-11-16T10:03:52.881404+00:00",
+          "type": "outbound-rtp",
+          "id": "outbound-rtp_124144476907584",
+          "ssrc": 3706870117,
+          "kind": "video",
+          "transportId": "transport_124144507033728",
+          "packetsSent": 148,
+          "bytesSent": 141300,
+          "trackId": "124144506253344",
+          "role": "publisher",
+          "peer": "b0910e4a-48a6-4b3a-9c8f-ff1e505757a1",
+          "view": "front"
+        },
+        {
+          "timestamp": "2026-11-16T10:03:52.881424+00:00",
+          "type": "transport",
+          "id": "transport_124144507033728",
+          "packetsSent": 151,
+          "packetsReceived": 4,
+          "bytesSent": 148716,
+          "bytesReceived": 937,
+          "iceRole": "controlling",
+          "dtlsState": "connected",
+          "role": "publisher",
+          "peer": "b0910e4a-48a6-4b3a-9c8f-ff1e505757a1"
+        },
+        {
+          "timestamp": "2026-11-16T10:03:52.085644+00:00",
+          "type": "remote-inbound-rtp",
+          "id": "remote-inbound-rtp_124144476907584",
+          "ssrc": 2478114199,
+          "kind": "video",
+          "transportId": "transport_124144507033728",
+          "packetsReceived": 100,
+          "packetsLost": 0,
+          "jitter": 232,
+          "roundTripTime": 0.0011811256408691406,
+          "fractionLost": 0,
+          "role": "publisher",
+          "peer": "b0910e4a-48a6-4b3a-9c8f-ff1e505757a1"
+        },
+        {
+          "timestamp": "2026-11-16T10:03:52.881547+00:00",
+          "type": "outbound-rtp",
+          "id": "outbound-rtp_124144477227104",
+          "ssrc": 2478114199,
+          "kind": "video",
+          "transportId": "transport_124144477174624",
+          "packetsSent": 0,
+          "bytesSent": 0,
+          "trackId": "20360472",
+          "role": "receiver",
+          "peer": "35d3706f-b9b6-4a8f-8866-7d9d81cfc5b4"
+        },
+        {
+          "timestamp": "2026-11-16T10:03:52.881564+00:00",
+          "type": "transport",
+          "id": "transport_124144477174624",
+          "packetsSent": 4,
+          "packetsReceived": 149,
+          "bytesSent": 937,
+          "bytesReceived": 146564,
+          "iceRole": "controlled",
+          "dtlsState": "connected",
+          "role": "receiver",
+          "peer": "35d3706f-b9b6-4a8f-8866-7d9d81cfc5b4"
+        },
+        {
+          "timestamp": "2026-11-16T10:03:52.881558+00:00",
+          "type": "inbound-rtp",
+          "id": "inbound-rtp_124144477225376",
+          "ssrc": 3706870117,
+          "kind": "video",
+          "transportId": "transport_124144477174624",
+          "packetsReceived": 146,
+          "packetsLost": 0,
+          "jitter": 134,
+          "role": "receiver",
+          "peer": "35d3706f-b9b6-4a8f-8866-7d9d81cfc5b4"
+        },
+        {
+          "timestamp": "2026-11-16T10:03:51.866562+00:00",
+          "type": "remote-outbound-rtp",
+          "id": "remote-outbound-rtp_124144477225376",
+          "ssrc": 3706870117,
+          "kind": "video",
+          "transportId": "transport_124144477174624",
+          "packetsSent": 91,
+          "bytesSent": 87134,
+          "remoteTimestamp": "2026-11-16T10:03:51.851041+00:00",
+          "role": "receiver",
+          "peer": "35d3706f-b9b6-4a8f-8866-7d9d81cfc5b4"
+        }
+      ],
+      "paths": [
+        {
+          "role": "publisher",
+          "local": "127.0.0.1",
+          "remote": "127.0.0.1",
+          "local_type": "host",
+          "remote_type": "host"
+        },
+        {
+          "role": "receiver",
+          "local": "127.0.0.1",
+          "remote": "127.0.0.1",
+          "local_type": "host",
+          "remote_type": "host"
+        }
+      ]
+    },
+    {
+      "timestamp": 124190.424984426,
+      "streams": [
+        {
+          "timestamp": "2026-11-16T10:03:53.890033+00:00",
+          "type": "outbound-rtp",
+          "id": "outbound-rtp_124144476907584",
+          "ssrc": 3706870117,
+          "kind": "video",
+          "transportId": "transport_124144507033728",
+          "packetsSent": 209,
+          "bytesSent": 202383,
+          "trackId": "124144506253344",
+          "role": "publisher",
+          "peer": "b0910e4a-48a6-4b3a-9c8f-ff1e505757a1",
+          "view": "front"
+        },
+        {
+          "timestamp": "2026-11-16T10:03:53.890065+00:00",
+          "type": "transport",
+          "id": "transport_124144507033728",
+          "packetsSent": 213,
+          "packetsReceived": 7,
+          "bytesSent": 212335,
+          "bytesReceived": 1085,
+          "iceRole": "controlling",
+          "dtlsState": "connected",
+          "role": "publisher",
+          "peer": "b0910e4a-48a6-4b3a-9c8f-ff1e505757a1"
+        },
+        {
+          "timestamp": "2026-11-16T10:03:53.489310+00:00",
+          "type": "remote-inbound-rtp",
+          "id": "remote-inbound-rtp_124144476907584",
+          "ssrc": 2478114199,
+          "kind": "video",
+          "transportId": "transport_124144507033728",
+          "packetsReceived": 185,
+          "packetsLost": 0,
+          "jitter": 197,
+          "roundTripTime": 0.0011858928203582761,
+          "fractionLost": 0,
+          "role": "publisher",
+          "peer": "b0910e4a-48a6-4b3a-9c8f-ff1e505757a1"
+        },
+        {
+          "timestamp": "2026-11-16T10:03:53.890227+00:00",
+          "type": "outbound-rtp",
+          "id": "outbound-rtp_124144477227104",
+          "ssrc": 2478114199,
+          "kind": "video",
+          "transportId": "transport_124144477174624",
+          "packetsSent": 0,
+          "bytesSent": 0,
+          "trackId": "20360472",
+          "role": "receiver",
+          "peer": "35d3706f-b9b6-4a8f-8866-7d9d81cfc5b4"
+        },
+        {
+          "timestamp": "2026-11-16T10:03:53.890246+00:00",
+          "type": "transport",
+          "id": "transport_124144477174624",
+          "packetsSent": 7,
+          "packetsReceived": 213,
+          "bytesSent": 1085,
+          "bytesReceived": 212335,
+          "iceRole": "controlled",
+          "dtlsState": "connected",
+          "role": "receiver",
+          "peer": "35d3706f-b9b6-4a8f-8866-7d9d81cfc5b4"
+        },
+        {
+          "timestamp": "2026-11-16T10:03:53.890240+00:00",
+          "type": "inbound-rtp",
+          "id": "inbound-rtp_124144477225376",
+          "ssrc": 3706870117,
+          "kind": "video",
+          "transportId": "transport_124144477174624",
+          "packetsReceived": 209,
+          "packetsLost": 0,
+          "jitter": 204,
+          "role": "receiver",
+          "peer": "35d3706f-b9b6-4a8f-8866-7d9d81cfc5b4"
+        },
+        {
+          "timestamp": "2026-11-16T10:03:53.261406+00:00",
+          "type": "remote-outbound-rtp",
+          "id": "remote-outbound-rtp_124144477225376",
+          "ssrc": 3706870117,
+          "kind": "video",
+          "transportId": "transport_124144477174624",
+          "packetsSent": 174,
+          "bytesSent": 168161,
+          "remoteTimestamp": "2026-11-16T10:03:53.260773+00:00",
+          "role": "receiver",
+          "peer": "35d3706f-b9b6-4a8f-8866-7d9d81cfc5b4"
+        }
+      ],
+      "paths": [
+        {
+          "role": "publisher",
+          "local": "127.0.0.1",
+          "remote": "127.0.0.1",
+          "local_type": "host",
+          "remote_type": "host"
+        },
+        {
+          "role": "receiver",
+          "local": "127.0.0.1",
+          "remote": "127.0.0.1",
+          "local_type": "host",
+          "remote_type": "host"
+        }
+      ]
+    },
+    {
+      "timestamp": 124191.426477039,
+      "streams": [
+        {
+          "timestamp": "2026-11-16T10:03:54.891497+00:00",
+          "type": "outbound-rtp",
+          "id": "outbound-rtp_124144476907584",
+          "ssrc": 3706870117,
+          "kind": "video",
+          "transportId": "transport_124144507033728",
+          "packetsSent": 272,
+          "bytesSent": 264873,
+          "trackId": "124144506253344",
+          "role": "publisher",
+          "peer": "b0910e4a-48a6-4b3a-9c8f-ff1e505757a1",
+          "view": "front"
+        },
+        {
+          "timestamp": "2026-11-16T10:03:54.891516+00:00",
+          "type": "transport",
+          "id": "transport_124144507033728",
+          "packetsSent": 277,
+          "packetsReceived": 10,
+          "bytesSent": 277441,
+          "bytesReceived": 1225,
+          "iceRole": "controlling",
+          "dtlsState": "connected",
+          "role": "publisher",
+          "peer": "b0910e4a-48a6-4b3a-9c8f-ff1e505757a1"
+        },
+        {
+          "timestamp": "2026-11-16T10:03:54.645121+00:00",
+          "type": "remote-inbound-rtp",
+          "id": "remote-inbound-rtp_124144476907584",
+          "ssrc": 2478114199,
+          "kind": "video",
+          "transportId": "transport_124144507033728",
+          "packetsReceived": 258,
+          "packetsLost": 0,
+          "jitter": 266,
+          "roundTripTime": 0.0013392080664634703,
+          "fractionLost": 0,
+          "role": "publisher",
+          "peer": "b0910e4a-48a6-4b3a-9c8f-ff1e505757a1"
+        },
+        {
+          "timestamp": "2026-11-16T10:03:54.891662+00:00",
+          "type": "outbound-rtp",
+          "id": "outbound-rtp_124144477227104",
+          "ssrc": 2478114199,
+          "kind": "video",
+          "transportId": "transport_124144477174624",
+          "packetsSent": 0,
+          "bytesSent": 0,
+          "trackId": "20360472",
+          "role": "receiver",
+          "peer": "35d3706f-b9b6-4a8f-8866-7d9d81cfc5b4"
+        },
+        {
+          "timestamp": "2026-11-16T10:03:54.891678+00:00",
+          "type": "transport",
+          "id": "transport_124144477174624",
+          "packetsSent": 10,
+          "packetsReceived": 277,
+          "bytesSent": 1225,
+          "bytesReceived": 277441,
+          "iceRole": "controlled",
+          "dtlsState": "connected",
+          "role": "receiver",
+          "peer": "35d3706f-b9b6-4a8f-8866-7d9d81cfc5b4"
+        },
+        {
+          "timestamp": "2026-11-16T10:03:54.891673+00:00",
+          "type": "inbound-rtp",
+          "id": "inbound-rtp_124144477225376",
+          "ssrc": 3706870117,
+          "kind": "video",
+          "transportId": "transport_124144477174624",
+          "packetsReceived": 272,
+          "packetsLost": 0,
+          "jitter": 266,
+          "role": "receiver",
+          "peer": "35d3706f-b9b6-4a8f-8866-7d9d81cfc5b4"
+        },
+        {
+          "timestamp": "2026-11-16T10:03:54.084276+00:00",
+          "type": "remote-outbound-rtp",
+          "id": "remote-outbound-rtp_124144477225376",
+          "ssrc": 3706870117,
+          "kind": "video",
+          "transportId": "transport_124144477174624",
+          "packetsSent": 219,
+          "bytesSent": 212411,
+          "remoteTimestamp": "2026-11-16T10:03:54.055502+00:00",
+          "role": "receiver",
+          "peer": "35d3706f-b9b6-4a8f-8866-7d9d81cfc5b4"
+        }
+      ],
+      "paths": [
+        {
+          "role": "publisher",
+          "local": "127.0.0.1",
+          "remote": "127.0.0.1",
+          "local_type": "host",
+          "remote_type": "host"
+        },
+        {
+          "role": "receiver",
+          "local": "127.0.0.1",
+          "remote": "127.0.0.1",
+          "local_type": "host",
+          "remote_type": "host"
+        }
+      ]
+    },
+    {
+      "timestamp": 124192.429314623,
+      "streams": [
+        {
+          "timestamp": "2026-11-16T10:03:55.894328+00:00",
+          "type": "outbound-rtp",
+          "id": "outbound-rtp_124144476907584",
+          "ssrc": 3706870117,
+          "kind": "video",
+          "transportId": "transport_124144507033728",
+          "packetsSent": 346,
+          "bytesSent": 341438,
+          "trackId": "124144506253344",
+          "role": "publisher",
+          "peer": "b0910e4a-48a6-4b3a-9c8f-ff1e505757a1",
+          "view": "front"
+        },
+        {
+          "timestamp": "2026-11-16T10:03:55.894348+00:00",
+          "type": "transport",
+          "id": "transport_124144507033728",
+          "packetsSent": 352,
+          "packetsReceived": 13,
+          "bytesSent": 357062,
+          "bytesReceived": 1365,
+          "iceRole": "controlling",
+          "dtlsState": "connected",
+          "role": "publisher",
+          "peer": "b0910e4a-48a6-4b3a-9c8f-ff1e505757a1"
+        },
+        {
+          "timestamp": "2026-11-16T10:03:55.213542+00:00",
+          "type": "remote-inbound-rtp",
+          "id": "remote-inbound-rtp_124144476907584",
+          "ssrc": 2478114199,
+          "kind": "video",
+          "transportId": "transport_124144507033728",
+          "packetsReceived": 290,
+          "packetsLost": 0,
+          "jitter": 173,
+          "roundTripTime": 0.001346180173754692,
+          "fractionLost": 0,
+          "role": "publisher",
+          "peer": "b0910e4a-48a6-4b3a-9c8f-ff1e505757a1"
+        },
+        {
+          "timestamp": "2026-11-16T10:03:55.894476+00:00",
+          "type": "outbound-rtp",
+          "id": "outbound-rtp_124144477227104",
+          "ssrc": 2478114199,
+          "kind": "video",
+          "transportId": "transport_124144477174624",
+          "packetsSent": 0,
+          "bytesSent": 0,
+          "trackId": "20360472",
+          "role": "receiver",
+          "peer": "35d3706f-b9b6-4a8f-8866-7d9d81cfc5b4"
+        },
+        {
+          "timestamp": "2026-11-16T10:03:55.894492+00:00",
+          "type": "transport",
+          "id": "transport_124144477174624",
+          "packetsSent": 13,
+          "packetsReceived": 352,
+          "bytesSent": 1365,
+          "bytesReceived": 357062,
+          "iceRole": "controlled",
+          "dtlsState": "connected",
+          "role": "receiver",
+          "peer": "35d3706f-b9b6-4a8f-8866-7d9d81cfc5b4"
+        },
+        {
+          "timestamp": "2026-11-16T10:03:55.894487+00:00",
+          "type": "inbound-rtp",
+          "id": "inbound-rtp_124144477225376",
+          "ssrc": 3706870117,
+          "kind": "video",
+          "transportId": "transport_124144477174624",
+          "packetsReceived": 346,
+          "packetsLost": 0,
+          "jitter": 244,
+          "role": "receiver",
+          "peer": "35d3706f-b9b6-4a8f-8866-7d9d81cfc5b4"
+        },
+        {
+          "timestamp": "2026-11-16T10:03:55.216162+00:00",
+          "type": "remote-outbound-rtp",
+          "id": "remote-outbound-rtp_124144477225376",
+          "ssrc": 3706870117,
+          "kind": "video",
+          "transportId": "transport_124144477174624",
+          "packetsSent": 290,
+          "bytesSent": 283235,
+          "remoteTimestamp": "2026-11-16T10:03:55.192479+00:00",
+          "role": "receiver",
+          "peer": "35d3706f-b9b6-4a8f-8866-7d9d81cfc5b4"
+        }
+      ],
+      "paths": [
+        {
+          "role": "publisher",
+          "local": "127.0.0.1",
+          "remote": "127.0.0.1",
+          "local_type": "host",
+          "remote_type": "host"
+        },
+        {
+          "role": "receiver",
+          "local": "127.0.0.1",
+          "remote": "127.0.0.1",
+          "local_type": "host",
+          "remote_type": "host"
+        }
+      ]
+    },
+    {
+      "timestamp": 124193.435288359,
+      "streams": [
+        {
+          "timestamp": "2026-11-16T10:03:56.900308+00:00",
+          "type": "outbound-rtp",
+          "id": "outbound-rtp_124144476907584",
+          "ssrc": 3706870117,
+          "kind": "video",
+          "transportId": "transport_124144507033728",
+          "packetsSent": 419,
+          "bytesSent": 419624,
+          "trackId": "124144506253344",
+          "role": "publisher",
+          "peer": "b0910e4a-48a6-4b3a-9c8f-ff1e505757a1",
+          "view": "front"
+        },
+        {
+          "timestamp": "2026-11-16T10:03:56.900329+00:00",
+          "type": "transport",
+          "id": "transport_124144507033728",
+          "packetsSent": 426,
+          "packetsReceived": 16,
+          "bytesSent": 438264,
+          "bytesReceived": 1505,
+          "iceRole": "controlling",
+          "dtlsState": "connected",
+          "role": "publisher",
+          "peer": "b0910e4a-48a6-4b3a-9c8f-ff1e505757a1"
+        },
+        {
+          "timestamp": "2026-11-16T10:03:56.122845+00:00",
+          "type": "remote-inbound-rtp",
+          "id": "remote-inbound-rtp_124144476907584",
+          "ssrc": 2478114199,
+          "kind": "video",
+          "transportId": "transport_124144507033728",
+          "packetsReceived": 360,
+          "packetsLost": 0,
+          "jitter": 201,
+          "roundTripTime": 0.0012765039335191249,
+          "fractionLost": 0,
+          "role": "publisher",
+          "peer": "b0910e4a-48a6-4b3a-9c8f-ff1e505757a1"
+        },
+        {
+          "timestamp": "2026-11-16T10:03:56.900449+00:00",
+          "type": "outbound-rtp",
+          "id": "outbound-rtp_124144477227104",
+          "ssrc": 2478114199,
+          "kind": "video",
+          "transportId": "transport_124144477174624",
+          "packetsSent": 0,
+          "bytesSent": 0,
+          "trackId": "20360472",
+          "role": "receiver",
+          "peer": "35d3706f-b9b6-4a8f-8866-7d9d81cfc5b4"
+        },
+        {
+          "timestamp": "2026-11-16T10:03:56.900465+00:00",
+          "type": "transport",
+          "id": "transport_124144477174624",
+          "packetsSent": 16,
+          "packetsReceived": 426,
+          "bytesSent": 1505,
+          "bytesReceived": 438264,
+          "iceRole": "controlled",
+          "dtlsState": "connected",
+          "role": "receiver",
+          "peer": "35d3706f-b9b6-4a8f-8866-7d9d81cfc5b4"
+        },
+        {
+          "timestamp": "2026-11-16T10:03:56.900459+00:00",
+          "type": "inbound-rtp",
+          "id": "inbound-rtp_124144477225376",
+          "ssrc": 3706870117,
+          "kind": "video",
+          "transportId": "transport_124144477174624",
+          "packetsReceived": 419,
+          "packetsLost": 0,
+          "jitter": 322,
+          "role": "receiver",
+          "peer": "35d3706f-b9b6-4a8f-8866-7d9d81cfc5b4"
+        },
+        {
+          "timestamp": "2026-11-16T10:03:56.217309+00:00",
+          "type": "remote-outbound-rtp",
+          "id": "remote-outbound-rtp_124144477225376",
+          "ssrc": 3706870117,
+          "kind": "video",
+          "transportId": "transport_124144477174624",
+          "packetsSent": 364,
+          "bytesSent": 358216,
+          "remoteTimestamp": "2026-11-16T10:03:56.188945+00:00",
+          "role": "receiver",
+          "peer": "35d3706f-b9b6-4a8f-8866-7d9d81cfc5b4"
+        }
+      ],
+      "paths": [
+        {
+          "role": "publisher",
+          "local": "127.0.0.1",
+          "remote": "127.0.0.1",
+          "local_type": "host",
+          "remote_type": "host"
+        },
+        {
+          "role": "receiver",
+          "local": "127.0.0.1",
+          "remote": "127.0.0.1",
+          "local_type": "host",
+          "remote_type": "host"
+        }
+      ]
+    },
+    {
+      "timestamp": 124194.438143739,
+      "streams": [
+        {
+          "timestamp": "2026-11-16T10:03:57.903169+00:00",
+          "type": "outbound-rtp",
+          "id": "outbound-rtp_124144476907584",
+          "ssrc": 3706870117,
+          "kind": "video",
+          "transportId": "transport_124144507033728",
+          "packetsSent": 483,
+          "bytesSent": 481052,
+          "trackId": "124144506253344",
+          "role": "publisher",
+          "peer": "b0910e4a-48a6-4b3a-9c8f-ff1e505757a1",
+          "view": "front"
+        },
+        {
+          "timestamp": "2026-11-16T10:03:57.903194+00:00",
+          "type": "transport",
+          "id": "transport_124144507033728",
+          "packetsSent": 491,
+          "packetsReceived": 19,
+          "bytesSent": 502348,
+          "bytesReceived": 1645,
+          "iceRole": "controlling",
+          "dtlsState": "connected",
+          "role": "publisher",
+          "peer": "b0910e4a-48a6-4b3a-9c8f-ff1e505757a1"
+        },
+        {
+          "timestamp": "2026-11-16T10:03:57.495041+00:00",
+          "type": "remote-inbound-rtp",
+          "id": "remote-inbound-rtp_124144476907584",
+          "ssrc": 2478114199,
+          "kind": "video",
+          "transportId": "transport_124144507033728",
+          "packetsReceived": 457,
+          "packetsLost": 0,
+          "jitter": 323,
+          "roundTripTime": 0.0012025448611304164,
+          "fractionLost": 0,
+          "role": "publisher",
+          "peer": "b0910e4a-48a6-4b3a-9c8f-ff1e505757a1"
+        },
+        {
+          "timestamp": "2026-11-16T10:03:57.903319+00:00",
+          "type": "outbound-rtp",
+          "id": "outbound-rtp_124144477227104",
+          "ssrc": 2478114199,
+          "kind": "video",
+          "transportId": "transport_124144477174624",
+          "packetsSent": 0,
+          "bytesSent": 0,
+          "trackId": "20360472",
+          "role": "receiver",
+          "peer": "35d3706f-b9b6-4a8f-8866-7d9d81cfc5b4"
+        },
+        {
+          "timestamp": "2026-11-16T10:03:57.903336+00:00",
+          "type": "transport",
+          "id": "transport_124144477174624",
+          "packetsSent": 19,
+          "packetsReceived": 491,
+          "bytesSent": 1645,
+          "bytesReceived": 502348,
+          "iceRole": "controlled",
+          "dtlsState": "connected",
+          "role": "receiver",
+          "peer": "35d3706f-b9b6-4a8f-8866-7d9d81cfc5b4"
+        },
+        {
+          "timestamp": "2026-11-16T10:03:57.903329+00:00",
+          "type": "inbound-rtp",
+          "id": "inbound-rtp_124144477225376",
+          "ssrc": 3706870117,
+          "kind": "video",
+          "transportId": "transport_124144477174624",
+          "packetsReceived": 483,
+          "packetsLost": 0,
+          "jitter": 219,
+          "role": "receiver",
+          "peer": "35d3706f-b9b6-4a8f-8866-7d9d81cfc5b4"
+        },
+        {
+          "timestamp": "2026-11-16T10:03:57.298958+00:00",
+          "type": "remote-outbound-rtp",
+          "id": "remote-outbound-rtp_124144477225376",
+          "ssrc": 3706870117,
+          "kind": "video",
+          "transportId": "transport_124144477174624",
+          "packetsSent": 443,
+          "bytesSent": 440706,
+          "remoteTimestamp": "2026-11-16T10:03:57.291702+00:00",
+          "role": "receiver",
+          "peer": "35d3706f-b9b6-4a8f-8866-7d9d81cfc5b4"
+        }
+      ],
+      "paths": [
+        {
+          "role": "publisher",
+          "local": "127.0.0.1",
+          "remote": "127.0.0.1",
+          "local_type": "host",
+          "remote_type": "host"
+        },
+        {
+          "role": "receiver",
+          "local": "127.0.0.1",
+          "remote": "127.0.0.1",
+          "local_type": "host",
+          "remote_type": "host"
+        }
+      ]
+    },
+    {
+      "timestamp": 124195.442437997,
+      "streams": [
+        {
+          "timestamp": "2026-11-16T10:03:58.907473+00:00",
+          "type": "outbound-rtp",
+          "id": "outbound-rtp_124144476907584",
+          "ssrc": 3706870117,
+          "kind": "video",
+          "transportId": "transport_124144507033728",
+          "packetsSent": 558,
+          "bytesSent": 564704,
+          "trackId": "124144506253344",
+          "role": "publisher",
+          "peer": "b0910e4a-48a6-4b3a-9c8f-ff1e505757a1",
+          "view": "front"
+        },
+        {
+          "timestamp": "2026-11-16T10:03:58.907506+00:00",
+          "type": "transport",
+          "id": "transport_124144507033728",
+          "packetsSent": 567,
+          "packetsReceived": 22,
+          "bytesSent": 589096,
+          "bytesReceived": 1785,
+          "iceRole": "controlling",
+          "dtlsState": "connected",
+          "role": "publisher",
+          "peer": "b0910e4a-48a6-4b3a-9c8f-ff1e505757a1"
+        },
+        {
+          "timestamp": "2026-11-16T10:03:58.592433+00:00",
+          "type": "remote-inbound-rtp",
+          "id": "remote-inbound-rtp_124144476907584",
+          "ssrc": 2478114199,
+          "kind": "video",
+          "transportId": "transport_124144507033728",
+          "packetsReceived": 541,
+          "packetsLost": 0,
+          "jitter": 160,
+          "roundTripTime": 0.0012703568728055805,
+          "fractionLost": 0,
+          "role": "publisher",
+          "peer": "b0910e4a-48a6-4b3a-9c8f-ff1e505757a1"
+        },
+        {
+          "timestamp": "2026-11-16T10:03:58.907708+00:00",
+          "type": "outbound-rtp",
+          "id": "outbound-rtp_124144477227104",
+          "ssrc": 2478114199,
+          "kind": "video",
+          "transportId": "transport_124144477174624",
+          "packetsSent": 0,
+          "bytesSent": 0,
+          "trackId": "20360472",
+          "role": "receiver",
+          "peer": "35d3706f-b9b6-4a8f-8866-7d9d81cfc5b4"
+        },
+        {
+          "timestamp": "2026-11-16T10:03:58.907725+00:00",
+          "type": "transport",
+          "id": "transport_124144477174624",
+          "packetsSent": 22,
+          "packetsReceived": 567,
+          "bytesSent": 1785,
+          "bytesReceived": 589096,
+          "iceRole": "controlled",
+          "dtlsState": "connected",
+          "role": "receiver",
+          "peer": "35d3706f-b9b6-4a8f-8866-7d9d81cfc5b4"
+        },
+        {
+          "timestamp": "2026-11-16T10:03:58.907719+00:00",
+          "type": "inbound-rtp",
+          "id": "inbound-rtp_124144477225376",
+          "ssrc": 3706870117,
+          "kind": "video",
+          "transportId": "transport_124144477174624",
+          "packetsReceived": 558,
+          "packetsLost": 0,
+          "jitter": 245,
+          "role": "receiver",
+          "peer": "35d3706f-b9b6-4a8f-8866-7d9d81cfc5b4"
+        },
+        {
+          "timestamp": "2026-11-16T10:03:58.570765+00:00",
+          "type": "remote-outbound-rtp",
+          "id": "remote-outbound-rtp_124144477225376",
+          "ssrc": 3706870117,
+          "kind": "video",
+          "transportId": "transport_124144477174624",
+          "packetsSent": 541,
+          "bytesSent": 546383,
+          "remoteTimestamp": "2026-11-16T10:03:58.567144+00:00",
+          "role": "receiver",
+          "peer": "35d3706f-b9b6-4a8f-8866-7d9d81cfc5b4"
+        }
+      ],
+      "paths": [
+        {
+          "role": "publisher",
+          "local": "127.0.0.1",
+          "remote": "127.0.0.1",
+          "local_type": "host",
+          "remote_type": "host"
+        },
+        {
+          "role": "receiver",
+          "local": "127.0.0.1",
+          "remote": "127.0.0.1",
+          "local_type": "host",
+          "remote_type": "host"
+        }
+      ]
+    },
+    {
+      "timestamp": 124196.456687803,
+      "streams": [
+        {
+          "timestamp": "2026-11-16T10:03:59.921762+00:00",
+          "type": "outbound-rtp",
+          "id": "outbound-rtp_124144476907584",
+          "ssrc": 3706870117,
+          "kind": "video",
+          "transportId": "transport_124144507033728",
+          "packetsSent": 637,
+          "bytesSent": 647757,
+          "trackId": "124144506253344",
+          "role": "publisher",
+          "peer": "b0910e4a-48a6-4b3a-9c8f-ff1e505757a1",
+          "view": "front"
+        },
+        {
+          "timestamp": "2026-11-16T10:03:59.921801+00:00",
+          "type": "transport",
+          "id": "transport_124144507033728",
+          "packetsSent": 647,
+          "packetsReceived": 25,
+          "bytesSent": 675405,
+          "bytesReceived": 1925,
+          "iceRole": "controlling",
+          "dtlsState": "connected",
+          "role": "publisher",
+          "peer": "b0910e4a-48a6-4b3a-9c8f-ff1e505757a1"
+        },
+        {
+          "timestamp": "2026-11-16T10:03:59.643120+00:00",
+          "type": "remote-inbound-rtp",
+          "id": "remote-inbound-rtp_124144476907584",
+          "ssrc": 2478114199,
+          "kind": "video",
+          "transportId": "transport_124144507033728",
+          "packetsReceived": 611,
+          "packetsLost": 0,
+          "jitter": 145,
+          "roundTripTime": 0.001359718674678933,
+          "fractionLost": 0,
+          "role": "publisher",
+          "peer": "b0910e4a-48a6-4b3a-9c8f-ff1e505757a1"
+        },
+        {
+          "timestamp": "2026-11-16T10:03:59.922642+00:00",
+          "type": "outbound-rtp",
+          "id": "outbound-rtp_124144477227104",
+          "ssrc": 2478114199,
+          "kind": "video",
+          "transportId": "transport_124144477174624",
+          "packetsSent": 0,
+          "bytesSent": 0,
+          "trackId": "20360472",
+          "role": "receiver",
+          "peer": "35d3706f-b9b6-4a8f-8866-7d9d81cfc5b4"
+        },
+        {
+          "timestamp": "2026-11-16T10:03:59.922662+00:00",
+          "type": "transport",
+          "id": "transport_124144477174624",
+          "packetsSent": 25,
+          "packetsReceived": 647,
+          "bytesSent": 1925,
+          "bytesReceived": 675405,
+          "iceRole": "controlled",
+          "dtlsState": "connected",
+          "role": "receiver",
+          "peer": "35d3706f-b9b6-4a8f-8866-7d9d81cfc5b4"
+        },
+        {
+          "timestamp": "2026-11-16T10:03:59.922656+00:00",
+          "type": "inbound-rtp",
+          "id": "inbound-rtp_124144477225376",
+          "ssrc": 3706870117,
+          "kind": "video",
+          "transportId": "transport_124144477174624",
+          "packetsReceived": 637,
+          "packetsLost": 0,
+          "jitter": 233,
+          "role": "receiver",
+          "peer": "35d3706f-b9b6-4a8f-8866-7d9d81cfc5b4"
+        },
+        {
+          "timestamp": "2026-11-16T10:03:59.737644+00:00",
+          "type": "remote-outbound-rtp",
+          "id": "remote-outbound-rtp_124144477225376",
+          "ssrc": 3706870117,
+          "kind": "video",
+          "transportId": "transport_124144477174624",
+          "packetsSent": 625,
+          "bytesSent": 635055,
+          "remoteTimestamp": "2026-11-16T10:03:59.708779+00:00",
+          "role": "receiver",
+          "peer": "35d3706f-b9b6-4a8f-8866-7d9d81cfc5b4"
+        }
+      ],
+      "paths": [
+        {
+          "role": "publisher",
+          "local": "127.0.0.1",
+          "remote": "127.0.0.1",
+          "local_type": "host",
+          "remote_type": "host"
+        },
+        {
+          "role": "receiver",
+          "local": "127.0.0.1",
+          "remote": "127.0.0.1",
+          "local_type": "host",
+          "remote_type": "host"
+        }
+      ]
+    },
+    {
+      "timestamp": 124197.456998173,
+      "streams": [
+        {
+          "timestamp": "2026-11-16T10:04:00.922014+00:00",
+          "type": "outbound-rtp",
+          "id": "outbound-rtp_124144476907584",
+          "ssrc": 3706870117,
+          "kind": "video",
+          "transportId": "transport_124144507033728",
+          "packetsSent": 725,
+          "bytesSent": 741796,
+          "trackId": "124144506253344",
+          "role": "publisher",
+          "peer": "b0910e4a-48a6-4b3a-9c8f-ff1e505757a1",
+          "view": "front"
+        },
+        {
+          "timestamp": "2026-11-16T10:04:00.922037+00:00",
+          "type": "transport",
+          "id": "transport_124144507033728",
+          "packetsSent": 736,
+          "packetsReceived": 28,
+          "bytesSent": 773060,
+          "bytesReceived": 2065,
+          "iceRole": "controlling",
+          "dtlsState": "connected",
+          "role": "publisher",
+          "peer": "b0910e4a-48a6-4b3a-9c8f-ff1e505757a1"
+        },
+        {
+          "timestamp": "2026-11-16T10:04:00.746929+00:00",
+          "type": "remote-inbound-rtp",
+          "id": "remote-inbound-rtp_124144476907584",
+          "ssrc": 2478114199,
+          "kind": "video",
+          "transportId": "transport_124144507033728",
+          "packetsReceived": 711,
+          "packetsLost": 0,
+          "jitter": 159,
+          "roundTripTime": 0.001521506894747845,
+          "fractionLost": 0,
+          "role": "publisher",
+          "peer": "b0910e4a-48a6-4b3a-9c8f-ff1e505757a1"
+        },
+        {
+          "timestamp": "2026-11-16T10:04:00.922178+00:00",
+          "type": "outbound-rtp",
+          "id": "outbound-rtp_124144477227104",
+          "ssrc": 2478114199,
+          "kind": "video",
+          "transportId": "transport_124144477174624",
+          "packetsSent": 0,
+          "bytesSent": 0,
+          "trackId": "20360472",
+          "role": "receiver",
+          "peer": "35d3706f-b9b6-4a8f-8866-7d9d81cfc5b4"
+        },
+        {
+          "timestamp": "2026-11-16T10:04:00.922193+00:00",
+          "type": "transport",
+          "id": "transport_124144477174624",
+          "packetsSent": 28,
+          "packetsReceived": 736,
+          "bytesSent": 2065,
+          "bytesReceived": 773060,
+          "iceRole": "controlled",
+          "dtlsState": "connected",
+          "role": "receiver",
+          "peer": "35d3706f-b9b6-4a8f-8866-7d9d81cfc5b4"
+        },
+        {
+          "timestamp": "2026-11-16T10:04:00.922187+00:00",
+          "type": "inbound-rtp",
+          "id": "inbound-rtp_124144477225376",
+          "ssrc": 3706870117,
+          "kind": "video",
+          "transportId": "transport_124144477174624",
+          "packetsReceived": 725,
+          "packetsLost": 0,
+          "jitter": 153,
+          "role": "receiver",
+          "peer": "35d3706f-b9b6-4a8f-8866-7d9d81cfc5b4"
+        },
+        {
+          "timestamp": "2026-11-16T10:04:00.690613+00:00",
+          "type": "remote-outbound-rtp",
+          "id": "remote-outbound-rtp_124144477225376",
+          "ssrc": 3706870117,
+          "kind": "video",
+          "transportId": "transport_124144477174624",
+          "packetsSent": 705,
+          "bytesSent": 721629,
+          "remoteTimestamp": "2026-11-16T10:04:00.672453+00:00",
+          "role": "receiver",
+          "peer": "35d3706f-b9b6-4a8f-8866-7d9d81cfc5b4"
+        }
+      ],
+      "paths": [
+        {
+          "role": "publisher",
+          "local": "127.0.0.1",
+          "remote": "127.0.0.1",
+          "local_type": "host",
+          "remote_type": "host"
+        },
+        {
+          "role": "receiver",
+          "local": "127.0.0.1",
+          "remote": "127.0.0.1",
+          "local_type": "host",
+          "remote_type": "host"
+        }
+      ]
+    },
+    {
+      "timestamp": 124198.46565898,
+      "streams": [
+        {
+          "timestamp": "2026-11-16T10:04:01.930672+00:00",
+          "type": "outbound-rtp",
+          "id": "outbound-rtp_124144476907584",
+          "ssrc": 3706870117,
+          "kind": "video",
+          "transportId": "transport_124144507033728",
+          "packetsSent": 823,
+          "bytesSent": 848376,
+          "trackId": "124144506253344",
+          "role": "publisher",
+          "peer": "b0910e4a-48a6-4b3a-9c8f-ff1e505757a1",
+          "view": "front"
+        },
+        {
+          "timestamp": "2026-11-16T10:04:01.930694+00:00",
+          "type": "transport",
+          "id": "transport_124144507033728",
+          "packetsSent": 835,
+          "packetsReceived": 30,
+          "bytesSent": 883656,
+          "bytesReceived": 2161,
+          "iceRole": "controlling",
+          "dtlsState": "connected",
+          "role": "publisher",
+          "peer": "b0910e4a-48a6-4b3a-9c8f-ff1e505757a1"
+        },
+        {
+          "timestamp": "2026-11-16T10:04:01.435884+00:00",
+          "type": "remote-inbound-rtp",
+          "id": "remote-inbound-rtp_124144476907584",
+          "ssrc": 2478114199,
+          "kind": "video",
+          "transportId": "transport_124144507033728",
+          "packetsReceived": 775,
+          "packetsLost": 0,
+          "jitter": 193,
+          "roundTripTime": 0.0014654071537180413,
+          "fractionLost": 0,
+          "role": "publisher",
+          "peer": "b0910e4a-48a6-4b3a-9c8f-ff1e505757a1"
+        },
+        {
+          "timestamp": "2026-11-16T10:04:01.930812+00:00",
+          "type": "outbound-rtp",
+          "id": "outbound-rtp_124144477227104",
+          "ssrc": 2478114199,
+          "kind": "video",
+          "transportId": "transport_124144477174624",
+          "packetsSent": 0,
+          "bytesSent": 0,
+          "trackId": "20360472",
+          "role": "receiver",
+          "peer": "35d3706f-b9b6-4a8f-8866-7d9d81cfc5b4"
+        },
+        {
+          "timestamp": "2026-11-16T10:04:01.930828+00:00",
+          "type": "transport",
+          "id": "transport_124144477174624",
+          "packetsSent": 30,
+          "packetsReceived": 835,
+          "bytesSent": 2161,
+          "bytesReceived": 883656,
+          "iceRole": "controlled",
+          "dtlsState": "connected",
+          "role": "receiver",
+          "peer": "35d3706f-b9b6-4a8f-8866-7d9d81cfc5b4"
+        },
+        {
+          "timestamp": "2026-11-16T10:04:01.930822+00:00",
+          "type": "inbound-rtp",
+          "id": "inbound-rtp_124144477225376",
+          "ssrc": 3706870117,
+          "kind": "video",
+          "transportId": "transport_124144477174624",
+          "packetsReceived": 823,
+          "packetsLost": 0,
+          "jitter": 140,
+          "role": "receiver",
+          "peer": "35d3706f-b9b6-4a8f-8866-7d9d81cfc5b4"
+        },
+        {
+          "timestamp": "2026-11-16T10:04:01.566286+00:00",
+          "type": "remote-outbound-rtp",
+          "id": "remote-outbound-rtp_124144477225376",
+          "ssrc": 3706870117,
+          "kind": "video",
+          "transportId": "transport_124144477174624",
+          "packetsSent": 799,
+          "bytesSent": 825437,
+          "remoteTimestamp": "2026-11-16T10:04:01.530933+00:00",
+          "role": "receiver",
+          "peer": "35d3706f-b9b6-4a8f-8866-7d9d81cfc5b4"
+        }
+      ],
+      "paths": [
+        {
+          "role": "publisher",
+          "local": "127.0.0.1",
+          "remote": "127.0.0.1",
+          "local_type": "host",
+          "remote_type": "host"
+        },
+        {
+          "role": "receiver",
+          "local": "127.0.0.1",
+          "remote": "127.0.0.1",
+          "local_type": "host",
+          "remote_type": "host"
+        }
+      ]
+    },
+    {
+      "timestamp": 124199.472848694,
+      "streams": [
+        {
+          "timestamp": "2026-11-16T10:04:02.937863+00:00",
+          "type": "outbound-rtp",
+          "id": "outbound-rtp_124144476907584",
+          "ssrc": 3706870117,
+          "kind": "video",
+          "transportId": "transport_124144507033728",
+          "packetsSent": 917,
+          "bytesSent": 953603,
+          "trackId": "124144506253344",
+          "role": "publisher",
+          "peer": "b0910e4a-48a6-4b3a-9c8f-ff1e505757a1",
+          "view": "front"
+        },
+        {
+          "timestamp": "2026-11-16T10:04:02.937882+00:00",
+          "type": "transport",
+          "id": "transport_124144507033728",
+          "packetsSent": 930,
+          "packetsReceived": 33,
+          "bytesSent": 992739,
+          "bytesReceived": 2301,
+          "iceRole": "controlling",
+          "dtlsState": "connected",
+          "role": "publisher",
+          "peer": "b0910e4a-48a6-4b3a-9c8f-ff1e505757a1"
+        },
+        {
+          "timestamp": "2026-11-16T10:04:02.035822+00:00",
+          "type": "remote-inbound-rtp",
+          "id": "remote-inbound-rtp_124144476907584",
+          "ssrc": 2478114199,
+          "kind": "video",
+          "transportId": "transport_124144507033728",
+          "packetsReceived": 831,
+          "packetsLost": 0,
+          "jitter": 128,
+          "roundTripTime": 0.0014092823561425128,
+          "fractionLost": 0,
+          "role": "publisher",
+          "peer": "b0910e4a-48a6-4b3a-9c8f-ff1e505757a1"
+        },
+        {
+          "timestamp": "2026-11-16T10:04:02.937993+00:00",
+          "type": "outbound-rtp",
+          "id": "outbound-rtp_124144477227104",
+          "ssrc": 2478114199,
+          "kind": "video",
+          "transportId": "transport_124144477174624",
+          "packetsSent": 0,
+          "bytesSent": 0,
+          "trackId": "20360472",
+          "role": "receiver",
+          "peer": "35d3706f-b9b6-4a8f-8866-7d9d81cfc5b4"
+        },
+        {
+          "timestamp": "2026-11-16T10:04:02.938009+00:00",
+          "type": "transport",
+          "id": "transport_124144477174624",
+          "packetsSent": 33,
+          "packetsReceived": 930,
+          "bytesSent": 2301,
+          "bytesReceived": 992739,
+          "iceRole": "controlled",
+          "dtlsState": "connected",
+          "role": "receiver",
+          "peer": "35d3706f-b9b6-4a8f-8866-7d9d81cfc5b4"
+        },
+        {
+          "timestamp": "2026-11-16T10:04:02.938003+00:00",
+          "type": "inbound-rtp",
+          "id": "inbound-rtp_124144477225376",
+          "ssrc": 3706870117,
+          "kind": "video",
+          "transportId": "transport_124144477174624",
+          "packetsReceived": 917,
+          "packetsLost": 0,
+          "jitter": 202,
+          "role": "receiver",
+          "peer": "35d3706f-b9b6-4a8f-8866-7d9d81cfc5b4"
+        },
+        {
+          "timestamp": "2026-11-16T10:04:02.129989+00:00",
+          "type": "remote-outbound-rtp",
+          "id": "remote-outbound-rtp_124144477225376",
+          "ssrc": 3706870117,
+          "kind": "video",
+          "transportId": "transport_124144477174624",
+          "packetsSent": 840,
+          "bytesSent": 866291,
+          "remoteTimestamp": "2026-11-16T10:04:02.114733+00:00",
+          "role": "receiver",
+          "peer": "35d3706f-b9b6-4a8f-8866-7d9d81cfc5b4"
+        }
+      ],
+      "paths": [
+        {
+          "role": "publisher",
+          "local": "127.0.0.1",
+          "remote": "127.0.0.1",
+          "local_type": "host",
+          "remote_type": "host"
+        },
+        {
+          "role": "receiver",
+          "local": "127.0.0.1",
+          "remote": "127.0.0.1",
+          "local_type": "host",
+          "remote_type": "host"
+        }
+      ]
+    }
+  ],
+  "camera_threads_closed": true,
+  "control_threads_closed": true
+}
