@@ -1,0 +1,2 @@
+# Build backend used for the verified six-wheel release pipeline.
+setuptools==84.2.1

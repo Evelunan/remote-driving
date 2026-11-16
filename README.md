@@ -32,7 +32,7 @@ docs/
 ## 开发与回归
 
 ```bash
-uv sync --all-packages --group dev --python 3.12
+uv sync --all-packages --group dev --locked --python 3.12.16
 uv run --no-sync pytest -q tests
 uv run --no-sync rd-driving --help
 uv run --no-sync rd-vehicle --help
@@ -40,6 +40,8 @@ uv run --no-sync rd-server --help
 ```
 
 完整 v2 控制模拟及报告说明见[无硬件验证](docs/control-simulation.zh-CN.md)。
+
+CI、独立 wheel 安装检查和环境矩阵见[软件验收说明](docs/software-validation.zh-CN.md)。
 
 测试包含模拟输入/底盘、Qt offscreen、临时证书和仅绑定回环地址的监听器。运行环境需要允许本机 socketpair 和回环 socket；这些测试不连接实车或外部服务。
 

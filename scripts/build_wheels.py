@@ -2,6 +2,7 @@
 
 import argparse
 import subprocess
+import sys
 import tempfile
 import tomllib
 from pathlib import Path
@@ -18,7 +19,13 @@ def main():
     )
     for manifest in manifests:
         name = tomllib.loads(manifest.read_text())["project"]["name"]
-        flags = ["--offline"] if args.offline else []
+        flags = [
+            "--python",
+            sys.executable,
+            "--build-constraints",
+            str(root / "requirements-build.txt"),
+            *(["--offline"] if args.offline else []),
+        ]
         # Build the wheel from a clean source archive. In-place setuptools
         # build/lib can otherwise reintroduce files deleted from src/.
         with tempfile.TemporaryDirectory(prefix="rd-sdist-") as temporary:

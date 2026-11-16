@@ -213,3 +213,4 @@ __marimo__/
 *.pem
 secrets/
 .rd-runtime/
+artifacts/
