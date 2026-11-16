@@ -51,11 +51,43 @@ done
 
 [轻度扰动记录](validation/network-b26-mild.json)中，约 3 秒内收到 142 个执行确认，采样到确认的中位数为 26.88 ms、最大值为 34.35 ms；媒体四路 RTP payload 约为 50.94 / 62.05 / 45.98 / 54.48 kbit/s，接收端窗口末尾 RTP jitter 约为 1.58–2.43 ms。原始报告保留所有端点包计数、实际被选中的 ICE 路径和可用的 RTCP 统计；统计缺失不被解释为零 RTT/零丢包。不同连接代次的 RTP ID 不直接相减，重启后不强行给出跨连接码率差值。
 
+## B27 强制 TURN 与中继进程重启
+
+TURN 是 WebRTC 的中继服务：两端无法直接连通时，视频经过 `车辆端 → TURN → 驾驶端`。它与交换连接信息的信令服务、传输控制指令的 QUIC 中继各自承担不同职责。这里使用真实 coturn 4.6.1 进程，重启会丢失旧的中继分配；仅保持信令在线不能重新建立这些分配。
+
+新增 [local_turn.py](../scripts/local_turn.py) 在私有临时目录创建随机凭据和配置，仅监听、转发至 IPv4 回环地址。它不安装或启动系统服务。诊断适配将 aiortc/aioice 设置为只收集 relay 候选，同时移除 host 传输，防止 peer-reflexive 候选悄悄改走直连；报告要求实际选中的双方候选均为 `relay`。这些只用于测试的适配固定检查 aiortc 1.14.0 和 aioice 0.10.2，未改变应用的候选策略。
+
+```bash
+# 可执行文件已在 PATH 时无需设置；解包方式可额外提供依赖库目录。
+export RD_TEST_TURNSERVER=/path/to/turnserver
+export RD_TEST_TURN_LIBRARY_DIR=/path/to/extracted/usr/lib/x86_64-linux-gnu
+for scenario in turn-relay turn-outage; do
+  .venv/bin/python scripts/validate_network.py --case "$scenario" --seconds 3 \
+    --output "artifacts/${scenario}.json"
+done
+RD_TEST_REQUIRE_TURN=1 .venv/bin/python -m pytest -q tests/test_network_validation.py -k turn
+```
+
+`turn-relay` 验证四路转发、持续授权和执行确认；`turn-outage` 在非零模拟目标期间向私有 coturn 发送 SIGKILL，等待撤权及模拟零速，再在同一端口启动新的 coturn。恢复后仍必须经过新鲜画面、回中和新代次授权；执行历史检查覆盖整个失效至重新授权区间。
+
+[修复前记录](validation/turn-b27-before-failed.json)确认真实缺陷：模拟零速已请求，重启后等待 45 秒仍无画面，双方 peer 数量均为 0，但信令仍在线。旧实现只关闭失效 peer，未触发新的 offer。[修复后记录](validation/turn-b27-after.json)及[正常中继记录](validation/turn-b27-relay.json)保留实际路径、环境、源码指纹、包计数和子进程退出结果。
+
+| 默认 ICE 时序下的单次记录 | 故障→模拟零速 | 重启→四路恢复 | 重启→新中立授权 |
+| --- | ---: | ---: | ---: |
+| 修复前 | 517.15 ms | 等待 45 秒超时 | 未恢复 |
+| 修复后 | 498.28 ms | 32528.76 ms | 33303.26 ms |
+
+表中重启耗时包括 coturn 就绪和 ICE 故障检测，授权耗时还包括测试故意保持油门的 750 ms。这是本机单次功能记录，不是时间上界或实车停车测量。失败记录保留旧应用指纹；成功记录的应用、共享包和诊断脚本指纹均对应本批最终源码。
+
+修复由接收端在失效 peer 完成清理后关闭自己的信令连接，使用既有认证/重连流程重新加入房间，促使车辆发布端产生新 offer。发布端、其他接收端和相机源不整体重启；真实双接收端回归确认另一接收端继续使用原连接。重复失效、会话替换、新 offer 及主动退出的竞态不能关闭新连接。无信令协议变更，无自动恢复驾驶授权。
+
+正式记录没有缩短 aioice 的 consent 检测周期；恢复时间仍受其默认失败检测影响，不能称为快速恢复。pytest 的两项 TURN 场景显式使用 `--diagnostic-consent-interval 0.2` 缩短故障检测等待，报告记录该值，其耗时不能当作生产恢复性能。CI 安装 coturn 前屏蔽系统服务启动，并设置 `RD_TEST_REQUIRE_TURN=1`，确保缺少依赖时失败；本地未提供 coturn 时这两项会明确跳过。
+
 ## 尚未覆盖的条件
 
-- 所有实际 ICE 候选均为回环 host。尚未以此报告证明强制 TURN、跨 NAT、跨机器或真实无线网络。
+- B26 的实际 ICE 候选均为回环 host；B27 已补充回环 relay。跨 NAT、跨机器、外部 TURN、高分辨率中继负载或真实无线网络仍需目标环境验证。
 - 轻度扰动的合成画面码率低于设定带宽上限。字节限速已通过真实 UDP 校准，但本批不能代替媒体负载超过可用带宽的饱和拥塞验收。
 - UDP 延迟包含 STUN/DTLS/QUIC 握手及媒体数据。TCP/WSS 未做带宽/丢包整形；信令使用有序关闭/重新监听场景。
-- 本批服务重启为新 runtime/监听器/注册表实例；关闭会通知客户端，不是进程 SIGKILL、断电或目标机 systemd 重启。
+- B26 的应用服务重启为新 runtime/监听器/注册表实例；关闭会通知客户端。B27 只验证了 coturn 的真实 SIGKILL；应用服务进程硬退出、断电和目标机 systemd 重启仍未覆盖。
 - 本机功能测试的时间分布不构成实时停车上界。目标网络时钟误差、相机曝光到物理显示、ROS2/真实底盘制动与停车确认仍待目标环境验收。
 - B19 的偶发非零退出、B20 的长期原生内存滞留没有因本批短时正常退出而被标为解决。

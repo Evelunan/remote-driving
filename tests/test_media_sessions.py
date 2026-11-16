@@ -134,6 +134,22 @@ async def test_actual_authenticated_media_clients_reconnect_and_own_all_tasks(
         )
         assert all(peer.pc.connectionState == "closed" for peer in old_peers)
         assert not publisher.track_manager.sources["front"].closed
+        publisher_id, driver_id = publisher.my_id, driver.my_id
+        viewer_peer = viewer.peers[publisher_id]
+        source = publisher.track_manager.sources["front"]
+        before = {name: len(value) for name, value in frames.items()}
+        failed = driver.peers[publisher_id]
+        await failed.pc.close()
+        await until(lambda: driver.my_id is not None and driver.my_id != driver_id)
+        await until(
+            lambda: all(len(frames[name]) > count + 2 for name, count in before.items())
+        )
+        assert publisher.my_id == publisher_id
+        assert viewer.peers[publisher_id] is viewer_peer
+        assert viewer_peer.pc.connectionState == "connected"
+        assert publisher.track_manager.sources["front"] is source and not source.closed
+        assert driver.peers[publisher_id] is not failed
+        assert failed.pc.connectionState == "closed"
         await driver.close()
         await until(lambda: len(service.manager.peers) == 2)
         viewer_count = len(frames["viewer"])
@@ -156,6 +172,42 @@ async def test_actual_authenticated_media_clients_reconnect_and_own_all_tasks(
         for task in asyncio.all_tasks()
         if task.get_name().startswith(("media-", "signaling-"))
     ]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("overlap", ["duplicate", "new_session", "new_peer", "close"])
+async def test_peer_failure_recovery_cannot_interrupt_replacement_or_explicit_close(
+    overlap, monkeypatch
+):
+    from unittest.mock import AsyncMock
+
+    receiver = WebRTCReceiver("room", ClientNetworkSettings(), CredentialSettings())
+    receiver.my_id = "old-session"
+    started, release = asyncio.Event(), asyncio.Event()
+
+    class Peer:
+        async def close(self):
+            started.set()
+            await release.wait()
+
+    peer = Peer()
+    receiver.peers["vehicle"] = peer
+    recover = AsyncMock()
+    monkeypatch.setattr(receiver.signaling, "close", recover)
+    receiver._schedule_cleanup("vehicle", peer)
+    receiver._schedule_cleanup("vehicle", peer)
+    await started.wait()
+    if overlap == "new_session":
+        receiver.my_id = "new-session"
+    elif overlap == "new_peer":
+        receiver.peers["vehicle"] = Peer()
+    elif overlap == "close":
+        receiver._closed = True
+    release.set()
+    await asyncio.gather(*tuple(receiver._cleanup_jobs))
+    assert recover.await_count == (1 if overlap == "duplicate" else 0)
+    await receiver.close()
+    assert not receiver.peers and not receiver._retired
 
 
 @pytest.mark.asyncio

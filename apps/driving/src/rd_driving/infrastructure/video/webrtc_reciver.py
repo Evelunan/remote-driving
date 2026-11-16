@@ -139,6 +139,11 @@ class WebRTCReceiver(MediaSession):
             peer: ids for peer, ids in self._track_ids.items() if peer in live
         }
 
+    async def _peer_failed(self, peer_id):
+        # Rejoining gives this receiver a new identity and prompts the publisher
+        # to offer a fresh ICE allocation. Other receivers keep their sessions.
+        await self.signaling.close()
+
     async def _on_peer_left(self, data):
         await super()._on_peer_left(data)
         self._publishers.pop(data["id"], None)

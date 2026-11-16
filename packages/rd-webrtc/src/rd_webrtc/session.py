@@ -139,10 +139,13 @@ class MediaSession:
     def _peer_removed(self, peer_id):
         pass
 
+    async def _peer_failed(self, peer_id):
+        pass
+
     async def _remove_peer(self, peer_id, expected=None):
         peer = self.peers.get(peer_id)
         if peer is None or (expected is not None and peer is not expected):
-            return
+            return False
         self.peers.pop(peer_id)
         self._peer_removed(peer_id)
         self._retired.add(peer)
@@ -152,13 +155,27 @@ class MediaSession:
         await asyncio.gather(*tasks, return_exceptions=True)
         await peer.close()
         self._retired.discard(peer)
+        return True
 
     def _schedule_cleanup(self, peer_id, peer):
         if not self._current(peer_id, peer):
             return
-        task = asyncio.create_task(
-            self._remove_peer(peer_id, peer), name="media-peer-close"
-        )
+        identity = self.my_id
+
+        async def cleanup():
+            removed = await self._remove_peer(peer_id, peer)
+            # Cleanup can overlap a new offer, disconnect or explicit close.
+            # Only the owner of the failed connection may request recovery.
+            if (
+                removed
+                and not self._closed
+                and identity is not None
+                and self.my_id == identity
+                and peer_id not in self.peers
+            ):
+                await self._peer_failed(peer_id)
+
+        task = asyncio.create_task(cleanup(), name="media-peer-close")
         self._cleanup_jobs.add(task)
         task.add_done_callback(self._cleanup_jobs.discard)
 

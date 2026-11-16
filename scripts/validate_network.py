@@ -12,12 +12,14 @@ import json
 import os
 import platform
 import secrets
+import shutil
 import ssl
 import subprocess
 import tempfile
 import threading
 import time
 from concurrent.futures import Future
+from contextlib import nullcontext
 from dataclasses import asdict, replace
 from pathlib import Path
 from unittest.mock import patch
@@ -34,7 +36,15 @@ CASES = (
     "signaling-restart",
     "relay-restart",
     "server-restart",
+    "turn-relay",
+    "turn-outage",
 )
+
+
+class RecoveryFailure(RuntimeError):
+    def __init__(self, report):
+        super().__init__("media/control recovery timed out")
+        self.report = report
 
 
 async def validate(args, cache, gate, interrupted):
@@ -78,6 +88,7 @@ async def validate(args, cache, gate, interrupted):
     throttle = 0.0
     report = {"case": args.case, "physical_stop_verified": False}
     controller = None
+    turn = None
     clock_rejections = []
     original_probe = ClockGuard.probe
     original_datagram = RpcProtocol.send_datagram
@@ -134,6 +145,11 @@ async def validate(args, cache, gate, interrupted):
 
     with tempfile.TemporaryDirectory(prefix="rd-network-") as temporary:
         try:
+            if args.case.startswith("turn-"):
+                from local_turn import LocalTurn
+
+                turn = LocalTurn(temporary, args.turnserver, args.turn_library_dir)
+                await turn.start()
             tls = temporary_tls(Path(temporary))
             context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
             context.load_cert_chain(tls.cert, tls.key)
@@ -180,6 +196,9 @@ async def validate(args, cache, gate, interrupted):
                 patch.object(
                     aioice.ice, "get_host_addresses", lambda **kwargs: ["127.0.0.1"]
                 ),
+                turn.force_relay(consent_interval=args.diagnostic_consent_interval)
+                if turn is not None
+                else nullcontext(),
             ):
                 try:
                     for runtime in active.values():
@@ -201,6 +220,7 @@ async def validate(args, cache, gate, interrupted):
                         quic_server_name="localhost",
                         quic_ca_file=tls.cert,
                         reconnect_delay_s=0.1,
+                        ice_servers=(turn.ice_settings,) if turn is not None else (),
                     )
                     vehicle_settings = VehicleSettings(
                         controller="mock",
@@ -291,6 +311,8 @@ async def validate(args, cache, gate, interrupted):
                     )["paths"]
                     if not report["initial_paths"]:
                         raise RuntimeError("no nominated media path")
+                    if turn is not None:
+                        turn.assert_paths(report["initial_paths"])
                     throttle = 0.25
                     await until(lambda: controller.commands[-1][0] > 0)
                     old_epoch, old_publisher = driver.epoch, publisher.my_id
@@ -298,7 +320,18 @@ async def validate(args, cache, gate, interrupted):
                     before_counts = cache.counts()
                     before_network = await network_snapshot(publisher, receiver)
                     report["udp_before_fault"] = shaper.snapshot()
-                    if args.case == "mild":
+                    if args.case == "turn-relay":
+                        await duration(
+                            args.seconds,
+                            lambda: driver.armed and vehicle.epoch == old_epoch,
+                        )
+                        if not picture(started_fault):
+                            raise RuntimeError("a TURN view stopped presenting")
+                        report["control_retained"] = True
+                        report["sample_to_execution_ack_ms"] = [
+                            ms for stamp, ms in executions if stamp >= started_fault
+                        ]
+                    elif args.case == "mild":
                         shaper.set(
                             "media",
                             Policy(
@@ -324,7 +357,9 @@ async def validate(args, cache, gate, interrupted):
                             ms for stamp, ms in executions if stamp >= started_fault
                         ]
                     else:
-                        if args.case == "rpc-only":
+                        if args.case == "turn-outage":
+                            await turn.stop(crash=True)
+                        elif args.case == "rpc-only":
                             datagrams["drop"] = True
                         elif args.case in {"control-blackhole", "media-blackhole"}:
                             shaper.set(
@@ -408,6 +443,8 @@ async def validate(args, cache, gate, interrupted):
                         datagrams["drop"] = False
                         shaper.set("media", Policy(), discard_pending=False)
                         shaper.set("control", Policy(), discard_pending=False)
+                        if args.case == "turn-outage":
+                            await turn.start()
                         if args.case.endswith("restart"):
                             services = {}
                             if args.case != "relay-restart":
@@ -421,13 +458,28 @@ async def validate(args, cache, gate, interrupted):
                             replacement = ServerRuntime(services)
                             runtimes.append(replacement)
                             await replacement.start()
-                        await until(
-                            lambda: (
-                                picture(recovery)
-                                and gate.snapshot().ready
-                                and driver.connection is not None
+                        try:
+                            await until(
+                                lambda: (
+                                    picture(recovery)
+                                    and gate.snapshot().ready
+                                    and driver.connection is not None
+                                ),
+                                timeout=45 if args.case == "turn-outage" else 15,
                             )
-                        )
+                        except TimeoutError:
+                            report["failure"] = {
+                                "phase": "media_recovery",
+                                "elapsed_ms": (time.monotonic() - recovery) * 1000,
+                                "driver_armed": driver.armed,
+                                "mock_target": list(controller.commands[-1]),
+                                "publisher_peers": len(publisher.peers),
+                                "receiver_peers": len(receiver.peers),
+                                "signaling_still_joined": publisher.my_id is not None
+                                and receiver.my_id is not None,
+                                "frame_counts": cache.counts(),
+                            }
+                            raise RecoveryFailure(report) from None
                         report["recovery_to_all_views_ms"] = (
                             time.monotonic() - recovery
                         ) * 1000
@@ -476,6 +528,8 @@ async def validate(args, cache, gate, interrupted):
                     report["frame_counts_after"] = cache.counts()
                     after_network = await network_snapshot(publisher, receiver)
                     report["final_paths"] = after_network["paths"]
+                    if turn is not None:
+                        turn.assert_paths(report["final_paths"])
                     report["media_network"] = network_delta(
                         before_network, after_network
                     )
@@ -506,12 +560,12 @@ async def validate(args, cache, gate, interrupted):
                         if resource is not None:
                             try:
                                 await getattr(resource, method)()
-                            except Exception as error:
+                            except Exception as error:  # noqa: BLE001 - collect cleanup failures, then raise them
                                 failures.append(error)
                     for runtime in reversed(runtimes):
                         try:
                             await runtime.stop()
-                        except Exception as error:
+                        except Exception as error:  # noqa: BLE001 - keep cleaning other owned runtimes
                             failures.append(error)
                     # Check natural ownership cleanup before the harness fallback.
                     report["udp_cleanup"] = shaper.snapshot()
@@ -521,6 +575,9 @@ async def validate(args, cache, gate, interrupted):
                             "network validation cleanup failed", failures
                         )
         finally:
+            if turn is not None:
+                await turn.close()
+                report["turn_fixture"] = turn.report()
             for name, value in previous.items():
                 if value is None:
                     os.environ.pop(name, None)
@@ -564,11 +621,35 @@ def main():
     parser.add_argument("--seconds", type=float, default=3)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument(
+        "--turnserver",
+        type=Path,
+        default=os.environ.get("RD_TEST_TURNSERVER") or shutil.which("turnserver"),
+    )
+    parser.add_argument(
+        "--turn-library-dir",
+        type=Path,
+        default=os.environ.get("RD_TEST_TURN_LIBRARY_DIR"),
+    )
+    parser.add_argument(
+        "--diagnostic-consent-interval",
+        type=float,
+        help="test-only ICE consent polling interval; omitted uses upstream defaults",
+    )
     args = parser.parse_args()
     if not 0.25 <= args.seconds <= 30:
         parser.error("seconds must be 0.25..30")
     if args.case == "mild" and args.seconds < 2:
         parser.error("mild impairment needs at least 2 seconds to observe RTP recovery")
+    if args.case.startswith("turn-") and args.turnserver is None:
+        parser.error("TURN cases require --turnserver or RD_TEST_TURNSERVER")
+    if args.diagnostic_consent_interval is not None and (
+        not args.case.startswith("turn-")
+        or not 0.1 <= args.diagnostic_consent_interval <= 5
+    ):
+        parser.error(
+            "diagnostic consent interval requires a TURN case and must be 0.1..5 seconds"
+        )
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text('{"passed": false, "status": "started"}\n')
     os.environ["QT_QPA_PLATFORM"] = "offscreen"
@@ -600,11 +681,13 @@ def main():
         try:
 
             async def bounded():
-                async with asyncio.timeout(args.seconds + 60):
+                async with asyncio.timeout(
+                    args.seconds + (100 if args.case.startswith("turn-") else 60)
+                ):
                     return await validate(args, cache, gate, stop)
 
             outcome.set_result(asyncio.run(bounded()))
-        except BaseException as error:
+        except BaseException as error:  # noqa: BLE001 - forward thread failure to the main thread
             outcome.set_exception(error)
 
     worker = threading.Thread(target=backend, name="network-validation-backend")
@@ -618,7 +701,10 @@ def main():
         worker.join(20)
     if worker.is_alive():
         raise RuntimeError("network validation worker did not terminate")
-    report = outcome.result()
+    try:
+        report = outcome.result()
+    except RecoveryFailure as error:
+        report = error.report
     sources = [
         *ROOT.glob("apps/*/src/**/*.py"),
         *ROOT.glob("packages/*/src/**/*.py"),
@@ -626,8 +712,8 @@ def main():
     ]
     report.update(
         schema="rd-network-validation/1",
-        passed=not cache.errors,
-        scope="single-host real WSS/WebRTC/QUIC and Qt offscreen; UDP send-side impairment before real loopback sockets; synthetic cameras, mock actuator; no TURN or physical-device certification",
+        passed=not cache.errors and "failure" not in report,
+        scope="single-host real WSS/WebRTC/QUIC and Qt offscreen; UDP send-side impairment before real loopback sockets; synthetic cameras, mock actuator; TURN only in explicit turn cases; no physical-device certification",
         injection_scope="per UDP endpoint send queue; TCP/WSS is not shaped; seeded packet randomness does not make adaptive codec traffic deterministic",
         python=platform.python_version(),
         platform=platform.platform(),
@@ -641,6 +727,7 @@ def main():
             "fps": 30,
             "seconds": args.seconds,
             "seed": args.seed,
+            "diagnostic_consent_interval": args.diagnostic_consent_interval,
         },
         git_commit=subprocess.check_output(
             ["git", "rev-parse", "HEAD"], cwd=ROOT, text=True

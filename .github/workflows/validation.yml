@@ -20,6 +20,7 @@ jobs:
       QT_QPA_PLATFORM: offscreen
       UV_PYTHON: '3.12.16'
       UV_NO_PROGRESS: '1'
+      RD_TEST_REQUIRE_TURN: '1'
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -32,7 +33,8 @@ jobs:
       - name: Install host libraries
         run: |
           sudo apt-get update
-          sudo apt-get install --no-install-recommends -y libgl1 libegl1 libopengl0 libglib2.0-0t64 libusb-1.0-0
+          sudo systemctl mask coturn.service
+          sudo apt-get install --no-install-recommends -y libgl1 libegl1 libopengl0 libglib2.0-0t64 libusb-1.0-0 coturn
       - name: Install the locked workspace
         run: |
           uv python install 3.12.16

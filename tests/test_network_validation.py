@@ -1,6 +1,8 @@
 """Full WebRTC presentation and control recovery, without synthetic video permits."""
 
 import json
+import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -21,10 +23,25 @@ ROOT = Path(__file__).resolve().parents[1]
         "signaling-restart",
         "relay-restart",
         "server-restart",
+        "turn-relay",
+        "turn-outage",
     ],
 )
 def test_network_faults_preserve_recovery_contract_and_close_resources(tmp_path, case):
     output = tmp_path / "result.json"
+    turn_options = []
+    if case.startswith("turn-"):
+        executable = os.environ.get("RD_TEST_TURNSERVER") or shutil.which("turnserver")
+        if executable is None:
+            if os.environ.get("RD_TEST_REQUIRE_TURN") == "1":
+                pytest.fail("coturn is required for this acceptance run")
+            pytest.skip("install coturn or set RD_TEST_TURNSERVER for TURN acceptance")
+        turn_options = [
+            "--turnserver",
+            executable,
+            "--diagnostic-consent-interval",
+            "0.2",
+        ]
     result = subprocess.run(
         [
             sys.executable,
@@ -35,11 +52,13 @@ def test_network_faults_preserve_recovery_contract_and_close_resources(tmp_path,
             "2" if case == "mild" else "0.5",
             "--output",
             str(output),
+            *turn_options,
         ],
         cwd=tmp_path,
+        check=False,
         capture_output=True,
         text=True,
-        timeout=70,
+        timeout=110 if turn_options else 70,
     )
     assert result.returncode == 0, result.stdout + result.stderr
     report = json.loads(output.read_text())
@@ -63,7 +82,23 @@ def test_network_faults_preserve_recovery_contract_and_close_resources(tmp_path,
         assert all(
             path["local"] == path["remote"] == "127.0.0.1" for path in report[key]
         )
-    if case == "mild":
+    if turn_options:
+        assert report["workload"]["diagnostic_consent_interval"] == 0.2
+        fixture = report["turn_fixture"]
+        assert not fixture["running"] and fixture["binary_sha256"]
+        assert not any(exit["forced_cleanup"] for exit in fixture["exits"])
+        assert fixture["exits"][-1]["exitcode"] in (0, -15)
+        assert not fixture["exits"][-1]["intentional_crash"]
+        assert len(fixture["exits"]) == (2 if case == "turn-outage" else 1)
+        if case == "turn-outage":
+            assert fixture["exits"][0]["intentional_crash"]
+            assert fixture["exits"][0]["exitcode"] == -9
+        for key in ("initial_paths", "final_paths"):
+            assert all(
+                path["local_type"] == path["remote_type"] == "relay"
+                for path in report[key]
+            )
+    if case in {"mild", "turn-relay"}:
         assert report["control_retained"] and report["sample_to_execution_ack_ms"]
     else:
         assert (

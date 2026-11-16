@@ -1,0 +1,864 @@
+{
+  "case": "turn-relay",
+  "physical_stop_verified": false,
+  "initial_paths": [
+    {
+      "role": "publisher",
+      "local": "127.0.0.1",
+      "remote": "127.0.0.1",
+      "local_type": "relay",
+      "remote_type": "relay"
+    },
+    {
+      "role": "receiver",
+      "local": "127.0.0.1",
+      "remote": "127.0.0.1",
+      "local_type": "relay",
+      "remote_type": "relay"
+    }
+  ],
+  "udp_before_fault": {
+    "at": 137796.870494326,
+    "seed": 42,
+    "policies": [],
+    "errors": [],
+    "endpoints": [
+      {
+        "category": "control",
+        "local": [
+          "127.0.0.1",
+          46717
+        ],
+        "stats": {
+          "received_packets": 43,
+          "offered_packets": 43,
+          "offered_bytes": 6466,
+          "queue_peak_bytes": 2400,
+          "sent_packets": 43,
+          "sent_bytes": 6466
+        },
+        "queued_bytes": 0,
+        "pending_packets": 0,
+        "closed": false
+      },
+      {
+        "category": "control",
+        "local": [
+          "::",
+          48210,
+          0,
+          0
+        ],
+        "stats": {
+          "offered_packets": 21,
+          "offered_bytes": 4870,
+          "queue_peak_bytes": 1200,
+          "sent_packets": 21,
+          "sent_bytes": 4870,
+          "received_packets": 22
+        },
+        "queued_bytes": 0,
+        "pending_packets": 0,
+        "closed": false
+      },
+      {
+        "category": "control",
+        "local": [
+          "::",
+          47054,
+          0,
+          0
+        ],
+        "stats": {
+          "offered_packets": 22,
+          "offered_bytes": 4869,
+          "queue_peak_bytes": 1200,
+          "sent_packets": 22,
+          "sent_bytes": 4869,
+          "received_packets": 21
+        },
+        "queued_bytes": 0,
+        "pending_packets": 0,
+        "closed": false
+      },
+      {
+        "category": "media",
+        "local": [
+          "127.0.0.1",
+          48340
+        ],
+        "stats": {
+          "offered_packets": 80,
+          "offered_bytes": 19856,
+          "queue_peak_bytes": 1543,
+          "sent_packets": 80,
+          "sent_bytes": 19856,
+          "received_packets": 7
+        },
+        "queued_bytes": 0,
+        "pending_packets": 0,
+        "closed": false
+      },
+      {
+        "category": "media",
+        "local": [
+          "127.0.0.1",
+          48254
+        ],
+        "stats": {
+          "offered_packets": 8,
+          "offered_bytes": 1422,
+          "queue_peak_bytes": 663,
+          "sent_packets": 8,
+          "sent_bytes": 1422,
+          "received_packets": 80
+        },
+        "queued_bytes": 0,
+        "pending_packets": 0,
+        "closed": false
+      }
+    ]
+  },
+  "control_retained": true,
+  "sample_to_execution_ack_ms": [
+    4.918196005746722,
+    4.074902011780068,
+    3.015377005795017,
+    13.969735009595752,
+    12.55427100113593,
+    10.884691000683233,
+    9.846356988418847,
+    9.110949991736561,
+    10.184821003349498,
+    6.407625012798235,
+    6.485550984507427,
+    6.03628798853606,
+    4.901286010863259,
+    6.526663986733183,
+    12.912464007968083,
+    11.204298003576696,
+    8.67617898620665,
+    8.214535017032176,
+    8.947512018494308,
+    6.0701149923261255,
+    5.450033000670373,
+    3.92915602424182,
+    2.8257959929760545,
+    5.816427990794182,
+    12.77938499697484,
+    11.053335998440161,
+    10.383498010924086,
+    9.28115998976864,
+    11.781798995798454,
+    6.93125298130326,
+    5.95632498152554,
+    5.439850006951019,
+    3.1596040062140673,
+    14.123497996479273,
+    10.66557300509885,
+    9.936317015672103,
+    7.845076994271949,
+    7.002433005254716,
+    7.009524008026347,
+    2.9586279997602105,
+    12.196525000035763,
+    11.709899990819395,
+    10.757116979220882,
+    19.918912992579862,
+    6.4002060098573565,
+    11.287334025837481,
+    12.37334101460874,
+    13.36147598340176,
+    22.40051398985088,
+    7.843347993912175,
+    5.818580015329644,
+    5.15281199477613,
+    17.257945000892505,
+    16.656391992000863,
+    12.538278999272734,
+    5.761453998275101,
+    4.106975975446403,
+    4.575364000629634,
+    15.106995997484773,
+    11.841255996841937,
+    9.945605008397251,
+    9.110735001740977,
+    8.248327998444438,
+    8.94882099237293,
+    7.822918996680528,
+    4.661240003770217,
+    4.056482983287424,
+    3.0121129821054637,
+    14.409524999791756,
+    11.940030992263928,
+    9.286101994803175,
+    9.149449004326016,
+    7.361308002145961,
+    7.00554801733233,
+    4.684966988861561,
+    4.0790280036162585,
+    12.640124012250453,
+    11.17502199485898,
+    12.301465991185978,
+    10.304013994755223,
+    9.826060006162152,
+    7.144124014303088,
+    4.9453050014562905,
+    4.9567369860596955,
+    12.21486899885349,
+    10.015738022048026,
+    9.104430995648727,
+    7.137298991438001,
+    8.43671298935078,
+    6.276635976973921,
+    6.066431989893317,
+    3.7634220207110047,
+    2.9092170007061213,
+    12.85820099292323,
+    12.869314989075065,
+    13.149287988198921,
+    10.250148014165461,
+    9.396728011779487,
+    11.803902016254142,
+    5.904175020987168,
+    3.8915720069780946,
+    12.142735999077559,
+    11.489656986668706,
+    12.427482986822724,
+    9.980080008972436,
+    9.230925003066659,
+    8.521687996108085,
+    7.885682018240914,
+    9.011157002532855,
+    2.875896025216207,
+    13.945949991466478,
+    10.480883007403463,
+    9.542466985294595,
+    11.630949011305347,
+    5.6581280077807605,
+    4.73576900549233,
+    4.3925599893555045,
+    3.171762014972046,
+    14.735236996784806,
+    11.98652500170283,
+    10.874915984459221,
+    10.037671978352591,
+    9.721640002680942,
+    9.466861985856667,
+    7.088529004249722,
+    18.856765993405133,
+    11.722958006430417,
+    11.021736019756645,
+    14.028242003405467,
+    8.913405996281654,
+    8.209501014789566,
+    6.901817017933354,
+    6.053881981642917,
+    5.7405889965593815,
+    2.9356869927141815,
+    2.962076978292316,
+    12.04192399745807,
+    10.623039997881278,
+    11.819414998171851,
+    8.907290000934154,
+    8.302462985739112,
+    8.330690994625911,
+    5.857123003806919,
+    5.940922012086958,
+    3.9196269935928285,
+    12.776182993547991,
+    10.696170997107401,
+    11.04466599645093,
+    10.83295900025405,
+    7.811963994754478
+  ],
+  "frame_counts_before": {
+    "received": {
+      "back": 17,
+      "front": 17,
+      "left": 17,
+      "right": 17
+    },
+    "painted": {
+      "front": 17,
+      "left": 17,
+      "back": 17,
+      "right": 17
+    }
+  },
+  "frame_counts_after": {
+    "received": {
+      "back": 107,
+      "front": 107,
+      "left": 107,
+      "right": 107
+    },
+    "painted": {
+      "front": 107,
+      "left": 107,
+      "back": 107,
+      "right": 107
+    }
+  },
+  "final_paths": [
+    {
+      "role": "publisher",
+      "local": "127.0.0.1",
+      "remote": "127.0.0.1",
+      "local_type": "relay",
+      "remote_type": "relay"
+    },
+    {
+      "role": "receiver",
+      "local": "127.0.0.1",
+      "remote": "127.0.0.1",
+      "local_type": "relay",
+      "remote_type": "relay"
+    }
+  ],
+  "media_network": {
+    "seconds": 3.0082136239798274,
+    "streams": [
+      {
+        "id": "outbound-rtp_123152814225984",
+        "view": "front",
+        "rtp_payload_kbps": 51.756962590315055,
+        "packets_sent": 91
+      },
+      {
+        "id": "outbound-rtp_123152524150256",
+        "view": "back",
+        "rtp_payload_kbps": 55.42425533577001,
+        "packets_sent": 91
+      },
+      {
+        "id": "outbound-rtp_123152524248992",
+        "view": "left",
+        "rtp_payload_kbps": 45.93822689266788,
+        "packets_sent": 90
+      },
+      {
+        "id": "outbound-rtp_123152524331440",
+        "view": "right",
+        "rtp_payload_kbps": 54.466876518972484,
+        "packets_sent": 90
+      },
+      {
+        "id": "inbound-rtp_123152524495424",
+        "packets_received": 90,
+        "packets_lost_delta": 0,
+        "jitter_ms_at_end": 2.066666666666667
+      },
+      {
+        "id": "inbound-rtp_123152524652768",
+        "packets_received": 90,
+        "packets_lost_delta": 0,
+        "jitter_ms_at_end": 1.7222222222222223
+      },
+      {
+        "id": "inbound-rtp_123152524736176",
+        "packets_received": 90,
+        "packets_lost_delta": 0,
+        "jitter_ms_at_end": 1.488888888888889
+      },
+      {
+        "id": "inbound-rtp_123152524853120",
+        "packets_received": 90,
+        "packets_lost_delta": 0,
+        "jitter_ms_at_end": 1.4666666666666666
+      }
+    ],
+    "selected_paths": [
+      {
+        "role": "publisher",
+        "local": "127.0.0.1",
+        "remote": "127.0.0.1",
+        "local_type": "relay",
+        "remote_type": "relay"
+      },
+      {
+        "role": "receiver",
+        "local": "127.0.0.1",
+        "remote": "127.0.0.1",
+        "local_type": "relay",
+        "remote_type": "relay"
+      }
+    ]
+  },
+  "udp_after_scenario": {
+    "at": 137799.879356978,
+    "seed": 42,
+    "policies": [],
+    "errors": [],
+    "endpoints": [
+      {
+        "category": "control",
+        "local": [
+          "127.0.0.1",
+          46717
+        ],
+        "stats": {
+          "received_packets": 673,
+          "offered_packets": 615,
+          "offered_bytes": 39350,
+          "queue_peak_bytes": 2400,
+          "sent_packets": 615,
+          "sent_bytes": 39350
+        },
+        "queued_bytes": 0,
+        "pending_packets": 0,
+        "closed": false
+      },
+      {
+        "category": "control",
+        "local": [
+          "::",
+          48210,
+          0,
+          0
+        ],
+        "stats": {
+          "offered_packets": 334,
+          "offered_bytes": 21700,
+          "queue_peak_bytes": 1200,
+          "sent_packets": 334,
+          "sent_bytes": 21700,
+          "received_packets": 339
+        },
+        "queued_bytes": 0,
+        "pending_packets": 0,
+        "closed": false
+      },
+      {
+        "category": "control",
+        "local": [
+          "::",
+          47054,
+          0,
+          0
+        ],
+        "stats": {
+          "offered_packets": 339,
+          "offered_bytes": 22252,
+          "queue_peak_bytes": 1200,
+          "sent_packets": 339,
+          "sent_bytes": 22252,
+          "received_packets": 276
+        },
+        "queued_bytes": 0,
+        "pending_packets": 0,
+        "closed": false
+      },
+      {
+        "category": "media",
+        "local": [
+          "127.0.0.1",
+          48340
+        ],
+        "stats": {
+          "offered_packets": 453,
+          "offered_bytes": 114942,
+          "queue_peak_bytes": 1543,
+          "sent_packets": 453,
+          "sent_bytes": 114942,
+          "received_packets": 24
+        },
+        "queued_bytes": 0,
+        "pending_packets": 0,
+        "closed": false
+      },
+      {
+        "category": "media",
+        "local": [
+          "127.0.0.1",
+          48254
+        ],
+        "stats": {
+          "offered_packets": 25,
+          "offered_bytes": 2342,
+          "queue_peak_bytes": 663,
+          "sent_packets": 25,
+          "sent_bytes": 2342,
+          "received_packets": 452
+        },
+        "queued_bytes": 0,
+        "pending_packets": 0,
+        "closed": false
+      }
+    ]
+  },
+  "settings": {
+    "control": {
+      "send_hz": 50.0,
+      "input_timeout_ms": 200,
+      "command_timeout_ms": 300,
+      "max_clock_skew_ms": 50
+    },
+    "video": {
+      "primary_view": "front",
+      "stale_frame_ms": 500,
+      "recovery_ms": 500
+    },
+    "relay_clock_skew_ms": 50
+  },
+  "statuses": [
+    [
+      137795.720041141,
+      "connecting",
+      ""
+    ],
+    [
+      137795.762273781,
+      "registered",
+      ""
+    ],
+    [
+      137795.762285711,
+      "waiting_video",
+      ""
+    ],
+    [
+      137796.84295741,
+      "waiting_execution",
+      ""
+    ],
+    [
+      137796.846610233,
+      "active",
+      ""
+    ],
+    [
+      137799.889117046,
+      "disconnected",
+      ""
+    ],
+    [
+      137799.988281273,
+      "disconnected",
+      ""
+    ]
+  ],
+  "udp_cleanup": {
+    "at": 137799.994007013,
+    "seed": 42,
+    "policies": [
+      {
+        "at": 137799.879386899,
+        "category": "control",
+        "policy": {
+          "delay_ms": 0,
+          "jitter_ms": 0,
+          "loss": 0,
+          "rate_bps": 0,
+          "blackhole": false,
+          "max_queue_bytes": 262144,
+          "max_queue_packets": 256,
+          "max_queue_ms": 500
+        },
+        "discard_pending": true
+      },
+      {
+        "at": 137799.879402606,
+        "category": "media",
+        "policy": {
+          "delay_ms": 0,
+          "jitter_ms": 0,
+          "loss": 0,
+          "rate_bps": 0,
+          "blackhole": false,
+          "max_queue_bytes": 262144,
+          "max_queue_packets": 256,
+          "max_queue_ms": 500
+        },
+        "discard_pending": true
+      }
+    ],
+    "errors": [],
+    "endpoints": [
+      {
+        "category": "control",
+        "local": [
+          "127.0.0.1",
+          46717
+        ],
+        "stats": {
+          "received_packets": 678,
+          "offered_packets": 620,
+          "offered_bytes": 39826,
+          "queue_peak_bytes": 2400,
+          "sent_packets": 620,
+          "sent_bytes": 39826,
+          "cancelled_packets": 0
+        },
+        "queued_bytes": 0,
+        "pending_packets": 0,
+        "closed": true
+      },
+      {
+        "category": "control",
+        "local": [
+          "::",
+          48210,
+          0,
+          0
+        ],
+        "stats": {
+          "offered_packets": 336,
+          "offered_bytes": 21864,
+          "queue_peak_bytes": 1200,
+          "sent_packets": 336,
+          "sent_bytes": 21864,
+          "received_packets": 341,
+          "cancelled_packets": 0
+        },
+        "queued_bytes": 0,
+        "pending_packets": 0,
+        "closed": true
+      },
+      {
+        "category": "control",
+        "local": [
+          "::",
+          47054,
+          0,
+          0
+        ],
+        "stats": {
+          "offered_packets": 342,
+          "offered_bytes": 22452,
+          "queue_peak_bytes": 1200,
+          "sent_packets": 342,
+          "sent_bytes": 22452,
+          "received_packets": 279,
+          "cancelled_packets": 0
+        },
+        "queued_bytes": 0,
+        "pending_packets": 0,
+        "closed": true
+      },
+      {
+        "category": "media",
+        "local": [
+          "127.0.0.1",
+          48340
+        ],
+        "stats": {
+          "offered_packets": 458,
+          "offered_bytes": 115385,
+          "queue_peak_bytes": 1543,
+          "sent_packets": 458,
+          "sent_bytes": 115385,
+          "received_packets": 30,
+          "cancelled_packets": 0
+        },
+        "queued_bytes": 0,
+        "pending_packets": 0,
+        "closed": true
+      },
+      {
+        "category": "media",
+        "local": [
+          "127.0.0.1",
+          48254
+        ],
+        "stats": {
+          "offered_packets": 31,
+          "offered_bytes": 2705,
+          "queue_peak_bytes": 663,
+          "sent_packets": 31,
+          "sent_bytes": 2705,
+          "received_packets": 457,
+          "cancelled_packets": 0
+        },
+        "queued_bytes": 0,
+        "pending_packets": 0,
+        "closed": true
+      }
+    ]
+  },
+  "turn_fixture": {
+    "version": "4.6.1",
+    "binary_sha256": "3f624addec795714b48a2d9ee7c2cfe95480b793b1961a0cce0f97c0c359a1d9",
+    "address": [
+      "127.0.0.1",
+      45640
+    ],
+    "exits": [
+      {
+        "pid": 681521,
+        "exitcode": -15,
+        "intentional_crash": false,
+        "forced_cleanup": false
+      }
+    ],
+    "running": false
+  },
+  "camera_threads_closed": true,
+  "device_threads_closed": true,
+  "actuator_closed": true,
+  "media_tasks_closed": true,
+  "schema": "rd-network-validation/1",
+  "passed": true,
+  "scope": "single-host real WSS/WebRTC/QUIC and Qt offscreen; UDP send-side impairment before real loopback sockets; synthetic cameras, mock actuator; TURN only in explicit turn cases; no physical-device certification",
+  "injection_scope": "per UDP endpoint send queue; TCP/WSS is not shaped; seeded packet randomness does not make adaptive codec traffic deterministic",
+  "python": "3.12.16",
+  "platform": "Linux-6.18.58.1-microsoft-standard-WSL2-x86_64-with-glibc2.43",
+  "versions": {
+    "aiortc": "1.14.0",
+    "aioice": "0.10.2",
+    "aioquic": "1.3.0",
+    "av": "16.1.0",
+    "PyQt6": "6.11.0"
+  },
+  "workload": {
+    "views": 4,
+    "camera_size": [
+      320,
+      240
+    ],
+    "fps": 30,
+    "seconds": 3.0,
+    "seed": 42,
+    "diagnostic_consent_interval": null
+  },
+  "git_commit": "25c2798bc7e38e598049aa135c19ce4577ef1f84",
+  "git_dirty": true,
+  "source_sha256": {
+    "apps/driving/src/rd_driving/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "apps/driving/src/rd_driving/app/__init__.py": "f8bb0ec1954cadd26d7beb3432da798a7f28e6c8519c939120d30fc859e335dd",
+    "apps/driving/src/rd_driving/app/control_client.py": "a2225adca04bd2e7b77f0300a0a547d7ea96dc9413381a4b8eb52917384e9872",
+    "apps/driving/src/rd_driving/app/input_service.py": "dedbdc4d35f0456b0d07707c58900c7c0a779f632d6e60d4712eea72b29d11bd",
+    "apps/driving/src/rd_driving/branding.py": "7a3eb0a50c3c9dcf33e446d5eb7a9c4151fb933d191ad85cc17b73e032cd58d3",
+    "apps/driving/src/rd_driving/cli.py": "c6bf7fe93f596b114599832848ccb2eb785e564f1bb0ca293353085bf207f28c",
+    "apps/driving/src/rd_driving/factories/__init__.py": "135138e998ab1e0f3e71124a9d1d11ca91852289d245701db93ba2ec93dd8114",
+    "apps/driving/src/rd_driving/factories/ui_factory.py": "2c64197d203439aa4906aec74584b49ee3ede4fb342e1d210dcbc534913c6762",
+    "apps/driving/src/rd_driving/infrastructure/communication/__init__.py": "a32bded8e3e78cdc512dd8be48db952764ba97288b6e94ea8e27954e3c064b5c",
+    "apps/driving/src/rd_driving/infrastructure/communication/latest_value_queue.py": "1a27fe957c8721573a0d012a82f0aafbf848ee95591f1d7411c77d60270cfeb2",
+    "apps/driving/src/rd_driving/infrastructure/device/__init__.py": "96f27e80c0593692d41d53477dcee469f62b8c5a329a6cc035523e3e9abbf748",
+    "apps/driving/src/rd_driving/infrastructure/device/input_config.py": "12115d36acb1d16bb4796cef826633a7d37ecef191f38c5033f55e7eb7e4ab11",
+    "apps/driving/src/rd_driving/infrastructure/device/usb_connector.py": "0a2acef9a62eef000305791e4bd1cd3dac5fb8cb84219ca3011b06fc0ba34e84",
+    "apps/driving/src/rd_driving/infrastructure/processing/__init__.py": "29cb97edf889f3dde90d203c78fcd07a576d39f523cfbffee2a6eb6e5180e833",
+    "apps/driving/src/rd_driving/infrastructure/processing/analog_calculator.py": "a379b12813a8aba8b9c2cea8c469ec9a2fddec33cdd0bc005ee5d1493a3c786c",
+    "apps/driving/src/rd_driving/infrastructure/processing/data_processor.py": "12996b5c4f18858a9558354fdad3c2dd41b912ff46e7c01d313445451853ed02",
+    "apps/driving/src/rd_driving/infrastructure/protocol/__init__.py": "50e5dc004a146f6d5f90701ecc57b4d5d67f55133c996a421b4f40d61de4726a",
+    "apps/driving/src/rd_driving/infrastructure/protocol/codec.py": "c8740399549e1ce70aafe0635c6750c6a96979af6b31a88382be5ff81eabea90",
+    "apps/driving/src/rd_driving/infrastructure/protocol/driving_protocol.py": "265866cb5c5d301e7754f5202ddce4972239761c9549635587d9b1ea795f9dc8",
+    "apps/driving/src/rd_driving/infrastructure/video/__init__.py": "b64563279a133bc05b7896b6a3996ae5602edbff37ac499c31d6c3c993dfd267",
+    "apps/driving/src/rd_driving/infrastructure/video/frame_buffer.py": "cc0912686e30c479f02b185fbf52860a590311353cb3980b4ebc58afb205f620",
+    "apps/driving/src/rd_driving/infrastructure/video/webrtc_reciver.py": "9f416e950bfc201c3862b94056069530309255319f2fbbbd151f996c712cd6b5",
+    "apps/driving/src/rd_driving/infrastructure/workers/__init__.py": "3cddd9a066a2069a6d6150678b3461fa9372f912ee8bdf6c314a05360d02ac83",
+    "apps/driving/src/rd_driving/infrastructure/workers/control_system_thread.py": "489f39ffb186ffe9ec6dbda3902459616aa254e467e1e251f0d9a80c9a0223ea",
+    "apps/driving/src/rd_driving/infrastructure/workers/signal_bridge.py": "10fc8a2298fffe502eaf224780386cd75897899cdeb918c1fcdb9994851c3651",
+    "apps/driving/src/rd_driving/infrastructure/workers/video_reciver_thread.py": "3fc53cd8b2a43ff4e95c6f6c99d991064d6fb39e70601d21381bf58abe97ab7a",
+    "apps/driving/src/rd_driving/interfaces/__init__.py": "91bfc3921fdaf5685f96c7352082e45d86ff434a526a980796db4c70e0854793",
+    "apps/driving/src/rd_driving/interfaces/communication.py": "1a3e29dc85b632fcb0cb6261b80135d098f6ebe22b00e136dfad8a6aa27adcdc",
+    "apps/driving/src/rd_driving/interfaces/device.py": "a2320e620f159c3a6cbfcc94a45b27dedbb01b2e7849babd76f082b8e30135f3",
+    "apps/driving/src/rd_driving/interfaces/processor.py": "ea16419b6bcfe4bd3b8d7c2144440d8b527977369c09aac845de8d35d5a57d70",
+    "apps/driving/src/rd_driving/interfaces/ui.py": "c014055f17500282ce4f571a94d1df73a4e243ef68e608a22e14ce3fcb519db0",
+    "apps/driving/src/rd_driving/main_window.py": "591f1013325950883ef43f787734d2828ee8b48613b91d9676c2fb91dbd89eb2",
+    "apps/driving/src/rd_driving/shutdown.py": "4c1aa3fbc7fbe1cd5b617ab7e6f427585f93d00fd8b05e3f4f75b9ef959867e7",
+    "apps/driving/src/rd_driving/ui/components/__init__.py": "68d21b9035e181a3ab8901b9e8feab4d88a35eb7a5ec1196a655b43a9f6f7d34",
+    "apps/driving/src/rd_driving/ui/components/connection_item.py": "bc4663c5f271bd01e139dbc70b8310f07d220f0fa29663c32d95c784329103bb",
+    "apps/driving/src/rd_driving/ui/components/data_card.py": "e2bf182dcd34cca13a507538e9823102926673c4b522e1395b0d91e5142fb7b6",
+    "apps/driving/src/rd_driving/ui/components/stat_item.py": "c857ff06682663a83fbcf4543d165908bcd4ff59410ebb11e0f6b176b103309f",
+    "apps/driving/src/rd_driving/ui/components/status_indicator.py": "1e46182779a871b7d332efe469c10efa63b0f14e326315e3231ef1835c98be22",
+    "apps/driving/src/rd_driving/ui/components/video_display.py": "b32bd9701ce97404bc2ecf0dcb0839883896067c51eec0cb8bd2282ff3df87f8",
+    "apps/driving/src/rd_driving/ui/themes/__init__.py": "d941de5ebfe4b8fc7795b143d8c4ffdb08df1bb6c93c5b32e49e2a9ceb8adab2",
+    "apps/driving/src/rd_driving/ui/themes/base_theme.py": "39aa8d20ccfade183aa8281138e51bbfcaf719b77db945cbdb982632ed6e00bd",
+    "apps/driving/src/rd_driving/ui/themes/dark_tech_theme.py": "72e72ca2222d046beaefc8359351ab3ba18cf82da4050d72fb6e4b56889526b7",
+    "apps/driving/src/rd_driving/ui/themes/modern_glass_theme.py": "7beb34647547af348d7d2468c8a03b79fdb0018947d65a12b1d3d1d427d83201",
+    "apps/driving/src/rd_driving/ui/widgets/__init__.py": "0d54299b314566aa5fe84e4162b09dede780ac3753e3fbae7691909d52800eeb",
+    "apps/driving/src/rd_driving/ui/widgets/control_panel.py": "49602322e37d78fe1973a877d01fd13c9cdc01b17bb57fc3264bf86b35452fc7",
+    "apps/driving/src/rd_driving/ui/widgets/login_window.py": "245e8b0496a62479e7940aeda5f82f038d04b8662b4b9f2f3e583e75e49d7002",
+    "apps/driving/src/rd_driving/ui/widgets/multi_video_widget.py": "03b241e8e401e6387f97deb15018acd152bdef08c58359c558252df8c35e01f9",
+    "apps/driving/src/rd_driving/ui/widgets/navbar.py": "e5355bf1f8631dfe84f6205b3cc25a09098f6c30c51ff849c70a261d74a49688",
+    "apps/server/src/rd_server/__init__.py": "e2c584dae1124a19e14a7368ec485cc4f3194794e35dd8917c381efc407206b7",
+    "apps/server/src/rd_server/main.py": "0b49e97b9b1a40dd18db8f9e94ab2fad40793eef854ef3c33a1bfe19b410cfef",
+    "apps/server/src/rd_server/relay/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "apps/server/src/rd_server/relay/control_service.py": "8f6371ea1213f50f73ac354a059df93d4f7dccdd2bcab8164ce1cee7470d4345",
+    "apps/server/src/rd_server/relay/registry.py": "7576ad15029256fcb4845f7351a8d83fd1efb0a10ffffc463ad634a90c367e70",
+    "apps/server/src/rd_server/relay/service.py": "0cfad0617d03f73e461667c46989bbcfa275848a4f2c1021984a128bf50e0e5f",
+    "apps/server/src/rd_server/relay/services/__init__.py": "95df8071f063640d3de7246b99b5813c4ec2ca6f5a554444fef10600fc6164df",
+    "apps/server/src/rd_server/relay/services/codec.py": "c8740399549e1ce70aafe0635c6750c6a96979af6b31a88382be5ff81eabea90",
+    "apps/server/src/rd_server/relay/services/relay_protocol.py": "121a71c91fc0bfd89830b4e4e85542c1e660d7533deb6329e434be1594ca73ca",
+    "apps/server/src/rd_server/relay/services/session_manager.py": "d907d830c0dda9cb6a33892b8538749a0347f73d4ec1326e9cf338ec41367b85",
+    "apps/server/src/rd_server/runtime.py": "37418180a361ef2a9588727ce438884157a5dee26dd154ee7a4eba1d0c3ac568",
+    "apps/server/src/rd_server/signaling/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "apps/server/src/rd_server/signaling/models/__init__.py": "a98d8ea6db48fedfa0817dd6f9909db8068892d26d0b9d0619853ed783ea73d3",
+    "apps/server/src/rd_server/signaling/models/peer.py": "f91485e614bd3f42da6cb3e578e1406df4cf13c743f64aa6feb1325cf5036c3b",
+    "apps/server/src/rd_server/signaling/models/room.py": "274304138d435d87c5d36c39516210c90f0d2ed1f901caa448fc11f214465c1c",
+    "apps/server/src/rd_server/signaling/server/__init__.py": "0fdd9b2cd045db2fd93684111aef0ff246f9b34f588ca672fb80f69519f84c91",
+    "apps/server/src/rd_server/signaling/server/signaling_server.py": "360cb26f1a473f91e9a3aecef283aac2139ab974685a0f382bd3ef2575698e75",
+    "apps/server/src/rd_server/signaling/services/__init__.py": "58f824dd41b56b6568d876a767e9aa99f682c03875f225ba3cac4c8e8de79898",
+    "apps/server/src/rd_server/signaling/services/room_manager.py": "9187c87a00069f7dda02b9e96d31a416f01add50fb0d5b05313f3e87e8d8f315",
+    "apps/vehicle/src/rd_vehicle/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "apps/vehicle/src/rd_vehicle/application/__init__.py": "7e714803b2bbd4a989ff3fae7c908a2e3fe2a70005d97f932d41bb4b616f5183",
+    "apps/vehicle/src/rd_vehicle/application/control_client.py": "7b1e7dfda822361882c2a1cea7ffe4fa93b1acf5d172697378fcb4bfe5e1efb5",
+    "apps/vehicle/src/rd_vehicle/application/multi_camera_manager.py": "54a21de8e43d8af256d694b1afad9925775edcc22162ecffd15ed679b32ae3d4",
+    "apps/vehicle/src/rd_vehicle/infrastructure/cameras/__init__.py": "4d4838d7d99aa1aea1a8b3196a870ee80c732462e596489105e87caf02629442",
+    "apps/vehicle/src/rd_vehicle/infrastructure/cameras/buffer.py": "c4db65fcb1db00495d5a95b9ccfe10c13b34f799c150b726a2f9b53f2ea74d07",
+    "apps/vehicle/src/rd_vehicle/infrastructure/cameras/test_camera.py": "9cf6c1a53ee94b085dd2df0aa609a631b4b921174ed70ba1db2aa74abb8843e5",
+    "apps/vehicle/src/rd_vehicle/infrastructure/cameras/thread_camera.py": "4f8eeb61374f9fb2d1a4708c7d7c4c1e9fe793a2e098091a4b04ac0dd7f64971",
+    "apps/vehicle/src/rd_vehicle/infrastructure/cameras/usb_camera.py": "73d79e2773dbf34b2437965960419d36ca435257595f10ba7f20d6d9414671f6",
+    "apps/vehicle/src/rd_vehicle/infrastructure/controller/__init__.py": "df3c950ea4cfbd999756cf1725d3510630defe8b034d93afbfea545c7771ef68",
+    "apps/vehicle/src/rd_vehicle/infrastructure/controller/mock_controller.py": "3ec941e3295660bbad0287841eea953fb1f106633c056db5b6fc9945bc2f5879",
+    "apps/vehicle/src/rd_vehicle/infrastructure/controller/motion.py": "617c2bb34bbda99e72d80ed8e816e3811a89e09df646788bb1b2d6c0934ed82d",
+    "apps/vehicle/src/rd_vehicle/infrastructure/controller/ros2_cmd_vel_controller.py": "a4762b98e066b776a1325c36ccb7c259e496d1fe5d4ab8bddb314d5384ec5a2e",
+    "apps/vehicle/src/rd_vehicle/infrastructure/controller/serial_controller.py": "1b8490c7925118e5f3e8aa0f2498bd7ceb206df4bf083145a8ff8d54dd30af41",
+    "apps/vehicle/src/rd_vehicle/infrastructure/protocol/__init__.py": "5e496dcf7e4291a903aeb9ea5288d3d1fe85c4b3922b6b85d0f789458ec8ab5b",
+    "apps/vehicle/src/rd_vehicle/infrastructure/protocol/codec.py": "c8740399549e1ce70aafe0635c6750c6a96979af6b31a88382be5ff81eabea90",
+    "apps/vehicle/src/rd_vehicle/infrastructure/protocol/vehicle_protocol.py": "80b64df5f39aea3ce7674d56565df57c5f95bbb6d4424f1606304c78044caeac",
+    "apps/vehicle/src/rd_vehicle/infrastructure/streams/__init__.py": "3497f4484896c0528e35f9a6a1276e2b02882a1832307bca62e2b8c8e5578c2e",
+    "apps/vehicle/src/rd_vehicle/infrastructure/streams/track_manager.py": "1271ecb9e9eba903b3221f54606b4fb3421983fac0eea65bfa3d2a667b379438",
+    "apps/vehicle/src/rd_vehicle/infrastructure/streams/webrtc_streamer.py": "793dcee5543fbc5cfdbcad452ca9c37badb03100c478706f305a32eddf3895b0",
+    "apps/vehicle/src/rd_vehicle/interfaces/__init__.py": "7bbac1c8428f0a5445a0fa00bc83d69ec3fa2d225f56aea6a2b4bd2b8a7ba94b",
+    "apps/vehicle/src/rd_vehicle/interfaces/icamera.py": "3340bce3c5e837494bd0d6fa4e7f842e5ddd5c369bfe55d5706452030eaaeb87",
+    "apps/vehicle/src/rd_vehicle/interfaces/icontroller.py": "8342b34ac2f1496aadcdc3e72ac9acf6f3f1134f0c7a097894b119a7be206c9c",
+    "apps/vehicle/src/rd_vehicle/main.py": "fd101713847681ce5998ae7efec4aed440df6de572571dede08d508780dae3aa",
+    "apps/vehicle/src/rd_vehicle/processes.py": "7c30b3df399c0193607117a39171c5ba80894299842ddde20ff5a03ea7393d15",
+    "packages/rd-core/src/rd_core/__init__.py": "578e18de95ebbd8f10a2189a653851a5707c3c1a6d547a4876c9c6c444556966",
+    "packages/rd-core/src/rd_core/auth.py": "ea2902f3a56e611360b6750f2cd3987020a40537f7939285aba1471d21a3df12",
+    "packages/rd-core/src/rd_core/cli.py": "5d48dd20b6932d4a317a0d44c3fbb8bf8dbc61adc328df4929502954dfbad53b",
+    "packages/rd-core/src/rd_core/configuration.py": "ca93c702f1aef0ae4f66d67067fc7355a2f0ee10c966e8daf1684fdf05287abc",
+    "packages/rd-core/src/rd_core/control.py": "9e282d3014448d080a9720f8f7985af7bdd50a2eab1ff404eab73ff4ab0268d8",
+    "packages/rd-core/src/rd_core/legacy_codec.py": "84e1dbb7b053470e7b45d64082af3b43031be6fd82b39d4b04b4bcfdab70d60e",
+    "packages/rd-core/src/rd_core/logging.py": "85ab26e2b23c444768b1b1bbf272f013bf2df0f8046605f7cd6f910accf5a0a2",
+    "packages/rd-core/src/rd_core/samples.py": "cb87aa74a2234d38400c08440f8ac0a34d371057480bebbef7d54c38935e24bc",
+    "packages/rd-core/src/rd_core/settings.py": "485b46997d161a27e09922c8dccec75fa0ba4552a821237661df601f7bd9f1a2",
+    "packages/rd-core/src/rd_core/video_safety.py": "4761247cd1d5102f04dc4907e5e367bb8ba03f470c9749254cb61f45cacf42c9",
+    "packages/rd-core/src/rd_core/wire.py": "9ef7f340d3d0e401f429f6bb71d59853809ad16aa7f71ea30b22b107830f8971",
+    "packages/rd-quic/src/rd_quic/__init__.py": "dc0a34d00580a1c4fc1dd73717ab0b87e4311f287de3ea05b35755f2541396fa",
+    "packages/rd-quic/src/rd_quic/client.py": "7eb32f7d926683d244693b8c10d8de31514eee38a46de02bdef0b958aefddd59",
+    "packages/rd-quic/src/rd_quic/compat.py": "5c4ee161919a45916a74e81f6d6076e39cbf182f31f9c101cb864d7c918e2b37",
+    "packages/rd-quic/src/rd_quic/framing.py": "ccbc4b0175218193219e437e0aacc541823a88b0bdf99a7881f505d7ecac211c",
+    "packages/rd-quic/src/rd_quic/protocol.py": "e705237631a2b8fec29a91cd6f247bb967265a743bf1ed45df52bd1f753c13d7",
+    "packages/rd-webrtc/src/rd_webrtc/__init__.py": "e1ca1c281a22df76e1764579d5cd8a30ddba88322ecab3afedcadc749b8bd747",
+    "packages/rd-webrtc/src/rd_webrtc/encoding.py": "0efcce933bc56fe7cf0c4cef03e67c1363f348d35a19d0a01188a99645d3c917",
+    "packages/rd-webrtc/src/rd_webrtc/opencv.py": "4d17df46a8ff23ab1d15c005b001660651e724f26d9254c52b4e8e0730385db0",
+    "packages/rd-webrtc/src/rd_webrtc/peer.py": "e9415a299c997dde6b1af4628d9b3cdcc4a833f362afe0ca0b3bf4e79d0fa44b",
+    "packages/rd-webrtc/src/rd_webrtc/session.py": "4f4ea3c25ca85be2be4576b8e01951d8cffbc5caa9d03ef548904a3732ba54ab",
+    "packages/rd-webrtc/src/rd_webrtc/signaling.py": "8034dd8f4f014e0897c2e4602d8d719c37a1a5dafc02e612de2ce0cce77ecc8b",
+    "packages/rd-webrtc/src/rd_webrtc/video.py": "ec53ad9c69bcfa3dc8167a2061a9cbfe0b391a722ad98c1d7ffbfb4b98bb580d",
+    "scripts/benchmark_frame_buffer.py": "7b582dde6d14ae17a8389e9ffa99ad8d030341f3ce09362dfd92bdcd4d43ac03",
+    "scripts/benchmark_media.py": "ea13dd9a6653c092cc8997512b6b3da57401d220938970c9ea79b9d72a18110b",
+    "scripts/benchmark_processes.py": "afd384f3c8173a915ee63641b28f29bfbd42d7ddbaf17bd641f83a4d3e6ce6f9",
+    "scripts/build_wheels.py": "4c040808ccc61dddc2ff63264f280f5e3d6aa1a1300fc85cfbbaba160c429ac4",
+    "scripts/check_installed.py": "a2cd89cd11ba785c6402df5fa093c1e5ec2c6ab19df3b17b51b431414d74c426",
+    "scripts/compare_media.py": "36d6988979b3c129becf69444ca78fa149a80046a16fd07fd491d03c8469a23f",
+    "scripts/compare_processes.py": "45888485aefbe6066fe0d7cca5de7fe06361139a9b561ad71a6e0ec569c3ed5e",
+    "scripts/diagnose_media_memory.py": "79e572c24c7fd3a4b0a46774a45e32a0b36d4d00f5381fcda3df0a084416e2c9",
+    "scripts/local_turn.py": "fcc0346d210a5621be2f15f378cb14ec9360affa1f2f0e2094130d234b95d096",
+    "scripts/manage_release.py": "1ed2706915724dba1ab64bf8d53b3214883427ed1b36f722b3f6e6f2d8d879ca",
+    "scripts/media_probe.py": "d49be944ce423f76a538c7d0508b80f23175fc84a40ecd7b5f7dbc0f34ac979c",
+    "scripts/network_shaper.py": "3d88aec8a5f09ae1b5e6be8127b04e6cd1bea71b7423de72d30cb6b911237227",
+    "scripts/process_probe.py": "02abf7314dd7fa720f7f9b7d6d19f28f1b9d986b6c3a41588b50a1c772546c82",
+    "scripts/simulate_control.py": "a714d703781d7b874d3b66b87a81fea1f2125702c9e9e5f291281feb6cef1e25",
+    "scripts/smoke_driving_signals.py": "02f02b40eb93418d438528eb4bb2057ad6ff2d70d083810a0b1a362903cf6ab0",
+    "scripts/smoke_release_rollback.py": "37d9e57037a8c89dbf2711ee8e5373d80dc6083b80892f9b4d544bea1fe62fbb",
+    "scripts/smoke_vehicle_processes.py": "13a9e164b7a3d19999234fb85715941621853b0fc7d3038b18f3667858880e88",
+    "scripts/soak_media.py": "85c1b4f9edd8694059409448a7bbc80333010748d3d78e779c9939e6cd8fe0c0",
+    "scripts/validate_network.py": "3e8170d05013be4228639a8848d55a1d99fd8c6c57a3c16b6c820c16726c7b1d",
+    "scripts/verify_wheels.py": "f213b6152f9f58464c9c21e0a7c0a0740f61232c0d228b5fbedb2dfdd65a904e"
+  },
+  "presentation_errors": {}
+}

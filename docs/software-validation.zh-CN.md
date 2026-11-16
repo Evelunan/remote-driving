@@ -15,6 +15,8 @@ uv run --no-sync python scripts/build_wheels.py --output-dir artifacts/wheels
 uv run --no-sync python scripts/verify_wheels.py --wheels artifacts/wheels --output artifacts/wheel-acceptance.json
 ```
 
+TURN 两项回归还需要本机 coturn：从 `PATH` 查找，或用 `RD_TEST_TURNSERVER` 指定可执行文件，解包的依赖库可用 `RD_TEST_TURN_LIBRARY_DIR` 指定。完整验收设置 `RD_TEST_REQUIRE_TURN=1`，缺少 coturn 将失败；未设置时这两项明确跳过。测试仅启动随机端口的私有回环进程，详见[网络验收](network-validation.zh-CN.md#b27-强制-turn-与中继进程重启)。
+
 构建与独立安装脚本都支持 `--offline`，要求对应 Python、构建后端及锁定依赖已在 uv 缓存中。独立安装不使用根环境的应用包、editable 安装或 `PYTHONPATH`。脚本在临时目录创建三个环境，直接安装本次应用和公共 wheel，第三方依赖受锁文件导出的版本约束限制；完成后清理环境。已有输出报告会先置为未通过，失败时不会残留上一次的成功结论。
 
 静态检查目前阻止语法错误、未定义名称及部分确定的逻辑错误；全量格式、未使用导入及历史风格问题尚未设为门槛。`--isolated` 保证结果不依赖开发者用户目录中的 Ruff 配置。
@@ -39,13 +41,13 @@ uv run --no-sync python scripts/verify_wheels.py --wheels artifacts/wheels --out
 
 | 环境 | 状态和边界 |
 | --- | --- |
-| 本机 Linux/WSL2，x86_64，Python 3.12.16 | 以 `--locked` 建立全新开发环境，最新全量 304 项回归通过；独立安装重复检查通过，B19 首次车辆退出失败尚待定位（详见下文） |
+| 本机 Linux/WSL2，x86_64，Python 3.12.16 | 以 `--locked` 建立全新开发环境，最新全量 310 项回归通过、无跳过；独立安装重复检查通过，B19 首次车辆退出失败尚待定位（详见下文） |
 | GitHub 托管 Ubuntu 24.04，x86_64，Python 3.12.16 | 工作流已配置；本次仅本地提交，尚未推送或执行远端 Actions。远端 apt/包源及 runner 的执行结果仍需首次运行确认 |
 | 车辆 ROS2 + Python 3.12 | 用户已确认技术路线；ROS2 发行版、系统依赖、实际底盘停车接口仍待实机验证 |
 | 真实桌面 / GPU / 摄像头 / USB | offscreen 与合成设备通过不能代替对应验收 |
 | 其他系统、CPU 架构或 Python 版本 | 尚无本项目验收证据；包元数据的最低 Python 要求不表示这些组合已经通过 |
 
-Linux offscreen 仍需要 Qt/OpenCV 原生库。工作流安装 `libgl1`、`libegl1`、`libopengl0`、`libglib2.0-0t64` 和 `libusb-1.0-0`；真实桌面、相机及 ROS2 依赖另按目标系统准备。CI 使用锁文件校验，依赖变更必须显式更新并重新验证；不会在 CI 中静默更新锁文件。
+Linux offscreen 仍需要 Qt/OpenCV 原生库。工作流安装 `libgl1`、`libegl1`、`libopengl0`、`libglib2.0-0t64` 和 `libusb-1.0-0`，另安装 coturn 并预先屏蔽其系统服务启动；真实桌面、相机及 ROS2 依赖另按目标系统准备。CI 使用锁文件校验，依赖变更必须显式更新并重新验证；不会在 CI 中静默更新锁文件。
 
 B17 本地报告见 [独立安装记录](validation/wheel-acceptance-b17.json)。其中 `source_commit` 为开始验证时的父提交，`source_dirty: true` 表示本批验证脚本尚未提交；制品以 SHA-256 标识。Git 提交关联见 [实施记录](refactoring-progress.zh-CN.md)。
 
@@ -71,4 +73,6 @@ B25 全量回归为 294 passed（60.48s），新增两种正式车辆拓扑的�
 
 B26 新增 UDP 注入工具校准 2 项、实际媒体/控制恢复场景 8 项，全量 304 passed（96.51s）。[异常网络验收](network-validation.zh-CN.md)记录轻度扰动、仅剩可靠 RPC、两类黑洞、时钟预算及三种有序服务重启；明确保留 TURN、饱和带宽与真实进程/设备故障边界。本批没有修改应用源码或锁文件，B25 的 wheel 和独立安装证据继续适用。
 
-最终[安装报告](validation/wheel-acceptance-b24.json)三角色均通过，包含车辆三种运行模式和驾驶端 SIGINT/SIGTERM 检查。
+B24 的[安装报告](validation/wheel-acceptance-b24.json)三角色均通过，包含车辆三种运行模式和驾驶端 SIGINT/SIGTERM 检查。
+
+B27 增加 4 项失效清理竞态、2 项真实 coturn 场景，并增强原有双接收端实际媒体测试：一个接收端失效后会重建自身连接，另一个保留原连接和相机源。设置 `RD_TEST_REQUIRE_TURN=1` 的全量结果为 310 passed（109.23s），没有跳过。六个新 wheel 的 115 个 Python 文件与源码一致，[三角色独立安装报告](validation/wheel-acceptance-b27.json)通过，锁文件未变化。默认 ICE 时序下的 TURN 重启原始记录和修复前失败均保留；软件已请求零速不表示真实底盘已停车。
