@@ -1,82 +1,119 @@
-# main.py
+"""Vehicle entry: one validated configuration for control, media and devices."""
+
 import asyncio
-import os
-import multiprocessing as mp
-import sys
+import signal
 
-from rd_vehicle.application import VehicleDatagram, MultiCameraManager
-from rd_vehicle.common.utils import get_camera_index
+from rd_core.cli import client_arguments
+from rd_core.configuration import ConfigError
 from rd_core.logging import configure_logging, get_logger
-from rd_core.configuration import load_config
 from rd_core.settings import VehicleSettings
-from rd_vehicle.config.loaders import (
-    get_webrtc_config,
-    get_quic_config,
-    get_cameras_config,
-    get_vehicle_config,
-)
-from rd_vehicle.infrastructure.cameras import USBCamera, TestCamera
-from rd_vehicle.infrastructure.streams import WebRTCStreamer
-
 
 logger = get_logger(__name__)
 
 
-def _create_controller(vehicle_config):
-    """根据配置动态创建底盘控制器"""
-    ctrl_type = vehicle_config.controller_type
-    if ctrl_type == "none":
-        logger.info("控制器类型为 none，底盘控制已禁用（测试模式）")
-        return None
-    elif ctrl_type == "serial":
-        from rd_vehicle.infrastructure.controller import SerialController
-        return SerialController(vehicle_config)
-    elif ctrl_type == "ros2":
-        from rd_vehicle.infrastructure.controller.ros2_cmd_vel_controller import RCLpyCmdVelController
-        return RCLpyCmdVelController(
-            max_linear=vehicle_config.motion.max_linear_velocity,
-            max_angular=vehicle_config.motion.max_angular_velocity,
-        )
-    else:
-        raise ValueError(f"未知的控制器类型: {ctrl_type}")
+def parse_args(argv=None):
+    return client_arguments(VehicleSettings, "vehicle", argv)
 
 
-async def start_control(session_id: int):
-    """启动 QUIC 控制指令接收服务"""
-    quic_config = get_quic_config()
-    vehicle_config = get_vehicle_config()
-    controller = _create_controller(vehicle_config)
-    client = VehicleDatagram(
-        config=quic_config,
-        session_id=session_id,
-        controller=controller,
-        control_timeout_s=vehicle_config.control_timeout_s,
+def active_components(settings):
+    return tuple(
+        name
+        for name in settings.components
+        if name != "control" or settings.controller != "none"
     )
-    logger.info(f"控制服务启动 (session={session_id})")
-    await client.start()
 
 
-async def start_streaming(room: str):
-    """启动多路摄像头采集与 WebRTC 推流服务"""
-    settings = load_config(VehicleSettings, "vehicle").value
-    streamer = WebRTCStreamer(room, settings.network, settings.credentials)
-    manager = MultiCameraManager(streamer)
+def check_config(settings):
+    settings.validate()
+    components = active_components(settings)
+    if "control" in components:
+        from rd_quic.client import check_control_config
 
-    cameras = get_cameras_config()
-    for c in cameras:
-        cam_id = get_camera_index(vid=c.vid, pid=c.pid)
-        camera = USBCamera(
-            camera_id=cam_id,
-            camera_name=c.name,
-            height=c.height,
-            width=c.width,
-            fps=c.fps,
+        check_control_config(settings.network, settings.credentials)
+        if settings.controller == "ros2":
+            from rd_vehicle.infrastructure.controller.ros2_cmd_vel_controller import (
+                RCLpyCmdVelController,  # noqa: F401
+            )
+        elif settings.controller == "serial":
+            if (
+                max(settings.motion.max_linear_mps, settings.motion.max_angular_radps)
+                > 655.35
+            ):
+                raise ConfigError("motion limit exceeds serial uint16 representation")
+            import serial  # noqa: F401
+    if "media" in components:
+        from rd_webrtc.signaling import check_media_config
+
+        check_media_config(settings.network, settings.credentials)
+
+
+def _create_controller(settings):
+    match settings.controller:
+        case "none":
+            return None
+        case "mock":
+            from rd_vehicle.infrastructure.controller.mock_controller import (
+                MockController,
+            )
+
+            return MockController(settings.motion)
+        case "serial":
+            from rd_vehicle.infrastructure.controller.serial_controller import (
+                SerialController,
+            )
+
+            return SerialController(settings)
+        case "ros2":
+            from rd_vehicle.infrastructure.controller.ros2_cmd_vel_controller import (
+                RCLpyCmdVelController,
+            )
+
+            return RCLpyCmdVelController(
+                max_linear=settings.motion.max_linear_mps,
+                max_angular=settings.motion.max_angular_radps,
+            )
+        case _:
+            raise ValueError("unknown controller")
+
+
+def _create_camera(settings):
+    from rd_vehicle.infrastructure.cameras import TestCamera, USBCamera
+
+    if settings.source == "synthetic":
+        return TestCamera(
+            width=settings.width,
+            height=settings.height,
+            fps=settings.fps,
+            name=settings.name,
         )
-        # camera = TestCamera(name=c.name)
-        manager.add_camera(camera)
+    return USBCamera(
+        settings.source,
+        settings.name,
+        width=settings.width,
+        height=settings.height,
+        fps=settings.fps,
+    )
 
-    logger.info(f"推流服务启动 (room={room}, cameras={len(cameras)})")
+
+async def start_control(settings, *, controller_factory=None):
+    from rd_vehicle.application.control_client import VehicleControlClient
+
+    controller = (controller_factory or _create_controller)(settings)
+    if controller is None:
+        raise ConfigError("control component requires a controller")
+    client = VehicleControlClient(settings, controller)
+    await client.run()
+
+
+async def start_streaming(settings, *, camera_factory=None):
+    from rd_vehicle.application.multi_camera_manager import MultiCameraManager
+    from rd_vehicle.infrastructure.streams.webrtc_streamer import WebRTCStreamer
+
+    streamer = WebRTCStreamer(settings.room, settings.network, settings.credentials)
+    manager = MultiCameraManager(streamer)
     try:
+        for camera_settings in settings.cameras:
+            manager.add_camera((camera_factory or _create_camera)(camera_settings))
         await manager.start()
         async with asyncio.TaskGroup() as tasks:
             tasks.create_task(streamer.start())
@@ -88,59 +125,97 @@ async def start_streaming(room: str):
             await streamer.close()
 
 
-def parse_args():
-    import argparse
-
-    def session_id_type(value):
-        ivalue = int(value)
-        if ivalue < 0 or ivalue > 65535:
-            raise argparse.ArgumentTypeError(
-                f"session_id 必须在 0–65535 范围内，当前值: {ivalue}"
+async def run(
+    settings,
+    stop=None,
+    *,
+    controller_factory=None,
+    camera_factory=None,
+    install_signals=False,
+):
+    check_config(settings)
+    stop = stop or asyncio.Event()
+    loop = asyncio.get_running_loop()
+    signals = []
+    for sig in (signal.SIGINT, signal.SIGTERM) if install_signals else ():
+        try:
+            loop.add_signal_handler(sig, stop.set)
+            signals.append(sig)
+        except (NotImplementedError, RuntimeError):
+            pass
+    tasks = []
+    stopped = None
+    try:
+        components = active_components(settings)
+        if "control" in components:
+            tasks.append(
+                asyncio.create_task(
+                    start_control(settings, controller_factory=controller_factory),
+                    name="vehicle-control",
+                )
             )
-        return ivalue
-
-    parser = argparse.ArgumentParser(description="车辆端 - 远程驾驶系统")
-    parser.add_argument(
-        "--session", type=session_id_type, required=True,
-        help="会话标识 (0–65535)，用于 QUIC 控制链路的身份绑定",
-    )
-    parser.add_argument(
-        "--room", type=str, default=None,
-        help="WebRTC 信令房间号（默认与 session 相同）",
-    )
-    return parser.parse_args()
-
-
-async def main():
-    mp.set_start_method("spawn", force=True)
-    args = parse_args()
-
-    session_id = args.session
-    room = args.room if args.room else str(session_id)
-
-    logger.info("=== 车辆端启动 ===")
-    logger.info(f"session_id={session_id}, room={room}")
-
-    try:
-        await asyncio.gather(
-            start_control(session_id),
-            start_streaming(room),
+        else:
+            logger.info(
+                "Vehicle control disabled; no control registration or device opened"
+            )
+        if "media" in components:
+            tasks.append(
+                asyncio.create_task(
+                    start_streaming(settings, camera_factory=camera_factory),
+                    name="vehicle-media",
+                )
+            )
+        stopped = asyncio.create_task(stop.wait())
+        done, _ = await asyncio.wait(
+            [*tasks, stopped], return_when=asyncio.FIRST_COMPLETED
         )
-    except asyncio.CancelledError:
-        logger.info("任务被取消 (用户终止)")
-    except Exception as e:
-        logger.error(f"启动失败: {e}", exc_info=True)
-        sys.exit(1)
+        for task in done:
+            if task is not stopped:
+                task.result()
+                raise RuntimeError("vehicle component ended unexpectedly")
+    finally:
+        if stopped is not None:
+            stopped.cancel()
+        for task in tasks:
+            if not task.done() and not task.cancelling():
+                task.cancel()
+        results = await asyncio.gather(
+            *tasks, *([stopped] if stopped is not None else []), return_exceptions=True
+        )
+        for sig in signals:
+            loop.remove_signal_handler(sig)
+        failures = [result for result in results if isinstance(result, Exception)]
+        if failures:
+            raise ExceptionGroup("vehicle component failed", failures)
 
 
-def cli():
-    configure_logging()
+def cli(argv=None):
+    args = parse_args(argv)
+    if args.dump_config:
+        print(args.loaded.as_json())
+        return 0
+    settings = args.loaded.value
+    configure_logging(settings.logging.level, directory=settings.logging.directory)
     try:
-        asyncio.run(main())
+        if args.check_config:
+            check_config(settings)
+            print(
+                "Configuration, credentials, TLS and selected controller imports are valid; no devices opened."
+            )
+        else:
+            asyncio.run(run(settings, install_signals=True))
     except KeyboardInterrupt:
         pass
+    except (ConfigError, OSError, ImportError, ValueError) as exc:
+        logger.error("Vehicle startup failed (%s)", type(exc).__name__)
+        if isinstance(exc, ConfigError):
+            logger.error("%s", exc)
+        return 2
+    except Exception as exc:  # noqa: BLE001 - application boundary, no raw device/payload output
+        logger.error("Vehicle runtime failed (%s)", type(exc).__name__)
+        return 1
+    return 0
 
 
 if __name__ == "__main__":
-    cli()
-
+    raise SystemExit(cli())

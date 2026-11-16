@@ -1,7 +1,7 @@
 from typing import Optional
 
 from .frame_buffer import FrameBuffer
-import cv2
+from rd_webrtc.opencv import cv2
 import numpy as np
 
 

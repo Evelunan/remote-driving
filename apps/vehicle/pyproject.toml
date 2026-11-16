@@ -11,11 +11,10 @@ requires-python = ">=3.12"
 dependencies = [
     "rd-core==0.2.0",
     "rd-quic==0.2.0",
-    "rd-webrtc==0.2.0",
+    "rd-webrtc[opencv]==0.2.0",
     "aioquic>=1.3.0",
     "aiortc>=1.14.0",
     "numpy>=2.4.3",
-    "opencv-python>=4.13.0.92",
     "pyserial>=3.5",
     "pyyaml>=6.0.3",
     "websockets>=16.0",
@@ -28,7 +27,7 @@ rd-vehicle = "rd_vehicle.main:cli"
 where = ["src"]
 
 [tool.setuptools.package-data]
-rd_vehicle = ["config/*.yaml", "lib/*.dll"]
+rd_vehicle = ["lib/*.dll"]
 
 [[tool.uv.index]]
 name = "aliyun"

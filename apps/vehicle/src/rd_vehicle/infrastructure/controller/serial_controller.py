@@ -1,22 +1,22 @@
 import serial
-from rd_vehicle.interfaces.icontroller import IController, StopResult
-from .motion import target_velocity
-
-from rd_vehicle.config.loaders import VehicleConfig
 from rd_core.logging import get_logger
+from rd_core.settings import VehicleSettings
+from rd_vehicle.interfaces.icontroller import IController, StopResult
+
+from .motion import target_velocity
 
 logger = get_logger(__name__)
 
 
 class SerialController(IController):
-    def __init__(self, config: VehicleConfig):
+    def __init__(self, config: VehicleSettings):
         # 运动控制参数
-        self.max_linear_velocity = config.motion.max_linear_velocity
-        self.max_angular_velocity = config.motion.max_angular_velocity
+        self.max_linear_velocity = config.motion.max_linear_mps
+        self.max_angular_velocity = config.motion.max_angular_radps
         if max(self.max_linear_velocity, self.max_angular_velocity) > 655.35:
             raise ValueError("motion limit exceeds the serial uint16 representation")
 
-        self.command_template = bytearray(config.communication.protocol.template_bytes)
+        self.command_template = bytearray.fromhex(config.serial.template_hex)
         if len(self.command_template) != 13:
             raise ValueError("serial command template must contain 13 bytes")
         # 预分配缓冲区
@@ -28,15 +28,15 @@ class SerialController(IController):
         self.checksum_position = 12
 
         self.serial = serial.Serial(
-            port=config.communication.serial.port,
-            baudrate=config.communication.serial.baud_rate,
+            port=config.serial.port,
+            baudrate=config.serial.baud_rate,
             bytesize=serial.EIGHTBITS,
             parity=serial.PARITY_NONE,
             stopbits=serial.STOPBITS_ONE,
             rtscts=False,
             xonxoff=False,
-            timeout=config.communication.serial.read_timeout,
-            write_timeout=config.communication.serial.write_timeout,
+            timeout=config.serial.read_timeout_s,
+            write_timeout=config.serial.write_timeout_s,
         )
 
     def send_command(self, throttle, brake, steering):
@@ -50,7 +50,7 @@ class SerialController(IController):
         )
         cmd = self._prepare_command(v, w)
         if self.serial.write(cmd) != len(cmd):
-            raise IOError("partial serial control write")
+            raise OSError("partial serial control write")
         logger.debug(f"[car] Send command: {cmd}")
 
     def _prepare_command(self, v, w):
@@ -75,7 +75,9 @@ class SerialController(IController):
 
     def request_safe_stop(self, reason: str) -> StopResult:
         self.send_command(0.0, 1.0, 0.0)
-        return StopResult(requested=True, detail=f"zero serial target requested: {reason}")
+        return StopResult(
+            requested=True, detail=f"zero serial target requested: {reason}"
+        )
 
     def close(self):
         """关闭串口连接"""

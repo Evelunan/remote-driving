@@ -1,0 +1,45 @@
+# ROS2 实车接入模板。需现场校验设备路径、网络、限值和底盘安全接口后使用。
+environment: production
+session: 1234
+room: "1234"
+components: [control, media]
+controller: ros2
+credentials:
+  token_env: RD_VEHICLE_TOKEN
+network:
+  signaling_url: wss://localhost:8765
+  signaling_ca_file: tls/ca.pem
+  quic_host: localhost
+  quic_port: 4433
+  quic_server_name: localhost
+  quic_ca_file: tls/ca.pem
+  ice_servers: []
+control:
+  send_hz: 50
+  input_timeout_ms: 200
+  command_timeout_ms: 300
+  max_clock_skew_ms: 50
+motion:
+  max_linear_mps: 5.0
+  max_angular_radps: 2.0
+cameras:
+  - name: front
+    source: /dev/v4l/by-id/REPLACE_WITH_FRONT_CAMERA
+    width: 1080
+    height: 720
+    fps: 30
+  - name: back
+    source: /dev/v4l/by-id/REPLACE_WITH_BACK_CAMERA
+    width: 640
+    height: 480
+    fps: 30
+  - name: left
+    source: /dev/v4l/by-id/REPLACE_WITH_LEFT_CAMERA
+    width: 640
+    height: 480
+    fps: 30
+  - name: right
+    source: /dev/v4l/by-id/REPLACE_WITH_RIGHT_CAMERA
+    width: 640
+    height: 480
+    fps: 30

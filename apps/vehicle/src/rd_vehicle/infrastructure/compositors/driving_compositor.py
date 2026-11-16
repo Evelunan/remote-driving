@@ -1,4 +1,4 @@
-import cv2
+from rd_webrtc.opencv import cv2
 import numpy as np
 from enum import Enum
 from rd_core.logging import get_logger

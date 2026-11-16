@@ -302,8 +302,8 @@ class CameraSettings:
     fps: float = 30.0
 
     def __post_init__(self):
-        if not self.name or len(self.name) > 64:
-            raise ValueError("camera name must have 1..64 characters")
+        if self.name not in {"front", "back", "left", "right"}:
+            raise ValueError("camera name must be front, back, left or right")
         if (
             isinstance(self.source, int)
             and self.source < 0
@@ -312,6 +312,8 @@ class CameraSettings:
         ):
             raise ValueError("camera source must be nonempty or a nonnegative index")
         _positive(width=self.width, height=self.height, fps=self.fps)
+        if self.fps > 240:
+            raise ValueError("camera FPS must not exceed 240")
         if self.width % 2 or self.height % 2:
             raise ValueError("camera dimensions must be even")
 
@@ -322,6 +324,7 @@ class SerialSettings:
     baud_rate: int = 115200
     read_timeout_s: float = 0.02
     write_timeout_s: float = 0.02
+    template_hex: str = "CD 0A 01 00 00 00 00 00 00 00 00 00 00"
 
     def __post_init__(self):
         _positive(
@@ -331,6 +334,12 @@ class SerialSettings:
         )
         if not self.port:
             raise ValueError("serial port is required")
+        try:
+            template = bytes.fromhex(self.template_hex)
+        except ValueError:
+            raise ValueError("serial template_hex must encode 13 bytes") from None
+        if len(template) != 13:
+            raise ValueError("serial template_hex must encode 13 bytes")
 
 
 @dataclass(frozen=True)
@@ -339,6 +348,7 @@ class VehicleSettings:
     session: int = 1234
     room: str = "1234"
     controller: Literal["none", "mock", "ros2", "serial"] = "none"
+    components: tuple[Literal["control", "media"], ...] = ("control", "media")
     logging: LoggingSettings = field(default_factory=LoggingSettings)
     credentials: CredentialSettings = field(default_factory=CredentialSettings)
     network: ClientNetworkSettings = field(default_factory=ClientNetworkSettings)
@@ -351,6 +361,10 @@ class VehicleSettings:
 
     def validate(self):
         validate_client(self)
+        if not self.components or len(set(self.components)) != len(self.components):
+            raise ValueError("components must be nonempty and unique")
+        if self.components == ("control",) and self.controller == "none":
+            raise ValueError("control-only mode requires an enabled controller")
         if not self.cameras or len({camera.name for camera in self.cameras}) != len(
             self.cameras
         ):

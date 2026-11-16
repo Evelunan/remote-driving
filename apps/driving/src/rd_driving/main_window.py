@@ -4,50 +4,50 @@
 模块化 UI，使用工厂模式创建组件。
 """
 
-import os
 import sys
 import time
+from dataclasses import replace
 
+from PyQt6.QtCore import QTimer
+from PyQt6.QtGui import QFont
 from PyQt6.QtWidgets import (
     QApplication,
-    QMainWindow,
-    QWidget,
-    QVBoxLayout,
+    QFrame,
     QHBoxLayout,
     QLabel,
-    QFrame,
+    QMainWindow,
     QStackedWidget,
+    QVBoxLayout,
+    QWidget,
 )
-from PyQt6.QtGui import QFont
-from PyQt6.QtCore import QTimer, Qt
+from rd_core.configuration import load_config
+from rd_core.logging import get_logger
+from rd_core.settings import DrivingSettings
 
+from rd_driving.branding import APP_NAME, APP_NAME_EN, VERSION
 from rd_driving.factories import UIFactory
-from rd_driving.ui.widgets import LoginPage, MultiVideoWidget, GLMultiVideoWidget
-
+from rd_driving.infrastructure.video import FrameBuffer, WebRTCReceiver
 from rd_driving.infrastructure.workers import (
-    SignalBridge,
     ControlSystemThread,
-    VehicleStatusThread,
+    SignalBridge,
     WebRTCReceiverThread,
 )
-from rd_driving.infrastructure.video import WebRTCReceiver, FrameBuffer
-from rd_core.logging import configure_logging, get_logger
-from rd_driving.config.loaders import get_app_config
-from rd_core.configuration import load_config
-from rd_core.settings import DrivingSettings
-from rd_driving.common.constants import ROOT_PATH
+from rd_driving.ui.widgets import LoginPage, MultiVideoWidget
 
 logger = get_logger(__name__)
+
 
 class MainWindow(QMainWindow):
     """主窗口 - 包含登录页面和控制页面"""
 
-    def __init__(self, session_id: str = None, room: str = None, *, settings=None):
+    def __init__(
+        self, session_id: int | None = None, room: str | None = None, *, settings=None
+    ):
         super().__init__()
         self.settings = settings or load_config(DrivingSettings, "driving").value
         self._session_id = session_id
         self._room = room
-        self._theme = UIFactory.get_theme()
+        self._theme = UIFactory.set_theme(self.settings.ui.theme)
 
         # 服务相关
         self._receiver_thread = None
@@ -69,17 +69,18 @@ class MainWindow(QMainWindow):
 
         # WebRTC 连接状态标记（只有连接成功后才允许显示视频传输状态）
         self._webrtc_connected = False
+        self._telemetry_at = None
         self.fb = FrameBuffer()
 
         # 登录数据
         self._login_data = {}
-        if session_id and room:
+        if session_id is not None and room:
             self._login_data = {"session_id": session_id, "room": room}
         logger.info(self._login_data)
         self._setup_ui()
 
         # 如果有 session_id，直接进入主控制页面
-        if session_id and room:
+        if session_id is not None and room:
             self._switch_to_control_page()
 
     def _apply_global_style(self):
@@ -103,21 +104,50 @@ class MainWindow(QMainWindow):
             (self._bridge.usb_status_changed, self._on_usb_status_changed),
             (self._bridge.quic_status_changed, self._on_quic_status_changed),
             (self._bridge.control_data_updated, self._on_control_data_updated),
-            (self._bridge.control_confirmation_expired, self._on_control_confirmation_expired),
+            (
+                self._bridge.control_confirmation_expired,
+                self._on_control_confirmation_expired,
+            ),
+            (self._bridge.vehicle_status_updated, self._on_vehicle_status),
         ):
-            signal.connect(lambda *args, g=generation, cb=callback: self._generation_signal(g, cb, *args))
+            signal.connect(
+                lambda *args, g=generation, cb=callback: self._generation_signal(
+                    g, cb, *args
+                )
+            )
 
     def _generation_signal(self, generation, callback, *args):
         if generation == self._service_generation and self._services_running:
             callback(*args)
 
-    def _on_control_data_updated(self, throttle: float, brake: float, steering: float, elapsed_ms: float):
+    def _on_control_data_updated(
+        self, throttle: float, brake: float, steering: float, elapsed_ms: float
+    ):
         if self._services_running and self._control_panel:
-            self._control_panel.set_command_status(throttle, brake, steering, elapsed_ms)
+            self._control_panel.set_command_status(
+                throttle, brake, steering, elapsed_ms
+            )
 
     def _on_control_confirmation_expired(self):
         if self._services_running and self._control_panel:
             self._control_panel.clear_command_status()
+
+    def _on_vehicle_status(self, data):
+        if self._services_running and self._control_panel is not None:
+            self._control_panel.set_measured_status(
+                data["linear_mps"], data["angular_radps"]
+            )
+            self._telemetry_at = time.monotonic()
+
+    def _expire_telemetry(self):
+        if (
+            self._telemetry_at is not None
+            and self._control_panel is not None
+            and time.monotonic() - self._telemetry_at
+            >= self.settings.control.command_timeout_ms / 1000
+        ):
+            self._control_panel.clear_measured_status()
+            self._telemetry_at = None
 
     def _on_usb_status_changed(self, ok: bool, text: str):
         if self._services_running and self._control_panel:
@@ -126,11 +156,18 @@ class MainWindow(QMainWindow):
     def _on_quic_status_changed(self, ok: bool, text: str):
         if self._services_running and self._control_panel:
             self._control_panel.set_connection_status("quic", ok, text)
+            if not ok:
+                self._clear_feedback()
+
+    def _clear_feedback(self):
+        self._telemetry_at = None
+        if self._control_panel is not None:
+            self._control_panel.clear_command_status()
+            self._control_panel.clear_measured_status()
 
     def _setup_ui(self):
-        app_config = get_app_config()
-        self.setWindowTitle(f"{app_config.app_name} | {app_config.app_name_en}")
-        self.setMinimumSize(app_config.window_min_width, app_config.window_min_height)
+        self.setWindowTitle(f"{APP_NAME} | {APP_NAME_EN}")
+        self.setMinimumSize(self.settings.ui.width, self.settings.ui.height)
 
         central = QWidget()
         self.setCentralWidget(central)
@@ -142,7 +179,7 @@ class MainWindow(QMainWindow):
         self._stacked_widget = QStackedWidget()
 
         # 页面 0: 登录页面
-        self._login_page = LoginPage(self._theme)
+        self._login_page = LoginPage(self._theme, settings=self.settings)
         self._login_page.login_success.connect(self._on_login_success)
         self._stacked_widget.addWidget(self._login_page)
 
@@ -157,8 +194,15 @@ class MainWindow(QMainWindow):
         """登录成功，切换到控制页面"""
         logger.info(f"登录成功: {data}")
         self._login_data = data
-        self._session_id = data.get("session_id")
-        self._room = data.get("room")
+        try:
+            selected = replace(
+                self.settings, session=int(data["session_id"]), room=data["room"]
+            )
+            selected.validate()
+        except (KeyError, TypeError, ValueError):
+            self._login_page._show_error("会话或房间参数无效")
+            return
+        self._session_id, self._room = selected.session, selected.room
         self._switch_to_control_page()
 
     def _switch_to_control_page(self):
@@ -177,7 +221,7 @@ class MainWindow(QMainWindow):
 
         # 导航栏
         self._navbar = UIFactory.create_navbar()
-  
+
         self._navbar.set_room(self._room)
         self._navbar.add_action("退出登录", self._logout, style="secondary")
         layout.addWidget(self._navbar.get_widget())
@@ -191,7 +235,9 @@ class MainWindow(QMainWindow):
 
         # self._multi_video_widget = GLMultiVideoWidget(self.fb)
         self._multi_video_widget = MultiVideoWidget(
-            self.fb, stale_frame_ms=self.settings.ui.stale_frame_ms, debug_overlay=self.settings.ui.debug
+            self.fb,
+            stale_frame_ms=self.settings.ui.stale_frame_ms,
+            debug_overlay=self.settings.ui.debug,
         )
         self._control_panel = UIFactory.create_control_panel()
         self._control_panel.set_reconnect_callback(self._reconnect)
@@ -220,7 +266,7 @@ class MainWindow(QMainWindow):
         layout = QHBoxLayout(footer)
         layout.setContentsMargins(20, 0, 20, 0)
 
-        version_label = QLabel(f"v{get_app_config().version}")
+        version_label = QLabel(f"v{VERSION}")
         version_label.setStyleSheet(
             f"color: {self._theme.text_muted}; font-size: 11px; border: none;"
         )
@@ -242,18 +288,18 @@ class MainWindow(QMainWindow):
             if previous is not None:
                 previous.stop()
                 previous.deleteLater()
-        app_config = get_app_config()
         self._frame_timer = QTimer(self)
         self._frame_timer.timeout.connect(self._multi_video_widget.update)
-        self._frame_timer.start(app_config.frame_timer_interval)
-        
+        self._frame_timer.timeout.connect(self._expire_telemetry)
+        self._frame_timer.start(self.settings.ui.frame_interval_ms)
+
         self._stats_timer = QTimer(self)
         self._stats_timer.timeout.connect(self._update_camera_info)
-        self._stats_timer.start(app_config.stats_timer_interval)
-        
+        self._stats_timer.start(self.settings.ui.stats_interval_ms)
+
         self._time_timer = QTimer(self)
         self._time_timer.timeout.connect(self._update_time)
-        self._time_timer.start(app_config.time_timer_interval)
+        self._time_timer.start(1000)
         self._time_label.setText(time.strftime("%Y-%m-%d %H:%M:%S"))
 
     def _update_time(self):
@@ -276,14 +322,21 @@ class MainWindow(QMainWindow):
             fps = display.get_fps()
             w, h = display.get_resolution()
             self._control_panel.set_camera_grid(key, fps, w, h)
-            
+
         if self._webrtc_connected:
             front = self.fb.get("front")
-            fresh = front is not None and front.fresh(self.settings.ui.stale_frame_ms / 1000)
-            self._control_panel.set_connection_status("video", fresh, "传输中" if fresh else "主画面已过期")
+            fresh = front is not None and front.fresh(
+                self.settings.ui.stale_frame_ms / 1000
+            )
+            self._control_panel.set_connection_status(
+                "video", fresh, "传输中" if fresh else "主画面已过期"
+            )
 
     def _start_services(self):
-        if any(worker is not None and worker.isRunning() for worker in (self._receiver_thread, self._control_thread)):
+        if any(
+            worker is not None and worker.isRunning()
+            for worker in (self._receiver_thread, self._control_thread)
+        ):
             raise RuntimeError("previous workers have not stopped")
         self._service_generation += 1
         self._setup_signals()
@@ -291,12 +344,14 @@ class MainWindow(QMainWindow):
         try:
             self._start_video()
             self._start_control()
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 - GUI boundary rolls back partial startup
             logger.error("服务启动失败 (%s)", type(exc).__name__)
             self._request_shutdown("logout")
 
     def _start_video(self):
-        receiver = WebRTCReceiver(self._room, self.settings.network, self.settings.credentials)
+        receiver = WebRTCReceiver(
+            self._room, self.settings.network, self.settings.credentials
+        )
         generation = self.fb.begin_session()
         receiver.on_frame(
             lambda track_id, frame: self.fb.put(track_id, frame, generation=generation)
@@ -306,23 +361,28 @@ class MainWindow(QMainWindow):
 
         service_generation = self._service_generation
         self._receiver_thread.connection_changed.connect(
-            lambda ok, g=service_generation: self._generation_signal(g, self._on_video_conn, ok)
+            lambda ok, g=service_generation: self._generation_signal(
+                g, self._on_video_conn, ok
+            )
         )
         self._receiver_thread.error_occurred.connect(
             lambda e: logger.error(f"视频错误: {e}")
         )
         self._receiver_thread.status_changed.connect(
-            lambda status, text, g=service_generation: self._generation_signal(g, self._on_video_status_changed, status, text)
+            lambda status, text, g=service_generation: self._generation_signal(
+                g, self._on_video_status_changed, status, text
+            )
         )
         self._receiver_thread.finished.connect(self._finish_shutdown)
         self._receiver_thread.start()
 
     def _start_control(self):
-        self._control_thread = ControlSystemThread(self._bridge, self._session_id)
+        self._control_thread = ControlSystemThread(
+            self._bridge,
+            replace(self.settings, session=int(self._session_id), room=self._room),
+        )
         self._control_thread.finished.connect(self._finish_shutdown)
         self._control_thread.start()
-
-
 
     def _reconnect(self):
         if self._services_running and self._pending_action is None:
@@ -333,7 +393,6 @@ class MainWindow(QMainWindow):
             return
         text = "在线" if connected else "离线"
         self._control_panel.set_connection_status("signal", connected, text)
-
 
     def _on_video_status_changed(self, status: str, message: str):
         if not self._services_running or self._multi_video_widget is None:
@@ -405,6 +464,7 @@ class MainWindow(QMainWindow):
         self._services_running = False
         self._service_generation += 1
         self.fb.clear()
+        self._clear_feedback()
         self._login_page.setEnabled(False)
         self._control_page.setEnabled(False)
         for name in ("_frame_timer", "_stats_timer", "_time_timer"):
@@ -420,7 +480,10 @@ class MainWindow(QMainWindow):
     def _finish_shutdown(self):
         if self._pending_action is None:
             return
-        if any(worker is not None and worker.isRunning() for worker in (self._receiver_thread, self._control_thread)):
+        if any(
+            worker is not None and worker.isRunning()
+            for worker in (self._receiver_thread, self._control_thread)
+        ):
             return
         self._shutdown_poll.stop()
         self._receiver_thread = self._control_thread = None
@@ -458,8 +521,8 @@ class MainWindow(QMainWindow):
             # 切回登录页面
             self._stacked_widget.setCurrentIndex(0)
             logger.info("已返回登录页面")
-        except Exception as e:
-            logger.error(f"切换到登录页面时出错: {e}")
+        except RuntimeError as exc:
+            logger.error("切换到登录页面时出错 (%s)", type(exc).__name__)
 
     def closeEvent(self, event):
         if self._closing_ready:
@@ -469,52 +532,25 @@ class MainWindow(QMainWindow):
             self._request_shutdown("close")
 
 
-def run_gui(session_id=None, room=None):
-    """
-    启动 GUI
-
-    Args:
-        session_id: QUIC会话号（如果与room一起提供则跳过登录）
-        room: WebRTC房间号（如果与session_id一起提供则跳过登录）
-    """
-    app = QApplication(sys.argv)
+def run_gui(settings, *, connect=False):
+    app = QApplication([sys.argv[0]])
     app.setStyle("Fusion")
-    app_config = get_app_config()
-    theme = UIFactory.set_theme(app_config.theme)
+    theme = UIFactory.set_theme(settings.ui.theme)
     app.setFont(QFont(theme.get_font_family(), 9))
-
-    if session_id is not None and room:
-        # 直接进入主界面（开发/调试模式）
-        window = MainWindow(session_id=session_id, room=room)
-    else:
-        # 正常登录流程
-        window = MainWindow()
-
-    window.show()
-    sys.exit(app.exec())
-
-
-def main():
-    import argparse
-
-    def session_id_type(value):
-        ivalue = int(value)
-        if ivalue < 0 or ivalue > 65535:
-            raise argparse.ArgumentTypeError(
-                f"session_id 必须在 0–65535 范围内，当前值: {ivalue}"
-            )
-        return ivalue
-
-    parser = argparse.ArgumentParser(description=get_app_config().app_name)
-    parser.add_argument(
-        "--session", type=session_id_type,
-        help="QUIC会话号 (0–65535)，与 --room 一起使用可跳过登录",
+    window = MainWindow(
+        session_id=settings.session if connect else None,
+        room=settings.room if connect else None,
+        settings=settings,
     )
-    parser.add_argument("--room", help="WebRTC房间号，与 --session 一起使用可跳过登录")
-    args = parser.parse_args()
-    configure_logging()
-    run_gui(session_id=args.session, room=args.room)
+    window.show()
+    return app.exec()
+
+
+def main(argv=None):
+    from rd_driving.cli import main as entry
+
+    return entry(argv)
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

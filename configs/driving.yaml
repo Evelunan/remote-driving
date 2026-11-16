@@ -1,0 +1,30 @@
+# 驾驶端实例；令牌从进程环境读取，证书路径相对本文件。
+environment: production
+session: 1234
+room: "1234"
+credentials:
+  token_env: RD_OPERATOR_TOKEN
+network:
+  signaling_url: wss://localhost:8765
+  signaling_ca_file: tls/ca.pem
+  quic_host: localhost
+  quic_port: 4433
+  quic_server_name: localhost
+  quic_ca_file: tls/ca.pem
+  ice_servers: []
+control:
+  send_hz: 50
+  input_timeout_ms: 200
+  command_timeout_ms: 300
+  max_clock_skew_ms: 50
+usb:
+  vendor_id: 12068  # 0x2f24
+  product_id: 9
+ui:
+  theme: modern_glass
+  width: 1200
+  height: 750
+  frame_interval_ms: 16
+  stats_interval_ms: 1000
+  stale_frame_ms: 500
+  debug: false

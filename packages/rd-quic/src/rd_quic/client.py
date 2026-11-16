@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from aioquic.asyncio import connect
 from aioquic.quic.configuration import QuicConfiguration
 from rd_core.auth import read_secret
+from rd_core.configuration import ConfigError
 from rd_core.settings import ClientNetworkSettings, ControlSettings, CredentialSettings
 from rd_core.wire import ALPN
 
@@ -73,6 +74,15 @@ def quic_configuration(network: ClientNetworkSettings):
         max_datagram_frame_size=1200,
         idle_timeout=network.idle_timeout_s,
     )
+
+
+def check_control_config(network, credentials):
+    """Resolve local TLS trust and token without opening a socket or device."""
+    token = read_secret(credentials.token_env)
+    if not 32 <= len(token) <= 4096:
+        raise ConfigError("control token must have 32..4096 characters")
+    ssl.create_default_context(cafile=network.quic_ca_file)
+    quic_configuration(network)
 
 
 @dataclass(frozen=True)

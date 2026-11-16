@@ -5,26 +5,23 @@
 支持异步网络请求、加载状态反馈及调试模式切换。
 """
 
-import os
 import logging
-import aiohttp
-import asyncio
-from typing import Optional, Dict, Any
+from typing import Any
+
+from PyQt6.QtCore import Qt, QTimer, pyqtSignal
+from PyQt6.QtGui import QColor, QFont
 from PyQt6.QtWidgets import (
-    QWidget,
-    QVBoxLayout,
+    QFrame,
+    QGraphicsDropShadowEffect,
     QLabel,
     QLineEdit,
     QPushButton,
-    QFrame,
-    QGraphicsDropShadowEffect,
-    QApplication,
+    QVBoxLayout,
+    QWidget,
 )
-from PyQt6.QtCore import Qt, pyqtSignal, QThread, QTimer
-from PyQt6.QtGui import QFont, QColor, QPalette
-
+from rd_core.settings import DrivingSettings
+from rd_driving.branding import VERSION
 from rd_driving.interfaces.ui import ITheme
-from rd_driving.config.loaders import get_app_config
 
 logger = logging.getLogger("driving")
 
@@ -42,91 +39,22 @@ DEFAULT_COLORS = {
 }
 
 
-class LoginThread(QThread):
-    """登录请求线程 - 封装异步网络请求"""
-
-    login_success = pyqtSignal(dict)
-    login_failed = pyqtSignal(str)
-
-    def __init__(self, server_url: str, username: str, password: str):
-        super().__init__()
-        self._server_url = server_url
-        self._username = username
-        self._password = password
-        self._stopped = False
-
-    def stop(self):
-        """安全停止线程"""
-        self._stopped = True
-
-    def run(self):
-        """运行异步任务"""
-        try:
-            # 创建新的事件循环用于当前线程
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            try:
-                loop.run_until_complete(self._do_login())
-            finally:
-                loop.close()
-        except Exception as e:
-            if not self._stopped:
-                self.login_failed.emit(f"线程内部错误: {str(e)}")
-
-    async def _do_login(self):
-        if self._stopped:
-            return
-
-        timeout = aiohttp.ClientTimeout(total=10, connect=5)
-
-        try:
-            async with aiohttp.ClientSession(timeout=timeout) as session:
-                url = f"{self._server_url}/api/login"
-                payload = {"username": self._username, "password": self._password}
-
-                async with session.post(url, json=payload) as resp:
-                    if self._stopped:
-                        return
-
-                    if resp.status == 200:
-                        try:
-                            data = await resp.json()
-                            if isinstance(data, dict) and data.get("session_id"):
-                                self.login_success.emit(data)
-                            else:
-                                self.login_failed.emit("服务器返回数据格式无效")
-                        except aiohttp.ContentTypeError:
-                            self.login_failed.emit("服务器返回非 JSON 数据")
-                    else:
-                        error_text = await resp.text()
-                        self.login_failed.emit(
-                            f"登录失败 ({resp.status}): {error_text}"
-                        )
-
-        except asyncio.TimeoutError:
-            self.login_failed.emit("连接超时，请检查网络或服务器状态")
-        except aiohttp.ClientConnectorError:
-            self.login_failed.emit("无法连接到服务器，请检查地址是否正确")
-        except aiohttp.ClientError as e:
-            self.login_failed.emit(f"网络异常: {str(e)}")
-        except Exception as e:
-            logger.exception("Login unexpected error")
-            self.login_failed.emit(f"未知错误: {str(e)}")
-
-
 class LoginPage(QWidget):
     """登录页面"""
 
     login_success = pyqtSignal(dict)
 
-    def __init__(self, theme: ITheme, parent: Optional[QWidget] = None):
+    def __init__(self, theme: ITheme, parent: QWidget | None = None, *, settings=None):
         super().__init__(parent)
         self._theme = theme
 
         # 从配置文件读取调试模式
-        self._debug_mode = get_app_config().debug_mode
+        self.settings = settings or DrivingSettings()
+        self._debug_mode = self.settings.ui.debug
 
         self._setup_ui()
+        self._room_input.setText(self.settings.room)
+        self._session_input.setText(str(self.settings.session))
 
     def _get_color(self, key: str) -> str:
         """安全获取主题颜色，带兜底"""
@@ -197,7 +125,7 @@ class LoginPage(QWidget):
         subtitle.setAlignment(Qt.AlignmentFlag.AlignCenter)
         subtitle.setStyleSheet(
             f"""
-            color: {self._get_color('text_muted')};
+            color: {self._get_color("text_muted")};
             font-size: 10px;
             letter-spacing: 3px;
             background: transparent;
@@ -241,7 +169,7 @@ class LoginPage(QWidget):
         room_label = QLabel("WebRTC房间号")
         room_label.setStyleSheet(
             f"""
-            color: {self._get_color('text_secondary')};
+            color: {self._get_color("text_secondary")};
             font-size: 12px;
             background: transparent;
             border: none;
@@ -261,7 +189,7 @@ class LoginPage(QWidget):
         session_label = QLabel("QUIC会话号")
         session_label.setStyleSheet(
             f"""
-            color: {self._get_color('text_secondary')};
+            color: {self._get_color("text_secondary")};
             font-size: 12px;
             background: transparent;
             border: none;
@@ -299,18 +227,18 @@ class LoginPage(QWidget):
                 f"""
                 QPushButton {{
                     background: transparent;
-                    color: {self._get_color('text_secondary')};
-                    border: 1px dashed {self._get_color('border')};
+                    color: {self._get_color("text_secondary")};
+                    border: 1px dashed {self._get_color("border")};
                     border-radius: 8px;
                     font-size: 12px;
                 }}
                 QPushButton:hover {{
-                    background-color: {self._get_color('bg_primary')};
-                    color: {self._get_color('primary')};
+                    background-color: {self._get_color("bg_primary")};
+                    color: {self._get_color("primary")};
                     border-style: solid;
                 }}
                 QPushButton:pressed {{
-                    background-color: {self._get_color('bg_primary')};
+                    background-color: {self._get_color("bg_primary")};
                 }}
             """
             )
@@ -330,7 +258,7 @@ class LoginPage(QWidget):
 
         # --- 版本信息 ---
         layout.addSpacing(24)
-        version = QLabel(f"Version {get_app_config().version}")
+        version = QLabel(f"Version {VERSION}")
         version.setAlignment(Qt.AlignmentFlag.AlignCenter)
         version.setStyleSheet(
             f"color: {self._get_color('text_muted')}; background: transparent; font-size: 11px; opacity: 0.6;"
@@ -339,9 +267,7 @@ class LoginPage(QWidget):
 
         # --- 事件绑定 ---
         self._session_input.returnPressed.connect(self._on_login)
-        self._room_input.returnPressed.connect(
-            lambda: self._session_input.setFocus()
-        )
+        self._room_input.returnPressed.connect(lambda: self._session_input.setFocus())
 
     def _get_input_style(self) -> str:
         """生成输入框样式表"""
@@ -386,8 +312,8 @@ class LoginPage(QWidget):
                 s = self._theme.get_button_style()
                 if s:
                     return s
-        except:
-            pass
+        except (AttributeError, TypeError):
+            logger.debug("Theme button style unavailable; using fallback")
 
         return f"""
             QPushButton {{
@@ -422,17 +348,14 @@ class LoginPage(QWidget):
 
     def _emit_mock_success(self):
         self._set_loading(False)
-        self._status_label.setText("登录成功 (调试)")
+        self._status_label.setText("正在连接配置的会话")
         self._status_label.setStyleSheet(
             f"color: {self._get_color('success')}; font-size: 11px;"
         )
         self.login_success.emit(
             {
-                "session_id": "1234",
-                "room": "1234",
-                "vehicle_id": "TEST_001",
-                "vehicle_name": "测试车辆",
-                "debug_mode": True,
+                "session_id": self.settings.session,
+                "room": self.settings.room,
             }
         )
 
@@ -470,9 +393,9 @@ class LoginPage(QWidget):
 
         self._on_login_success({"session_id": session_id, "room": room})
 
-    def _on_login_success(self, data: Dict[str, Any]):
+    def _on_login_success(self, data: dict[str, Any]):
         self._set_loading(False)
-        self._status_label.setText("登录成功！正在跳转...")
+        self._status_label.setText("参数已确认，正在连接...")
         self._status_label.setStyleSheet(
             f"color: {self._get_color('success')}; font-size: 11px;"
         )
@@ -505,10 +428,3 @@ class LoginPage(QWidget):
             self._room_input.setCursor(Qt.CursorShape.IBeamCursor)
             self._session_input.setCursor(Qt.CursorShape.IBeamCursor)
             self._session_input.setFocus()
-
-    def closeEvent(self, event):
-        """窗口关闭时清理资源"""
-        if self._login_thread and self._login_thread.isRunning():
-            self._login_thread.stop()
-            self._login_thread.wait(1000)  # 等待最多1秒
-        super().closeEvent(event)

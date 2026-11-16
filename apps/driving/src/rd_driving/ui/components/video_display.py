@@ -11,12 +11,12 @@
 import time
 from typing import Any
 
-import cv2
 import numpy as np
 from PyQt6.QtCore import QEvent, QSize, Qt
 from PyQt6.QtGui import QColor, QImage, QPainter, QPixmap
 from PyQt6.QtWidgets import QLabel, QSizePolicy, QWidget
 from rd_driving.interfaces.ui import ITheme
+from rd_webrtc.opencv import cv2
 
 # 缩放模式配置
 # 注意：cv2.INTER_* 是整数常量，在 PyQt6 中无需特殊处理

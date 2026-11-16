@@ -2,7 +2,7 @@
 
 import platform
 
-import cv2
+from rd_webrtc.opencv import cv2
 
 from .thread_camera import ThreadCamera
 

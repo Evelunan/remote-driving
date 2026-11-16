@@ -1,12 +1,15 @@
 def test_control_worker_delivers_state_on_receivers_qt_thread(legacy_python):
-    legacy_python("driving", """
+    legacy_python(
+        "driving",
+        """
         import asyncio
         import threading
         import time
         from PyQt6.QtCore import QCoreApplication, QObject, QThread, pyqtSlot
         from rd_driving.infrastructure.workers.signal_bridge import SignalBridge
         from rd_driving.infrastructure.workers.control_system_thread import ControlSystemThread
-        from rd_driving.infrastructure.protocol import ControlCodec
+        from rd_core.settings import DrivingSettings
+        from rd_core.samples import ControlInput
 
         app = QCoreApplication([])
         received = []
@@ -17,16 +20,10 @@ def test_control_worker_delivers_state_on_receivers_qt_thread(legacy_python):
         receiver = Receiver()
         bridge = SignalBridge()
         bridge.control_data_updated.connect(receiver.update)
-        worker = ControlSystemThread(bridge, '42')
-        ControlCodec.process_state = staticmethod(lambda *args: (1.0, 2.0, 3.0, 4.0))
+        worker = ControlSystemThread(bridge, DrivingSettings(session=42))
         async def emit():
-            worker._running = True
-            await worker._state_queue.put({})
-            task = asyncio.create_task(worker._run_state())
-            await asyncio.sleep(0.02)
-            worker._running = False
-            task.cancel()
-            await task
+            sample = ControlInput(0.01, 0.02, 0.03, time.monotonic(), time.time_ns() // 1_000_000)
+            worker._execution(sample, None, 4.0)
         thread = threading.Thread(target=lambda: asyncio.run(emit()))
         thread.start()
         deadline = time.monotonic() + 2
@@ -36,4 +33,5 @@ def test_control_worker_delivers_state_on_receivers_qt_thread(legacy_python):
         thread.join(timeout=2)
         assert not thread.is_alive()
         assert received == [(1.0, 2.0, 3.0, 4.0, app.thread())], received
-    """)
+    """,
+    )

@@ -2,12 +2,12 @@
 
 from importlib import import_module
 
-__all__ = ["MultiCameraManager", "VehicleDatagram"]
+__all__ = ["MultiCameraManager", "VehicleControlClient"]
 
 
 def __getattr__(name):
     modules = {
-        "VehicleDatagram": ".vehicle_datagram",
+        "VehicleControlClient": ".control_client",
         "MultiCameraManager": ".multi_camera_manager",
     }
     if name not in modules:

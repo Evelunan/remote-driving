@@ -4,20 +4,21 @@
 右侧控制面板，包含连接状态、车辆状态和实时数据
 """
 
-from typing import Optional, Dict, Callable
+from collections.abc import Callable
+
+from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (
     QFrame,
-    QVBoxLayout,
-    QScrollArea,
-    QWidget,
-    QPushButton,
     QGridLayout,
     QLabel,
+    QPushButton,
+    QScrollArea,
     QSizePolicy,
+    QVBoxLayout,
+    QWidget,
 )
-from PyQt6.QtCore import Qt
+from rd_driving.interfaces.ui import IConnectionItem, ITheme
 
-from rd_driving.interfaces.ui import IConnectionItem, IStatItem, ITheme
 from ..components import ConnectionItem, DataCard, StatItem
 
 
@@ -26,8 +27,8 @@ class ControlPanel(QFrame):
 
     def __init__(self):
         super().__init__()
-        self._theme: Optional[ITheme] = None
-        self._reconnect_callback: Optional[Callable] = None
+        self._theme: ITheme | None = None
+        self._reconnect_callback: Callable | None = None
 
         self.setFixedWidth(300)
         # 设置尺寸策略，让高度跟随父容器
@@ -67,7 +68,7 @@ class ControlPanel(QFrame):
         # === 连接状态卡片 ===
         self._conn_card = DataCard("系统连接")
 
-        self._connections: Dict[str, ConnectionItem] = {
+        self._connections: dict[str, ConnectionItem] = {
             "signal": ConnectionItem("信令服务器"),
             "webrtc": ConnectionItem("WebRTC"),
             "video": ConnectionItem("视频流"),
@@ -104,7 +105,9 @@ class ControlPanel(QFrame):
         command_grid.addWidget(self._command_stats["elapsed"], 1, 1)
 
         self._command_card.add_layout(command_grid)
-        self._command_card.add_widget(QLabel("实测车速和停车反馈：尚未接入"))
+        self._measurement_note = QLabel("实测车速和停车反馈：尚未接入")
+        self._measurement_note.setWordWrap(True)
+        self._command_card.add_widget(self._measurement_note)
         self.clear_command_status()
         self._layout.addWidget(self._command_card)
 
@@ -138,6 +141,14 @@ class ControlPanel(QFrame):
         camera_card.add_layout(grid)
 
         return camera_card, data
+
+    def set_measured_status(self, linear_mps, angular_radps):
+        self._measurement_note.setText(
+            f"实测线速度：{linear_mps:.2f} m/s\n实测角速度：{angular_radps:.2f} rad/s\n停车反馈：尚未接入"
+        )
+
+    def clear_measured_status(self):
+        self._measurement_note.setText("实测车速：未接入或已过期；停车反馈：尚未接入")
 
     def get_widget(self):
         return self
@@ -193,7 +204,7 @@ class ControlPanel(QFrame):
         self._reconnect_btn.setStyleSheet(theme.get_button_style())
         self._reconnect_btn.setFixedHeight(38)
 
-    def get_connection_items(self) -> Dict[str, IConnectionItem]:
+    def get_connection_items(self) -> dict[str, IConnectionItem]:
         return self._connections
 
     def set_reconnect_callback(self, callback: Callable) -> None:
@@ -205,15 +216,16 @@ class ControlPanel(QFrame):
 
     # === 便捷方法 ===
 
-    def set_connection_status(
-        self, name: str, online: bool, text: Optional[str] = None
-    ):
+    def set_connection_status(self, name: str, online: bool, text: str | None = None):
         """设置连接状态"""
         if name in self._connections:
             self._connections[name].set_status(online, text)
 
     def set_command_status(self, throttle, brake, steering, elapsed_ms):
-        for key, value in zip(("throttle", "brake", "steering", "elapsed"), (throttle, brake, steering, elapsed_ms)):
+        for key, value in zip(
+            ("throttle", "brake", "steering", "elapsed"),
+            (throttle, brake, steering, elapsed_ms),
+        ):
             self._command_stats[key].set_value(value)
 
     def clear_command_status(self):

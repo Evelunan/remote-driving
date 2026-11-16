@@ -40,7 +40,7 @@ P0 表示应在实车控制前解决；P1 表示直接影响正确性、可恢�
 | C01 | P0 | [中继转发](../apps/server/src/rd_server/relay/services/relay_protocol.py#L75) 使用 [get_role](../apps/server/src/rd_server/relay/services/codec.py#L138) 返回的发送角色查询目标，导致 CONTROL 回驾驶端、STATE 回车端 | 分离发送角色和目标角色；通过服务端连接绑定核验来源；增加双向路由测试 |
 | C02 | P0 | [USB 输入过滤](../apps/driving/src/rd_driving/infrastructure/device/usb_connector.py#L93) 丢弃两个轴都为 128 的中立包；[输入映射](../apps/driving/src/rd_driving/infrastructure/processing/analog_calculator.py#L5) 表明此时三项控制量均为零 | 保留回中变化；输入失效必须显式通知控制状态机 |
 | C03 | P0 | [车端断线处理](../apps/vehicle/src/rd_vehicle/infrastructure/protocol/vehicle_protocol.py#L40) 只停止业务任务，控制处理没有超时安全动作 | 使用最后一条有效控制指令的本地接收时间建立 watchdog；底盘另设独立超时保护 |
-| C04 | P0 | [车辆配置](../apps/vehicle/src/rd_vehicle/config/vehicle.yaml#L12) 标注 cm/s，[加载器](../apps/vehicle/src/rd_vehicle/config/loaders/vehicle_loader.py#L18) 标注 mm/s；[ROS 控制器创建](../apps/vehicle/src/rd_vehicle/main.py#L35) 没有传入运动配置，实际发布 m/s | 内部统一 m/s、rad/s；明确传入限值；硬件适配器负责换算；验证配置到执行值的全过程 |
+| C04 | P0 | 旧车辆配置（`git show dd1d909:apps/vehicle/src/rd_vehicle/config/vehicle.yaml`） 标注 cm/s，旧加载器（`git show dd1d909:apps/vehicle/src/rd_vehicle/config/loaders/vehicle_loader.py`） 标注 mm/s；[ROS 控制器创建](../apps/vehicle/src/rd_vehicle/main.py#L35) 没有传入运动配置，实际发布 m/s | 内部统一 m/s、rad/s；明确传入限值；硬件适配器负责换算；验证配置到执行值的全过程 |
 | C05 | P0 | [会话绑定](../apps/server/src/rd_server/relay/services/session_manager.py#L20) 接受自报角色并覆盖既有连接；[中继](../apps/server/src/rd_server/relay/services/relay_protocol.py#L75) 未将报文身份与连接绑定核对；[信令转发](../apps/server/src/rd_server/signaling/services/room_manager.py#L151) 接受客户端自带 from | 认证设备与操作员，核验会话权限，设置独占控制租约，服务端确定消息来源 |
 | C06 | P1 | [FIFO 队列](../apps/driving/src/rd_driving/infrastructure/communication/async_queue.py#L7) 保留 10 个采样；[发送循环](../apps/driving/src/rd_driving/infrastructure/protocol/driving_protocol.py#L106) 每次 sleep 20ms | 连续控制改用最新状态和固定周期发送；采样须带新鲜度；离散事件使用独立通道 |
 | C07 | P1 | [序列比较](../apps/vehicle/src/rd_vehicle/infrastructure/protocol/codec.py#L152) 接受相同序号；接收端以 -1 初始化，部分首包会被拒绝 | 显式处理首包，使用严格序列比较，测试重复、乱序、回绕及发送端重启；增加会话代次 |
@@ -118,7 +118,7 @@ USB 摄像头采集线程
 
 ### 3.2 先修可确认的无效工作
 
-**提前判断帧版本。** [UI 配置](../apps/driving/src/rd_driving/config/app.yaml#L18) 每 5ms 轮询；[MultiVideoWidget](../apps/driving/src/rd_driving/ui/widgets/multi_video_widget.py#L171) 先调用 [FrameBuffer.get](../apps/driving/src/rd_driving/infrastructure/video/frame_buffer.py#L48) 深复制图像，之后 [VideoDisplay](../apps/driving/src/rd_driving/ui/components/video_display.py#L254) 才丢弃重复帧。
+**提前判断帧版本。** 旧 UI 配置（`git show dd1d909:apps/driving/src/rd_driving/config/app.yaml`） 每 5ms 轮询；[MultiVideoWidget](../apps/driving/src/rd_driving/ui/widgets/multi_video_widget.py#L171) 先调用 [FrameBuffer.get](../apps/driving/src/rd_driving/infrastructure/video/frame_buffer.py#L48) 深复制图像，之后 [VideoDisplay](../apps/driving/src/rd_driving/ui/components/video_display.py#L254) 才丢弃重复帧。
 
 按配置的一路 1080×720 和三路 640×480、BGR 每像素 3 字节、理论 200Hz 计算：
 
@@ -136,7 +136,7 @@ USB 摄像头采集线程
 
 **在实际编码位置管理资源。** MultiCameraManager 中的 semaphore 只保护更新最新帧引用和事件，没有包住 aiortc 编码任务。编码并发和线程预算应在实际后端测量后配置。高频图像转换、同步日志与设备写入也需要计入事件循环耗时。
 
-B11 已实现只读帧快照、重复帧过滤及本地接收过期提示；缓存层固定负载复制量减少 85%，记录见 [视频性能测量](video-performance.zh-CN.md)。以上旧链路描述保留为问题依据。B12 已实现采集源与独立订阅、单调采集 PTS、相机目标 FPS、停止后不重发旧图像及推流关闭，真实回环双订阅验证通过；接收端生命周期、完整媒体性能测量与进程隔离尚待完成。
+B11 已实现只读帧快照、重复帧过滤及本地接收过期提示；缓存层固定负载复制量减少 85%，记录见 [视频性能测量](video-performance.zh-CN.md)。以上旧链路描述保留为问题依据。B12 已实现采集源与独立订阅、单调采集 PTS、相机目标 FPS、停止后不重发旧图像及推流关闭，真实回环双订阅验证通过；B13 已完成接收端生命周期与认证信令。B14 正式入口已统一控制/媒体及设备配置，移除旧加载器；完整媒体性能测量与进程隔离尚待完成。
 
 ### 3.3 用测量决定媒体后端
 

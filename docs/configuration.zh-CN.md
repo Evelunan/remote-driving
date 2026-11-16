@@ -1,6 +1,6 @@
 # 配置与身份授权
 
-当前实施状态：统一服务端、两端媒体连接和独立 v2 控制客户端已使用不可变配置。认证 WSS/WebRTC、QUIC 租约和配对时钟诊断已有本机验证；正式控制入口、其余 UI/设备配置与客户端 CLI 参数仍在迁移。当前版本不作为实车部署完成态。
+当前实施状态：三个正式入口均使用不可变配置。认证 WSS/WebRTC、QUIC 租约和配对时钟诊断已有本机验证；驾驶 USB、UI、车辆运动限值和相机配置已实际注入并通过模拟联动验证。当前版本不作为实车部署完成态。
 
 ## 加载规则
 
@@ -43,4 +43,33 @@ rd-server --config /path/server.yaml --services signaling --set signaling.port=8
 
 信令和中继可分别配置监听地址和 TLS 路径。生产信令必须使用 WSS；认证的非回环监听在任何环境都要求 TLS。未经认证的旧模式只能显式启用 `allow_legacy_development`，且仅允许 development 环境与回环地址。QUIC 旧入口仍需证书，且不提供认证租约。在认证 v2 中，`idle_timeout_s` 进入传输配置，`register_timeout_s` 限定注册/准备阶段，`lease_ttl_s` 控制授权过期，`max_control_age_ms` 与 `max_clock_skew_ms` 约束采样新鲜度，`max_datagram_bytes` 与 `max_rpc_bytes` 限定消息大小；这些租约字段不适用于旧协议。租约 TTL 必须大于控制采样年龄上限。
 
-回退须匹配对应版本的制品与配置；新文件不能直接交给旧入口。认证连接不降级为匿名连接。当前三应用的联动认证迁移尚未完成，后续发布文档会给出完整协同升级/回退步骤。
+回退须匹配对应版本的制品与配置；新文件不能直接交给旧入口。认证连接不降级为匿名连接。三应用正式入口均使用认证 v2；后续发布文档会补充完整协同升级/回退演练。
+
+## 驾驶端和车辆端
+
+两端也支持 `--config`、`--set`、`--dump-config`、`--check-config`。环境变量分别以 `RD_DRIVING__`、`RD_VEHICLE__` 开头。`--session` 和 `--room` 独立覆盖；指定其中一个不会隐式修改另一个。GUI 的会话选择只覆盖本次连接资源 ID，保留其他配置；配置文件重新加载需要重启应用。
+
+- [driving.yaml](../configs/driving.yaml)：驾驶端，USB VID/PID 与 UI 配置，`RD_OPERATOR_TOKEN`。
+- [vehicle.yaml](../configs/vehicle.yaml)：ROS2 模板，真实相机稳定路径需替换，`RD_VEHICLE_TOKEN`。
+- [vehicle.mock.yaml](../configs/vehicle.mock.yaml)：模拟控制器与四路合成相机；无需底盘/相机，仍需要真实的本地 TLS 和认证配置。
+
+驾驶端 `--connect` 立即使用配置的 session/room，否则打开选择页面；同时提供两个便捷参数也会立即连接。车辆端 `--components control,media` 或单项选择模块；controller 为 none 时禁用控制、不注册、不生成 ACK，control-only + none 会在启动前拒绝。当前联合运行仍在同一进程，后续实现进程隔离。
+
+两端 `--dump-config` 不加载 Qt、OpenCV、ROS，也不解析秘密；`--check-config` 校验所选模块的本地凭据/证书，车辆选 ROS2 时检查 rclpy 导入，不创建 ROS 节点，不打开 USB/相机/串口，不连接网络。依赖导入通过不意味着真实设备可用。
+
+旧配置不再隐式兼容，迁移时显式使用以下字段（禁止混用不同单位）：
+
+| 原配置/行为 | 新配置/行为 |
+| --- | --- |
+| 包内多份 server.yaml | `network`，显式 WSS URL、QUIC host/port/server_name 与 CA 文件 |
+| 固定 TURN 用户名/口令 | `network.ice_servers` 中的 username_env / credential_env 引用 |
+| app.yaml 中 USB 常量 | `usb.vendor_id` / `usb.product_id` |
+| UI 刷新常量与 debug | `ui.frame_interval_ms` / stats_interval_ms / stale_frame_ms / debug |
+| 车端模糊 cm/s、mm/s 最大速度 | `motion.max_linear_mps` / max_angular_radps，当前默认 5.0 / 2.0 |
+| 控制超时秒数 | `control.command_timeout_ms`，当前默认 300；输入超时默认 200 ms |
+| 串口全局配置 | `serial.port` / baud_rate / read_timeout_s / write_timeout_s / template_hex |
+| VID/PID 推测相机索引、硬编码四路参数 | `cameras` 数组，各路 source / width / height / fps |
+
+相机 name 仅接受当前四视角 front/back/left/right，不允许重复；source 可为 synthetic、非负设备索引或设备路径。推荐 Linux `/dev/v4l/by-id/…` 稳定路径。尺寸必须为正偶数，FPS 为 (0, 240]；各路实际硬件参数需检查协商日志。数组整体替换，未配置的视角显示无信号。
+
+串口默认读写超时均为 0.02 s，13 字节模板显式可配，速度编码上限由 uint16 表示范围限制；这部分只保留兼容适配，用户当前选择 ROS2。运动限值和超时均需实车验收，停车接口尚未接入物理确认。

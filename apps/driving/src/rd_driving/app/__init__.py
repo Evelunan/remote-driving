@@ -1,1 +1,1 @@
-from .driving_datagram import DrivingDatagram
+"""Driving application services. Import explicit modules to avoid optional dependencies."""

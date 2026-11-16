@@ -1,26 +1,36 @@
 import math
-from pathlib import Path
 import runpy
+from pathlib import Path
 
 import pytest
 
-
 ROOT = Path(__file__).resolve().parents[1]
-motion = runpy.run_path(str(ROOT / "apps/vehicle/src/rd_vehicle/infrastructure/controller/motion.py"))
+motion = runpy.run_path(
+    str(ROOT / "apps/vehicle/src/rd_vehicle/infrastructure/controller/motion.py")
+)
 
 
-@pytest.mark.parametrize("values", [
-    (math.nan, 0, 0, 5, 2), (0, math.inf, 0, 5, 2),
-    (2, 0, 0, 5, 2), (0, -1, 0, 5, 2), (0, 0, 2, 5, 2),
-    (0, 0, 0, 0, 2), (0, 0, 0, 5, -1),
-])
+@pytest.mark.parametrize(
+    "values",
+    [
+        (math.nan, 0, 0, 5, 2),
+        (0, math.inf, 0, 5, 2),
+        (2, 0, 0, 5, 2),
+        (0, -1, 0, 5, 2),
+        (0, 0, 2, 5, 2),
+        (0, 0, 0, 0, 2),
+        (0, 0, 0, 5, -1),
+    ],
+)
 def test_rejects_invalid_motion(values):
     with pytest.raises(ValueError):
         motion["target_velocity"](*values)
 
 
 def test_ros_receives_configured_si_limits_and_stop_is_unconfirmed(legacy_python):
-    legacy_python("vehicle-unit", """
+    legacy_python(
+        "vehicle-unit",
+        """
         import sys
         from types import SimpleNamespace
         from dataclasses import replace
@@ -41,9 +51,8 @@ def test_ros_receives_configured_si_limits_and_stop_is_unconfirmed(legacy_python
         sys.modules['geometry_msgs'] = SimpleNamespace()
         sys.modules['geometry_msgs.msg'] = SimpleNamespace(Twist=Twist)
         from rd_vehicle.main import _create_controller
-        from rd_vehicle.config.loaders.vehicle_loader import get_vehicle_config, MotionConfig
-        cfg = replace(get_vehicle_config(), controller_type='ros2',
-                      motion=MotionConfig(1.2, 0.4))
+        from rd_core.settings import VehicleSettings, MotionSettings, SerialSettings
+        cfg = VehicleSettings(controller='ros2', motion=MotionSettings(1.2, 0.4))
         ctrl = _create_controller(cfg)
         ctrl.send_command(0.5, 0, -0.5)
         assert messages[-1].linear.x == 0.6
@@ -57,19 +66,22 @@ def test_ros_receives_configured_si_limits_and_stop_is_unconfirmed(legacy_python
         ctrl.close()
         assert destroyed == [True]
         try:
-            _create_controller(replace(cfg, controller_type='typo'))
+            _create_controller(replace(cfg, controller='typo'))
         except ValueError:
             pass
         else:
             raise AssertionError('unknown controller must not silently disable control')
-    """)
+    """,
+    )
 
 
 def test_serial_timeouts_targets_and_short_writes(legacy_python):
-    legacy_python("vehicle-unit", """
+    legacy_python(
+        "vehicle-unit",
+        """
         from dataclasses import replace
         import serial
-        from rd_vehicle.config.loaders.vehicle_loader import get_vehicle_config, MotionConfig
+        from rd_core.settings import VehicleSettings, MotionSettings, SerialSettings
         from rd_vehicle.infrastructure.controller.serial_controller import SerialController
         opened = {}
         written = []
@@ -82,10 +94,8 @@ def test_serial_timeouts_targets_and_short_writes(legacy_python):
                 return len(data) - int(self.short_write)
             def close(self): self.is_open = False
         serial.Serial = Serial
-        cfg = get_vehicle_config()
-        cfg = replace(cfg, motion=MotionConfig(1.2, 0.4),
-                      communication=replace(cfg.communication, serial=replace(
-                          cfg.communication.serial, read_timeout=0.02, write_timeout=0.03)))
+        cfg = VehicleSettings(controller='serial', motion=MotionSettings(1.2, 0.4),
+                              serial=SerialSettings(read_timeout_s=0.02, write_timeout_s=0.03))
         ctrl = SerialController(cfg)
         assert opened['timeout'] == 0.02
         assert opened['write_timeout'] == 0.03
@@ -106,4 +116,5 @@ def test_serial_timeouts_targets_and_short_writes(legacy_python):
         ctrl.close()
         assert not ctrl.serial.is_open
         ctrl.close()
-    """)
+    """,
+    )

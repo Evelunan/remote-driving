@@ -1,4 +1,4 @@
-# 认证信令 + QUIC v2 中继。当前驾驶端/车端客户端仍在迁移，勿用于实车。
+# 认证信令 + QUIC v2 中继。正式客户端已接入；实车参数与部署验收仍待完成。
 environment: production
 services: [signaling, relay]
 logging:

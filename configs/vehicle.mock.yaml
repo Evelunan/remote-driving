@@ -1,0 +1,39 @@
+# 无硬件实例：模拟底盘 + 合成视频，不打开 ROS、串口或真实相机。
+environment: development
+session: 1234
+room: "1234"
+components: [control, media]
+controller: mock
+credentials:
+  token_env: RD_VEHICLE_TOKEN
+network:
+  signaling_url: wss://localhost:8765
+  signaling_ca_file: tls/ca.pem
+  quic_host: localhost
+  quic_port: 4433
+  quic_server_name: localhost
+  quic_ca_file: tls/ca.pem
+motion:
+  max_linear_mps: 5.0
+  max_angular_radps: 2.0
+cameras:
+  - name: front
+    source: synthetic
+    width: 1080
+    height: 720
+    fps: 30
+  - name: back
+    source: synthetic
+    width: 640
+    height: 480
+    fps: 30
+  - name: left
+    source: synthetic
+    width: 640
+    height: 480
+    fps: 30
+  - name: right
+    source: synthetic
+    width: 640
+    height: 480
+    fps: 30
