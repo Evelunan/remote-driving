@@ -4,6 +4,7 @@ from typing import Optional
 from common.constants import ROOT_PATH
 from PyQt6.QtCore import QThread
 from aioquic.asyncio import connect
+from rd_core.samples import RawInput, ControlInput
 
 from interfaces import IMessageQueue
 from .signal_bridge import SignalBridge
@@ -24,11 +25,6 @@ class USBConfig:
     ENDPOINT_IN = 0x81
 
 
-class VehicleInfo:
-    max_w = 5
-    max_v = 5
-
-
 class ControlSystemThread(QThread):
     """控制系统线程 - USB 设备 + 数据处理 + QUIC 通信"""
 
@@ -37,6 +33,7 @@ class ControlSystemThread(QThread):
         self._bridge = signal_bridge  # 现在可以是 None
         self._session_id = session_id
         self._loop: Optional[asyncio.AbstractEventLoop] = None
+        self._main_task = None
         self._running = False
         self._stopping = False
 
@@ -46,11 +43,14 @@ class ControlSystemThread(QThread):
         self._state_queue = ControlFactory.create_message_queue()
 
     def run(self):
+        if self._stopping:
+            return
         self._running = True
         self._loop = asyncio.new_event_loop()
         asyncio.set_event_loop(self._loop)
         try:
-            self._loop.run_until_complete(self._main())
+            self._main_task = self._loop.create_task(self._main())
+            self._loop.run_until_complete(self._main_task)
         except asyncio.CancelledError:
             logger.info("控制系统任务被取消")
         except Exception as e:
@@ -71,6 +71,7 @@ class ControlSystemThread(QThread):
                         )
 
                     self._loop.run_until_complete(self._loop.shutdown_asyncgens())
+                    self._loop.run_until_complete(self._loop.shutdown_default_executor())
                 except Exception:
                     pass
                 finally:
@@ -92,7 +93,9 @@ class ControlSystemThread(QThread):
             pass
         finally:
             for t in tasks:
-                t.cancel()
+                if not t.done() and not t.cancelling():
+                    t.cancel()
+            await asyncio.gather(*tasks, return_exceptions=True)
 
     # --- 辅助方法：安全发射信号 ---
     def _safe_emit(self, signal_name: str, *args):
@@ -142,6 +145,7 @@ class ControlSystemThread(QThread):
                 if not await safe_sleep(5):
                     break
             finally:
+                await raw_queue.put(RawInput.capture(None))
                 try:
                     await usb.disconnect()
                 except Exception as e:
@@ -167,6 +171,7 @@ class ControlSystemThread(QThread):
 
     async def _run_quic(self, processed_queue: IMessageQueue):
         config = get_quic_config()
+        control = get_app_config()
         while self._running:
             try:
                 self._safe_emit("quic_status_changed", False, "连接中")
@@ -176,14 +181,21 @@ class ControlSystemThread(QThread):
                     config.port,
                     configuration=config.to_aiortc_config(True),
                     create_protocol=lambda *a, **k: DrivingProtocol(
-                        int(self._session_id), processed_queue, *a, **k
+                        int(self._session_id), processed_queue, *a,
+                        input_timeout_s=control.input_timeout_s,
+                        send_hz=control.control_send_hz, **k
                     ),
                 ) as protocol:
-                    await protocol.wait_connected()
-                    self._safe_emit("quic_status_changed", True, "在线")
-                    protocol.set_state_callback(self._state_queue.put)
-                    protocol.start()
-                    await protocol.wait_closed()
+                    try:
+                        await protocol.wait_connected()
+                        self._safe_emit("quic_status_changed", True, "在线")
+                        protocol.set_state_callback(self._state_queue.put)
+                        protocol.start()
+                        await protocol.wait_closed()
+                    finally:
+                        await protocol.shutdown()
+                        self._safe_emit("quic_status_changed", False, "离线")
+                await asyncio.sleep(3)
             except (asyncio.TimeoutError, ConnectionRefusedError, OSError):
                 self._safe_emit("quic_status_changed", False, "离线")
                 try:
@@ -203,23 +215,21 @@ class ControlSystemThread(QThread):
         while self._running:
             try:
                 message = await asyncio.wait_for(self._state_queue.get(), timeout=1.0)
-                v, w, rtt = ControlCodec.process_state(
-                    message, VehicleInfo.max_v, VehicleInfo.max_w
-                )
+                throttle, brake, steering, elapsed_ms = ControlCodec.process_state(message)
                 
                 if get_app_config().debug_mode:
                     try:
-                        log_file = ROOT_PATH / "logs" / "rtt_stats.csv"
+                        log_file = ROOT_PATH / "logs" / "capture_ack_stats.csv"
                         with open(log_file, "a") as f:
-                            f.write(f"{time.time()},{rtt}\n")
+                            f.write(f"{time.time()},{elapsed_ms}\n")
                     except Exception as e:
                         logger.error(f"记录 rtt 失败: {e}")
 
-                self._safe_emit("control_data_updated", float(v), float(w), float(rtt))
+                self._safe_emit("control_data_updated", float(throttle), float(brake), float(steering), float(elapsed_ms))
             except asyncio.CancelledError:
                 break
             except asyncio.TimeoutError:
-                self._safe_emit("control_data_updated", 0.0, 0.0, 0.0)
+                self._safe_emit("control_confirmation_expired")
             except Exception as e:
                 if not self._stopping:
                     logger.error(f"错误: {e}")
@@ -229,21 +239,16 @@ class ControlSystemThread(QThread):
         self._running = False
         if self._loop and self._loop.is_running():
             # 安全地取消任务
-            self._loop.call_soon_threadsafe(self._cancel_all_tasks)
+            self._loop.call_soon_threadsafe(self._cancel_main_task)
 
-    def _cancel_all_tasks(self):
-        # 在事件循环线程内执行取消
-        tasks = asyncio.all_tasks(self._loop)
-        for task in tasks:
-            task.cancel()
+    def _cancel_main_task(self):
+        # 子任务由各自所有者关闭，不能取消尚在 libusb 读取中的工作任务。
+        if self._main_task is not None and not self._main_task.done() and not self._main_task.cancelling():
+            self._main_task.cancel()
 
     async def put_processed_data(self):
         while self._running:
             await asyncio.sleep(0.05)
             await self._processed_queue.put(
-                {
-                    "throttle": 0.1,
-                    "brake": 0,
-                    "steering": 0.2,
-                }
+                ControlInput(0.1, 0, 0.2, time.monotonic(), time.time_ns() // 1_000_000)
             )

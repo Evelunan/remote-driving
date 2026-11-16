@@ -19,6 +19,7 @@ class ControlCodec:
         CONTROL = 0x03
         STATE = 0x04
         HEARTBEAT = 0x05
+        STOP = 0x06
 
     HEADER_STRUCT = struct.Struct("!BH")
     CONTROL_PACKET_STRUCT = struct.Struct("!BHHIbbb")
@@ -144,6 +145,7 @@ class ControlCodec:
         if msg_type in (
             ControlCodec.MessageType.HELLO_DRIVING,
             ControlCodec.MessageType.CONTROL,
+            ControlCodec.MessageType.STOP,
         ):
             return "driving"
         return None
@@ -166,11 +168,9 @@ class ControlCodec:
         return v, w
 
     @staticmethod
-    def process_state(message: dict, max_v, max_w):
-        v, w = ControlCodec.compute_motion(
-            message["throttle"], message["brake"], message["steering"], max_v, max_w
-        )
+    def process_state(message: dict):
+        """Legacy execution ACK: normalized targets and capture-to-ACK elapsed time."""
         send_time = message["timestamp"]
         received_time = (time.time_ns() // 1_000_000) & 0xFFFFFFFF
-        rtt = (received_time - send_time) & 0xFFFFFFFF
-        return v, w, rtt
+        elapsed_ms = (received_time - send_time) & 0xFFFFFFFF
+        return message["throttle"] * 100, message["brake"] * 100, message["steering"] * 100, elapsed_ms

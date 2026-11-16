@@ -53,11 +53,13 @@ class DrivingDatagram:
             configuration=self.quic_config,
             create_protocol=self._create_protocol,
         ) as protocol:
-            await protocol.wait_connected()
-            logger.info("QUIC握手完成")
-            protocol.start()
-            await protocol.wait_closed()
-            logger.warning("连接关闭")
+            try:
+                await protocol.wait_connected()
+                logger.info("QUIC握手完成")
+                protocol.start()
+                await protocol.wait_closed()
+            finally:
+                await protocol.shutdown()
 
     # =========================
     # 创建协议

@@ -51,8 +51,10 @@ def test_vehicle_datagrams_use_supervisor_and_ack_after_device_execution(legacy_
                 send(4, 0.5)
                 await until(entered.is_set)
                 assert [m['seq'] for m in acks()] == [3]
-                p.quic_event_received(ConnectionTerminated(0, None, 'test disconnect'))
+                send(5, type_=ControlCodec.MessageType.STOP)
                 assert s.state == ControlState.FAILSAFE
+                assert s.reason == 'driving input unavailable'
+                p.quic_event_received(ConnectionTerminated(0, None, 'test disconnect'))
                 release.set()
                 await until(lambda: len(stops) >= 2)
                 await asyncio.sleep(0.01)

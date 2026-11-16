@@ -1,11 +1,12 @@
 from abc import ABC, abstractmethod
+from rd_core.samples import RawInput
 
 
 class IDataProcessor(ABC):
     """数据处理器接口"""
 
     @abstractmethod
-    async def process(self, data: bytes) -> None:
+    async def process(self, data: RawInput) -> None:
         """处理原始数据"""
         pass
 

@@ -47,6 +47,7 @@ P0 表示应在实车控制前解决；P1 表示直接影响正确性、可恢�
 | C08 | P1 | [STATE 生成](../vehicle-unit/infrastructure/protocol/vehicle_protocol.py#L171) 在控制器执行前回显命令；[驾驶端](../driving/infrastructure/protocol/codec.py#L158) 将命令换算为速度 | 分离接收确认、执行结果和真实遥测；界面明确区分目标值与实测值 |
 | C09 | P1 | [USB 拔出处理](../driving/infrastructure/device/usb_connector.py#L131) 退出读取循环但不清除连接状态，is_connected 仍可能为真 | 在 finally 中清理状态和句柄；发出输入失效事件后重连 |
 | C10 | P1 | [串口写入](../vehicle-unit/infrastructure/controller/serial_controller.py#L27) 未应用配置中的写超时，且同步执行；串口和 ROS 控制器的当前速度变量没有更新 | 将有超时的设备执行移出网络事件循环；明确目标速度、实测速度与制动策略，不能用命令回显冒充实测 |
+| C11 | P1 | 实施中发现数字按钮解析可访问短报文不存在的第 17/18 字节，导致有效模拟轴输入也处理失败 | 按钮解析检查长度，保留有效模拟轴输入；带数字按键标志的短报文进入回归测试 |
 
 C06 的约 200ms 是按队列容量和发送间隔估算的积压消耗时间，事件循环阻塞时可能更长。现有 LatestValueQueue 可作为改造起点，但仍需补充输入失效和过期检测。
 

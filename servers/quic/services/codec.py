@@ -19,6 +19,7 @@ class ControlCodec:
         CONTROL = 0x03
         STATE = 0x04
         HEARTBEAT = 0x05
+        STOP = 0x06
 
     HEADER_STRUCT = struct.Struct("!BH")
     CONTROL_PACKET_STRUCT = struct.Struct("!BHHIbbb")
@@ -144,6 +145,7 @@ class ControlCodec:
         if msg_type in (
             ControlCodec.MessageType.HELLO_DRIVING,
             ControlCodec.MessageType.CONTROL,
+            ControlCodec.MessageType.STOP,
         ):
             return "driving"
         return None

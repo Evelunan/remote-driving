@@ -87,23 +87,25 @@ class ControlPanel(QFrame):
 
         self._layout.addWidget(self._conn_card)
 
-        self._command_card = DataCard("指令状态：")
+        self._command_card = DataCard("底盘接口执行确认")
         self._command_stats: dict[str, StatItem] = {
-            "v": StatItem("速度", "m/s"),
-            "w": StatItem("角速度", "rad/s"),
-            "rtt": StatItem("往返时延", "ms"),
-            "delay": StatItem("时延", "ms"),
+            "throttle": StatItem("油门目标", "%"),
+            "steering": StatItem("转向目标", "%"),
+            "brake": StatItem("制动输入", "%"),
+            "elapsed": StatItem("采样至确认", "ms"),
         }
 
         command_grid = QGridLayout()
         command_grid.setSpacing(16)
 
-        command_grid.addWidget(self._command_stats["v"], 0, 0)
-        command_grid.addWidget(self._command_stats["w"], 0, 1)
-        command_grid.addWidget(self._command_stats["rtt"], 1, 0)
-        command_grid.addWidget(self._command_stats["delay"], 1, 1)
+        command_grid.addWidget(self._command_stats["throttle"], 0, 0)
+        command_grid.addWidget(self._command_stats["steering"], 0, 1)
+        command_grid.addWidget(self._command_stats["brake"], 1, 0)
+        command_grid.addWidget(self._command_stats["elapsed"], 1, 1)
 
         self._command_card.add_layout(command_grid)
+        self._command_card.add_widget(QLabel("实测车速和停车反馈：尚未接入"))
+        self.clear_command_status()
         self._layout.addWidget(self._command_card)
 
         self.CAMERA_NAMES = ("front", "back", "left", "right")
@@ -210,11 +212,13 @@ class ControlPanel(QFrame):
         if name in self._connections:
             self._connections[name].set_status(online, text)
 
-    def set_conmand_grid(self, v, w, rtt):
-        self._command_stats["v"].set_value(v)
-        self._command_stats["w"].set_value(w)
-        self._command_stats["delay"].set_value(rtt / 2)
-        self._command_stats["rtt"].set_value(rtt)
+    def set_command_status(self, throttle, brake, steering, elapsed_ms):
+        for key, value in zip(("throttle", "brake", "steering", "elapsed"), (throttle, brake, steering, elapsed_ms)):
+            self._command_stats[key].set_value(value)
+
+    def clear_command_status(self):
+        for item in self._command_stats.values():
+            item.set_value("--")
 
     def set_camera_grid(self, key, fps, w, h):
         data = self.camera_data[key]

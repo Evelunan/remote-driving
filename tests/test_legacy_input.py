@@ -21,8 +21,9 @@ def test_neutral_input_is_delivered_and_unplug_clears_online_state(legacy_python
             received = []
             usb.set_data_callback(received.append)
             await usb._read_loop()
-            assert received == [moving, neutral], received
-            assert AnalogCalculator().calculate(received[-1]) == {
+            assert [sample.data for sample in received] == [moving, neutral, None], received
+            assert received[0].sampled_at <= received[1].sampled_at
+            assert AnalogCalculator().calculate(received[1].data) == {
                 'throttle': 0.0, 'brake': 0.0, 'steering': 0.0,
             }
             assert not usb.is_connected()

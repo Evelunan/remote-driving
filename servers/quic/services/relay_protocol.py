@@ -92,6 +92,7 @@ class RelayProtocol(QuicConnectionProtocol):
 
         elif msg_type in (
             ControlCodec.MessageType.CONTROL,
+            ControlCodec.MessageType.STOP,
             ControlCodec.MessageType.STATE,
         ):
             self._handle_forward(role, session, data)

@@ -1,5 +1,6 @@
 import json
 from typing import Dict
+from rd_core.samples import RawInput, ControlInput
 from interfaces import IDataProcessor, IAnalogCalculator, IMessageQueue
 from infrastructure.device import InputConfigManager, InputType
 from infrastructure.communication import ControlState
@@ -21,13 +22,21 @@ class DataProcessor(IDataProcessor):
         self.last_v = None
         self.last_w = None
 
-    async def process(self, data: bytes) -> None:
+    async def process(self, sample: RawInput) -> None:
+        data = sample.data
+        if data is None or len(data) < 5:
+            await self.processed_queue.put(ControlInput(
+                0, 0, 0, sample.sampled_at, sample.timestamp_ms, valid=False,
+            ))
+            return
         # 数字输入
         digital_state = self._process_digital(data)
         # 模拟输入
         analog_values = self.analog.calculate(data)
         # logger.info(analog_values)
-        await self.processed_queue.put(analog_values)
+        await self.processed_queue.put(ControlInput(
+            **analog_values, sampled_at=sample.sampled_at, timestamp_ms=sample.timestamp_ms,
+        ))
 
         # logger.info(f" v_raw:{data[4]}, w_raw:{data[3]}")
         # logger.info(f"v: {v}, w: {w}")
@@ -37,6 +46,9 @@ class DataProcessor(IDataProcessor):
         for config in self.configs.values():
             active = True
             for i, pos in enumerate(config.positions):
+                if pos >= len(data):
+                    active = False
+                    break
                 value = data[pos] & 0xFF
                 if config.min_values[i] <= value <= config.max_values[i]:
                     continue

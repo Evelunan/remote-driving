@@ -32,6 +32,12 @@ def test_only_bound_sender_can_forward_to_opposite_role(legacy_python):
             driver._handle_datagram(C.encode(C.MessageType.CONTROL, 99))
             assert car.received == [control]
             assert driver.received == [state]
+            stop = C.encode(C.MessageType.STOP, 42)
+            stranger._handle_datagram(stop)
+            car._handle_datagram(stop)
+            assert car.received == [control]
+            driver._handle_datagram(stop)
+            assert car.received == [control, stop]
         asyncio.run(check())
     """)
 

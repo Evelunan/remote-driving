@@ -2,6 +2,7 @@ import asyncio
 import inspect
 import usb1
 from typing import Callable, Optional, Awaitable
+from rd_core.samples import RawInput
 
 from interfaces import IInputDevice
 from logger import get_logger
@@ -22,7 +23,7 @@ class USBConnector(IInputDevice):
         self.endpoint_in: Optional[int] = None
         self.max_packet_size = 64
 
-        self.data_callback: Callable[[bytes], object] = lambda x: None
+        self.data_callback: Callable[[RawInput], object] = lambda x: None
 
         self._running = False
         self._task: Optional[asyncio.Task] = None
@@ -109,6 +110,17 @@ class USBConnector(IInputDevice):
             await self._read_packets()
         finally:
             self._running = False
+            try:
+                result = self.data_callback(RawInput.capture(None))
+                if inspect.isawaitable(result):
+                    await result
+            except Exception:
+                logger.exception("Failed to notify input invalidation")
+
+    def _read_once(self):
+        data = self.handle.bulkRead(self.endpoint_in, self.max_packet_size, timeout=100)
+        # Timestamp in the device thread, before an event-loop scheduling delay.
+        return RawInput.capture(bytes(data))
 
     async def _read_packets(self):
         last_data = None
@@ -116,13 +128,10 @@ class USBConnector(IInputDevice):
             try:
 
                 read = asyncio.create_task(asyncio.to_thread(
-                    self.handle.bulkRead,
-                    self.endpoint_in,
-                    self.max_packet_size,
-                    timeout=100,
+                    self._read_once,
                 ))
                 try:
-                    data = await asyncio.shield(read)
+                    sample = await asyncio.shield(read)
                 except asyncio.CancelledError:
                     # libusb 的读取超时为 100ms；关闭句柄前等待读取退出。
                     try:
@@ -130,12 +139,12 @@ class USBConnector(IInputDevice):
                     except Exception:
                         pass
                     raise
-                data = bytes(data)
+                data = sample.data
                 if not self._should_process(data, last_data):
                     continue
                 last_data = data
-                result = self.data_callback(data)
-                if inspect.iscoroutine(result):
+                result = self.data_callback(sample)
+                if inspect.isawaitable(result):
                     await result
 
             except usb1.USBErrorTimeout:
@@ -156,7 +165,7 @@ class USBConnector(IInputDevice):
     # CALLBACK
     # ==========================
     def set_data_callback(
-        self, callback: Callable[[bytes], None | Awaitable[None]]
+        self, callback: Callable[[RawInput], None | Awaitable[None]]
     ) -> None:
         self.data_callback = callback
 
@@ -173,6 +182,8 @@ class USBConnector(IInputDevice):
                 await self._task
             except asyncio.CancelledError:
                 pass
+            except Exception:
+                logger.exception("USB reader failed during disconnect")
             self._task = None
 
         was_connected = self.handle is not None

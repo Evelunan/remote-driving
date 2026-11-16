@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 from typing import Callable, Awaitable
+from rd_core.samples import RawInput
 
 
 class IInputDevice(ABC):
@@ -17,7 +18,7 @@ class IInputDevice(ABC):
 
     @abstractmethod
     def set_data_callback(
-        self, callback: Callable[[bytes], None | Awaitable[None]]
+        self, callback: Callable[[RawInput], None | Awaitable[None]]
     ) -> None:
         """设置数据回调"""
         pass

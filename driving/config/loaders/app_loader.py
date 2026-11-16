@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from typing import Optional
 from pathlib import Path
 import yaml
+import math
 
 from logger import get_logger
 from common.constants import CONFIG_PATH
@@ -33,6 +34,15 @@ class AppConfig:
     frame_timer_interval: int
     stats_timer_interval: int
     time_timer_interval: int
+    input_timeout_s: float = 0.2
+    control_send_hz: float = 50.0
+
+    def __post_init__(self):
+        for value in (self.input_timeout_s, self.control_send_hz):
+            if not math.isfinite(value) or value <= 0:
+                raise ValueError("control timing must be finite and positive")
+        if self.input_timeout_s <= 1 / self.control_send_hz:
+            raise ValueError("input timeout must exceed a send period")
 
 
 _app_config: Optional[AppConfig] = None
@@ -55,6 +65,7 @@ def _load_config(config_path: Optional[Path]):
 
     ui = data.get("ui", {})
     timers = data.get("timers", {})
+    control = data.get("control", {})
 
     _app_config = AppConfig(
         app_name=str(data.get("app_name", "远程驾驶控制系统")),
@@ -67,6 +78,8 @@ def _load_config(config_path: Optional[Path]):
         frame_timer_interval=int(timers.get("frame_interval", 5)),
         stats_timer_interval=int(timers.get("stats_interval", 1000)),
         time_timer_interval=int(timers.get("time_interval", 1000)),
+        input_timeout_s=float(control.get("input_timeout_s", 0.2)),
+        control_send_hz=float(control.get("send_hz", 50.0)),
     )
 
     logger.debug(f"Loaded app config: {_app_config}")

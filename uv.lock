@@ -371,6 +371,7 @@ dependencies = [
     { name = "pyopengl-accelerate" },
     { name = "pyqt6" },
     { name = "pyyaml" },
+    { name = "rd-core" },
     { name = "websockets" },
 ]
 
@@ -386,6 +387,7 @@ requires-dist = [
     { name = "pyopengl-accelerate", specifier = ">=3.1.10" },
     { name = "pyqt6", specifier = ">=6.10.2" },
     { name = "pyyaml", specifier = ">=6.0.3" },
+    { name = "rd-core", editable = "packages/rd-core" },
     { name = "websockets", specifier = ">=16.0" },
 ]
 

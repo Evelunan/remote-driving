@@ -88,6 +88,8 @@ class VehicleProtocol(QuicConnectionProtocol):
             return
         if message["type"] == ControlCodec.MessageType.CONTROL:
             self.process_control_message(message)
+        elif message["type"] == ControlCodec.MessageType.STOP and self.supervisor is not None:
+            self.supervisor.stop("driving input unavailable", epoch=self.epoch)
 
     def process_control_message(self, message: dict):
         if self.supervisor is None or not self._business_connected:

@@ -11,14 +11,14 @@ def test_control_worker_delivers_state_on_receivers_qt_thread(legacy_python):
         app = QCoreApplication([])
         received = []
         class Receiver(QObject):
-            @pyqtSlot(float, float, float)
-            def update(self, v, w, rtt):
-                received.append((v, w, rtt, QThread.currentThread()))
+            @pyqtSlot(float, float, float, float)
+            def update(self, throttle, brake, steering, elapsed):
+                received.append((throttle, brake, steering, elapsed, QThread.currentThread()))
         receiver = Receiver()
         bridge = SignalBridge()
         bridge.control_data_updated.connect(receiver.update)
         worker = ControlSystemThread(bridge, '42')
-        ControlCodec.process_state = staticmethod(lambda *args: (1.0, 2.0, 3.0))
+        ControlCodec.process_state = staticmethod(lambda *args: (1.0, 2.0, 3.0, 4.0))
         async def emit():
             worker._running = True
             await worker._state_queue.put({})
@@ -35,5 +35,5 @@ def test_control_worker_delivers_state_on_receivers_qt_thread(legacy_python):
             time.sleep(0.005)
         thread.join(timeout=2)
         assert not thread.is_alive()
-        assert received == [(1.0, 2.0, 3.0, app.thread())], received
+        assert received == [(1.0, 2.0, 3.0, 4.0, app.thread())], received
     """)

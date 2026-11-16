@@ -1,176 +1,138 @@
 import asyncio
 import inspect
-import json
+import math
 import time
-from typing import TYPE_CHECKING
+
 from aioquic.asyncio.protocol import QuicConnectionProtocol
-from aioquic.quic.events import DatagramFrameReceived, ConnectionTerminated, HandshakeCompleted
+from aioquic.quic.events import ConnectionTerminated, DatagramFrameReceived, HandshakeCompleted
+from rd_core.samples import ControlInput
 
-from interfaces import IMessageQueue
 from logger import get_logger
-
-# from .control_codec import ControlCodec
 from .codec import ControlCodec
 
 logger = get_logger(__name__)
 
 
 class DrivingProtocol(QuicConnectionProtocol):
-
-    def __init__(
-        self,
-        session_id: int,
-        processed_queue: IMessageQueue,
-        *args,
-        **kwargs,
-    ):
+    def __init__(self, session_id, processed_queue, *args, input_timeout_s=0.2, send_hz=50.0, **kwargs):
         super().__init__(*args, **kwargs)
-
-        self.session_id = session_id
+        if not all(math.isfinite(v) and v > 0 for v in (input_timeout_s, send_hz)):
+            raise ValueError("invalid control timing")
+        if input_timeout_s <= 1 / send_hz:
+            raise ValueError("input timeout must exceed a send period")
+        self.session_id = int(session_id)
         self.processed_queue = processed_queue
-
+        self.input_timeout_s = input_timeout_s
+        self.period_s = 1 / send_hz
         self._business_connected = False
-        self._business_task: asyncio.Task | None = None
+        self._business_task = None
+        self._state_task = None
         self._state_callback = None
+        self._latest_state = None
 
-    # =========================
-    # 连接建立
-    # =========================
     def connection_made(self, transport):
         super().connection_made(transport)
-
-        logger.info("QUIC 传输已建立，等待握手完成...")
+        logger.info("QUIC transport established; awaiting TLS")
 
     def connection_lost(self, exc):
-        self._business_connected = False
-        if self._business_task:
-            self._business_task.cancel()
+        self._stop_tasks()
         super().connection_lost(exc)
 
-    # =========================
-    # QUIC事件
-    # =========================
     def quic_event_received(self, event):
-
         if isinstance(event, ConnectionTerminated):
-            self._handle_connection_closed(event)
-
+            self._stop_tasks()
         elif isinstance(event, DatagramFrameReceived):
             self._handle_datagram(event.data)
         elif isinstance(event, HandshakeCompleted):
             self._business_connected = True
         super().quic_event_received(event)
 
-    # =========================
-    # 连接关闭处理
-    # =========================
-    def _handle_connection_closed(self, event):
-
-        logger.warning(
-            f"连接终止: code={event.error_code}, reason={event.reason_phrase}"
-        )
-
+    def _stop_tasks(self):
         self._business_connected = False
+        for task in (self._business_task, self._state_task):
+            if task is not None and task is not asyncio.current_task():
+                task.cancel()
 
-        if self._business_task and not self._business_task.done():
-            self._business_task.cancel()
+    async def shutdown(self):
+        if self._business_connected:
+            try:
+                self._send_datagram(ControlCodec.encode(ControlCodec.MessageType.STOP, self.session_id))
+            except Exception:
+                logger.debug("STOP delivery failed during shutdown", exc_info=True)
+        self._stop_tasks()
+        tasks = [task for task in (self._business_task, self._state_task) if task is not None]
+        await asyncio.gather(*tasks, return_exceptions=True)
 
-    # =========================
-    # 收到服务器数据
-    # =========================
-    def _handle_datagram(self, data: bytes):
-
+    def _handle_datagram(self, data):
         try:
             message = ControlCodec.decode(data)
-            if message["type"] == ControlCodec.MessageType.STATE:
-                if self._state_callback:
-                    # logger.info(f"put data {message}")
-                    cb = self._state_callback
+        except (ValueError, KeyError):
+            return
+        if not self._business_connected or message["session"] != self.session_id:
+            return
+        if message["type"] == ControlCodec.MessageType.STATE and self._state_callback:
+            self._latest_state = message
+            if self._state_task is None or self._state_task.done():
+                self._state_task = asyncio.create_task(self._deliver_states())
 
-                    if inspect.iscoroutinefunction(cb):
-                        try:
-                            loop = asyncio.get_running_loop()
-                            loop.create_task(cb(message))
-                        except RuntimeError:
-                            # 没有运行中的事件循环（极端情况）
-                            asyncio.run(cb(message))
-                    else:
-                        cb(message)
-            logger.debug(f"收到服务器消息: {message}")
-        except Exception:
-            logger.warning(f"收到非法数据: {data!r}")
+    async def _deliver_states(self):
+        while self._latest_state is not None and self._business_connected:
+            message, self._latest_state = self._latest_state, None
+            result = self._state_callback(message)
+            if inspect.isawaitable(result):
+                await result
 
-    # =========================
-    # 启动业务
-    # =========================
     def start(self):
-
         if not self._business_connected:
             raise RuntimeError("QUIC handshake is not complete")
         if self._business_task is None or self._business_task.done():
             self._business_task = asyncio.create_task(self._business_loop())
 
-    # =========================
-    # 业务主循环
-    # =========================
     async def _business_loop(self):
+        sample = None
+        next_tick = time.monotonic()
         try:
-            await self._send_hello()
-            logger.info("控制循环启动")
+            self._send_datagram(ControlCodec.encode(ControlCodec.MessageType.HELLO_DRIVING, self.session_id))
             while self._business_connected:
+                now = time.monotonic()
+                if now >= next_tick:
+                    if sample is not None:
+                        if not isinstance(sample, ControlInput) or not sample.fresh(self.input_timeout_s, now=now):
+                            self._invalidate_input()
+                            return
+                        await self._send_control(sample)
+                    # Skip missed periods; never burst to catch up after a stall.
+                    next_tick += (math.floor((now - next_tick) / self.period_s) + 1) * self.period_s
                 try:
-                    data: dict = await asyncio.wait_for(
-                        self.processed_queue.get(), timeout=1.0
-                    )
+                    sample = await asyncio.wait_for(self.processed_queue.get(), max(0.0, next_tick - time.monotonic()))
+                    if not isinstance(sample, ControlInput) or not sample.valid:
+                        self._invalidate_input()
+                        return
                 except asyncio.TimeoutError:
-                    continue
-
-                await self._send_control(data)
-
-                await asyncio.sleep(0.02)  # 50Hz
-
+                    pass
         except asyncio.CancelledError:
-            logger.info("业务循环被取消")
-
+            raise
         except Exception:
-            logger.exception("业务循环异常")
+            logger.exception("control sender failed")
+            self.close(error_code=0x101, reason_phrase="control sender failed")
+        finally:
+            self._business_connected = False
 
-    # =========================
-    # 发送datagram
-    # =========================
-    def _send_datagram(self, payload: bytes):
-        try:
-            self._quic.send_datagram_frame(payload)
-            self.transmit()
-        except Exception:
-            logger.exception("发送数据失败")
+    def _invalidate_input(self):
+        self._send_datagram(ControlCodec.encode(ControlCodec.MessageType.STOP, self.session_id))
+        self._business_connected = False
+        self.close(error_code=0x100, reason_phrase="input unavailable or expired")
 
-    # =========================
-    # hello / keepalive
-    # =========================
-    async def _send_hello(self):
-        payload = ControlCodec.encode(
-            ControlCodec.MessageType.HELLO_DRIVING, self.session_id
-        )
-        self._send_datagram(payload)
-        logger.info(f"身份发送完成 session={self.session_id}")
+    def _send_datagram(self, payload):
+        self._quic.send_datagram_frame(payload)
+        self.transmit()
 
-    # =========================
-    # control
-    # =========================
-    async def _send_control(self, data: dict):
-        throttle, brake, steering = data["throttle"], data["brake"], data["steering"]
-        payload = ControlCodec.encode(
-            ControlCodec.MessageType.CONTROL,
-            self.session_id,
-            throttle=throttle,
-            brake=brake,
-            steering=steering,
-        )
-        self._send_datagram(payload)
-        logger.info(
-            f"发送指令：throttle = {throttle:.2f}, brake = {brake:.2f}, steering = {steering:.2f}"
-        )
+    async def _send_control(self, sample: ControlInput):
+        self._send_datagram(ControlCodec.encode(
+            ControlCodec.MessageType.CONTROL, self.session_id,
+            throttle=sample.throttle, brake=sample.brake, steering=sample.steering,
+            timestamp=sample.timestamp_ms & 0xFFFFFFFF,
+        ))
 
     def set_state_callback(self, callback):
         self._state_callback = callback

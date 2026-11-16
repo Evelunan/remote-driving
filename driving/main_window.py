@@ -95,10 +95,15 @@ class MainWindow(QMainWindow):
         self._bridge.usb_status_changed.connect(self._on_usb_status_changed)
         self._bridge.quic_status_changed.connect(self._on_quic_status_changed)
         self._bridge.control_data_updated.connect(self._on_control_data_updated)
+        self._bridge.control_confirmation_expired.connect(self._on_control_confirmation_expired)
 
-    def _on_control_data_updated(self, v: float, w: float, rtt: float):
+    def _on_control_data_updated(self, throttle: float, brake: float, steering: float, elapsed_ms: float):
         if self._services_running and self._control_panel:
-            self._control_panel.set_conmand_grid(v, w, rtt)
+            self._control_panel.set_command_status(throttle, brake, steering, elapsed_ms)
+
+    def _on_control_confirmation_expired(self):
+        if self._services_running and self._control_panel:
+            self._control_panel.clear_command_status()
 
     def _on_usb_status_changed(self, ok: bool, text: str):
         if self._services_running and self._control_panel:
