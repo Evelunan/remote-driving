@@ -40,6 +40,10 @@ jobs:
           git diff --exit-code -- uv.lock
       - name: Check fatal Python errors
         run: uv run --no-sync ruff check --isolated --select E9,F63,F7,F82 apps packages scripts tests
+      - name: Validate service templates without starting services
+        run: |
+          bash -n deploy/run_vehicle.sh
+          systemd-analyze verify --man=no --generators=no deploy/systemd/*.service
       - name: Run software regression tests
         run: uv run --no-sync pytest -q tests --junitxml=artifacts/pytest.xml
       - name: Build six wheels from clean source archives

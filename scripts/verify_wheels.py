@@ -18,11 +18,11 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def wheel_inventory(directory):
+def wheel_inventory(directory, *, source=ROOT):
     expected = {}
     for manifest in [
-        *ROOT.glob("apps/*/pyproject.toml"),
-        *ROOT.glob("packages/*/pyproject.toml"),
+        *source.glob("apps/*/pyproject.toml"),
+        *source.glob("packages/*/pyproject.toml"),
     ]:
         project = tomllib.loads(manifest.read_text())["project"]
         expected[project["name"]] = project["version"]

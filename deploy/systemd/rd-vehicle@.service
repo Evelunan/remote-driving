@@ -1,0 +1,29 @@
+[Unit]
+Description=Remote driving vehicle instance %i
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=exec
+User=rd-vehicle
+Group=rd-vehicle
+EnvironmentFile=/etc/remote-driving/%i.env
+Environment=RD_RUNTIME_DIR=/var/lib/remote-driving/%i
+Environment=ROS_LOG_DIR=/var/lib/remote-driving/%i/ros-log
+StateDirectory=remote-driving/%i
+WorkingDirectory=/var/lib/remote-driving/%i
+ExecStart=/bin/bash /usr/local/lib/remote-driving/run_vehicle.sh /opt/remote-driving/%i
+# Reconnecting transports are handled inside the application. A failed process
+# supervisor remains failed until the vehicle and its stop interface are checked.
+Restart=no
+KillMode=mixed
+TimeoutStopSec=20
+UMask=0027
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

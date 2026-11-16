@@ -39,7 +39,7 @@ uv run --no-sync python scripts/verify_wheels.py --wheels artifacts/wheels --out
 
 | 环境 | 状态和边界 |
 | --- | --- |
-| 本机 Linux/WSL2，x86_64，Python 3.12.16 | 以 `--locked` 建立全新开发环境，最新全量 267 项回归通过；独立安装重复检查通过，B19 首次车辆退出失败尚待定位（详见下文） |
+| 本机 Linux/WSL2，x86_64，Python 3.12.16 | 以 `--locked` 建立全新开发环境，最新全量 279 项回归通过；独立安装重复检查通过，B19 首次车辆退出失败尚待定位（详见下文） |
 | GitHub 托管 Ubuntu 24.04，x86_64，Python 3.12.16 | 工作流已配置；本次仅本地提交，尚未推送或执行远端 Actions。远端 apt/包源及 runner 的执行结果仍需首次运行确认 |
 | 车辆 ROS2 + Python 3.12 | 用户已确认技术路线；ROS2 发行版、系统依赖、实际底盘停车接口仍待实机验证 |
 | 真实桌面 / GPU / 摄像头 / USB | offscreen 与合成设备通过不能代替对应验收 |
@@ -56,3 +56,7 @@ B19 视频优化后，独立安装首次在车辆退出阶段返回 1；失败�
 持续重连与资源观测命令、边界及结果见 [视频性能记录](video-performance.zh-CN.md)。
 
 B21 的预算适配固定 aiortc 1.14.0 / PyAV 16.1.0，未升级实际依赖版本；[安装报告](validation/wheel-acceptance-b21.json) 验证独立角色安装、文件一致性及启用编码预算的车辆三模式启动/退出。
+
+发布准备工具进一步将已验收 wheel、依赖哈希、实例配置和协议修订绑定，并在切换前校验安装文件。服务模板和真实 wheel 的升级/回退演练见[部署说明](deployment-and-rollback.zh-CN.md)。本机模板校验需将临时副本中的 `/usr/bin/python3.12`替换为实际 Python 3.12 路径；原主机没有该系统路径。未安装或启用系统服务。
+
+B22 使用 B19/B21 原制品完成三角色 old→new→old 的安装/配置配对、运行互斥、启动和回退，见[原始记录](validation/release-rollback-b22.json)。全量回归为 279 passed（52.28s）。未变更应用实现，复用已验收 wheel；GUI Unix SIGTERM 的优雅清理仍待补充。

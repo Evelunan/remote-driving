@@ -1,0 +1,265 @@
+{
+  "compatibility": {
+    "control_alpn": "rd-control/2",
+    "control_revision": "video-bound/1"
+  },
+  "passed": true,
+  "phases": [
+    {
+      "release": "old",
+      "roles": {
+        "driving": {
+          "authenticated_protocols": false,
+          "children_reaped": true,
+          "duplicate_start_rejected": true,
+          "exitcode": -15,
+          "paired_config_restored": true,
+          "selection_while_running_rejected": true,
+          "started": true
+        },
+        "server": {
+          "authenticated_protocols": true,
+          "children_reaped": true,
+          "duplicate_start_rejected": true,
+          "exitcode": 0,
+          "paired_config_restored": true,
+          "selection_while_running_rejected": true,
+          "started": true
+        },
+        "vehicle": {
+          "authenticated_protocols": false,
+          "children_reaped": true,
+          "duplicate_start_rejected": true,
+          "exitcode": 0,
+          "paired_config_restored": true,
+          "selection_while_running_rejected": true,
+          "started": true
+        }
+      }
+    },
+    {
+      "release": "new",
+      "roles": {
+        "driving": {
+          "authenticated_protocols": false,
+          "children_reaped": true,
+          "duplicate_start_rejected": true,
+          "exitcode": -15,
+          "paired_config_restored": true,
+          "selection_while_running_rejected": true,
+          "started": true
+        },
+        "server": {
+          "authenticated_protocols": true,
+          "children_reaped": true,
+          "duplicate_start_rejected": true,
+          "exitcode": 0,
+          "paired_config_restored": true,
+          "selection_while_running_rejected": true,
+          "started": true
+        },
+        "vehicle": {
+          "authenticated_protocols": false,
+          "children_reaped": true,
+          "duplicate_start_rejected": true,
+          "exitcode": 0,
+          "paired_config_restored": true,
+          "selection_while_running_rejected": true,
+          "started": true
+        }
+      }
+    },
+    {
+      "release": "old",
+      "roles": {
+        "driving": {
+          "authenticated_protocols": false,
+          "children_reaped": true,
+          "duplicate_start_rejected": true,
+          "exitcode": -15,
+          "paired_config_restored": true,
+          "selection_while_running_rejected": true,
+          "started": true
+        },
+        "server": {
+          "authenticated_protocols": true,
+          "children_reaped": true,
+          "duplicate_start_rejected": true,
+          "exitcode": 0,
+          "paired_config_restored": true,
+          "selection_while_running_rejected": true,
+          "started": true
+        },
+        "vehicle": {
+          "authenticated_protocols": false,
+          "children_reaped": true,
+          "duplicate_start_rejected": true,
+          "exitcode": 0,
+          "paired_config_restored": true,
+          "selection_while_running_rejected": true,
+          "started": true
+        }
+      }
+    }
+  ],
+  "physical_stop_verified": false,
+  "releases": {
+    "new": {
+      "driving": {
+        "config_sha256": "2c9451ec5ed64b28e130343294711774ebdd546689bb4bf5308c620673e46fc0",
+        "lock_sha256": "372294257186adc23b4ea0ee359740c7f65a43b1497ae4cd5d2d2fc4c0252b43",
+        "python": "3.12.16",
+        "wheels": {
+          "rd-core": {
+            "filename": "rd_core-0.2.0-py3-none-any.whl",
+            "sha256": "48b980750719d478f83024c34a896a4a0473df9e397ebea99977712c656ec270",
+            "version": "0.2.0"
+          },
+          "rd-driving": {
+            "filename": "rd_driving-0.2.0-py3-none-any.whl",
+            "sha256": "503fb91826db36b55e82767f9da456796897fca0c84f08f22395b4bc562a362e",
+            "version": "0.2.0"
+          },
+          "rd-quic": {
+            "filename": "rd_quic-0.2.0-py3-none-any.whl",
+            "sha256": "20fbffe0f4c8df65010155357b39cfe85c124540171266ec6fa8efd5bc756985",
+            "version": "0.2.0"
+          },
+          "rd-webrtc": {
+            "filename": "rd_webrtc-0.2.0-py3-none-any.whl",
+            "sha256": "66eba2485a742e24681b5b081516c9370561fb488372e2fb0d2c27c9c1a86d71",
+            "version": "0.2.0"
+          }
+        }
+      },
+      "server": {
+        "config_sha256": "10d3354f8f0f7df09577b1dd976c79a8ffd7245971b0bf0ed34ef030e2eeb833",
+        "lock_sha256": "372294257186adc23b4ea0ee359740c7f65a43b1497ae4cd5d2d2fc4c0252b43",
+        "python": "3.12.16",
+        "wheels": {
+          "rd-core": {
+            "filename": "rd_core-0.2.0-py3-none-any.whl",
+            "sha256": "48b980750719d478f83024c34a896a4a0473df9e397ebea99977712c656ec270",
+            "version": "0.2.0"
+          },
+          "rd-quic": {
+            "filename": "rd_quic-0.2.0-py3-none-any.whl",
+            "sha256": "20fbffe0f4c8df65010155357b39cfe85c124540171266ec6fa8efd5bc756985",
+            "version": "0.2.0"
+          },
+          "rd-server": {
+            "filename": "rd_server-0.2.0-py3-none-any.whl",
+            "sha256": "7bf7c28387eac29f9314a88f43da7feb524c188b8b33605d81fa923a22944c95",
+            "version": "0.2.0"
+          }
+        }
+      },
+      "vehicle": {
+        "config_sha256": "a2a00060fc6b993cf360e83344442764808dc9fe1848bcf93ad6c0a9a43a2e7b",
+        "lock_sha256": "372294257186adc23b4ea0ee359740c7f65a43b1497ae4cd5d2d2fc4c0252b43",
+        "python": "3.12.16",
+        "wheels": {
+          "rd-core": {
+            "filename": "rd_core-0.2.0-py3-none-any.whl",
+            "sha256": "48b980750719d478f83024c34a896a4a0473df9e397ebea99977712c656ec270",
+            "version": "0.2.0"
+          },
+          "rd-quic": {
+            "filename": "rd_quic-0.2.0-py3-none-any.whl",
+            "sha256": "20fbffe0f4c8df65010155357b39cfe85c124540171266ec6fa8efd5bc756985",
+            "version": "0.2.0"
+          },
+          "rd-vehicle": {
+            "filename": "rd_vehicle-0.2.0-py3-none-any.whl",
+            "sha256": "001baf515574c211f274feeb39508f4d665c12df6ef30ac4be15ce746d1d6dad",
+            "version": "0.2.0"
+          },
+          "rd-webrtc": {
+            "filename": "rd_webrtc-0.2.0-py3-none-any.whl",
+            "sha256": "66eba2485a742e24681b5b081516c9370561fb488372e2fb0d2c27c9c1a86d71",
+            "version": "0.2.0"
+          }
+        }
+      }
+    },
+    "old": {
+      "driving": {
+        "config_sha256": "0e9be061425820aa1b9d5b860e512691724f4d4aba03e968599382589d0da637",
+        "lock_sha256": "c71b541989875c2cf3719f07664d3835d4ac32661d8dae5723cf5781ee7bc153",
+        "python": "3.12.16",
+        "wheels": {
+          "rd-core": {
+            "filename": "rd_core-0.2.0-py3-none-any.whl",
+            "sha256": "013a9b16edae11789a5a2dabc0cd4ea0b96e2ce13676e29c92e13b6d7e2c5b8e",
+            "version": "0.2.0"
+          },
+          "rd-driving": {
+            "filename": "rd_driving-0.2.0-py3-none-any.whl",
+            "sha256": "ff7623599be18185e84d1019a3cf1401ab188c1aabc32d487e85c9a2cd6a616b",
+            "version": "0.2.0"
+          },
+          "rd-quic": {
+            "filename": "rd_quic-0.2.0-py3-none-any.whl",
+            "sha256": "4497bfb9413caff930debb65913f963e26fb8d1c8cc89c23bd4f626d32ee64e2",
+            "version": "0.2.0"
+          },
+          "rd-webrtc": {
+            "filename": "rd_webrtc-0.2.0-py3-none-any.whl",
+            "sha256": "e2ca3c1debc9037f4f00d00a4b75cbe0db9a42d42b0695e6ff779abf55865d31",
+            "version": "0.2.0"
+          }
+        }
+      },
+      "server": {
+        "config_sha256": "c4f1f6d8526d85967bea62198f5addf2cd2759490346605ca2e53454fa5cba1b",
+        "lock_sha256": "c71b541989875c2cf3719f07664d3835d4ac32661d8dae5723cf5781ee7bc153",
+        "python": "3.12.16",
+        "wheels": {
+          "rd-core": {
+            "filename": "rd_core-0.2.0-py3-none-any.whl",
+            "sha256": "013a9b16edae11789a5a2dabc0cd4ea0b96e2ce13676e29c92e13b6d7e2c5b8e",
+            "version": "0.2.0"
+          },
+          "rd-quic": {
+            "filename": "rd_quic-0.2.0-py3-none-any.whl",
+            "sha256": "4497bfb9413caff930debb65913f963e26fb8d1c8cc89c23bd4f626d32ee64e2",
+            "version": "0.2.0"
+          },
+          "rd-server": {
+            "filename": "rd_server-0.2.0-py3-none-any.whl",
+            "sha256": "571abf7c9196fc537283274f635fb86fc8e0a414e577f83f9be48762a138784f",
+            "version": "0.2.0"
+          }
+        }
+      },
+      "vehicle": {
+        "config_sha256": "501c710b45480a126eef4b301513ab7f00ade11e5962cc0702a52bdcc923f3f8",
+        "lock_sha256": "c71b541989875c2cf3719f07664d3835d4ac32661d8dae5723cf5781ee7bc153",
+        "python": "3.12.16",
+        "wheels": {
+          "rd-core": {
+            "filename": "rd_core-0.2.0-py3-none-any.whl",
+            "sha256": "013a9b16edae11789a5a2dabc0cd4ea0b96e2ce13676e29c92e13b6d7e2c5b8e",
+            "version": "0.2.0"
+          },
+          "rd-quic": {
+            "filename": "rd_quic-0.2.0-py3-none-any.whl",
+            "sha256": "4497bfb9413caff930debb65913f963e26fb8d1c8cc89c23bd4f626d32ee64e2",
+            "version": "0.2.0"
+          },
+          "rd-vehicle": {
+            "filename": "rd_vehicle-0.2.0-py3-none-any.whl",
+            "sha256": "9d790d4181e090e176db8073754603c48f1aa2254bfb7301ba8ec1fd2318726d",
+            "version": "0.2.0"
+          },
+          "rd-webrtc": {
+            "filename": "rd_webrtc-0.2.0-py3-none-any.whl",
+            "sha256": "e2ca3c1debc9037f4f00d00a4b75cbe0db9a42d42b0695e6ff779abf55865d31",
+            "version": "0.2.0"
+          }
+        }
+      }
+    }
+  },
+  "scope": "Linux loopback, installed wheels, mock vehicle and Qt offscreen; no systemd activation or physical devices"
+}

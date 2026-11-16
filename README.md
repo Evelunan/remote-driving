@@ -41,7 +41,7 @@ uv run --no-sync rd-server --help
 
 完整 v2 控制模拟及报告说明见[无硬件验证](docs/control-simulation.zh-CN.md)。
 
-CI、独立 wheel 安装检查和环境矩阵见[软件验收说明](docs/software-validation.zh-CN.md)。帧缓存对比、完整软件媒体基线与复现命令见[视频性能记录](docs/video-performance.zh-CN.md)。
+CI、独立 wheel 安装检查和环境矩阵见[软件验收说明](docs/software-validation.zh-CN.md)。按角色准备版本、服务模板及回退演练见[部署与回退](docs/deployment-and-rollback.zh-CN.md)。帧缓存对比、完整软件媒体基线与复现命令见[视频性能记录](docs/video-performance.zh-CN.md)。
 
 测试包含模拟输入/底盘、Qt offscreen、临时证书和仅绑定回环地址的监听器。运行环境需要允许本机 socketpair 和回环 socket；这些测试不连接实车或外部服务。
 
@@ -49,9 +49,9 @@ CI、独立 wheel 安装检查和环境矩阵见[软件验收说明](docs/softwa
 
 ```bash
 python scripts/build_wheels.py --output-dir dist
-# 将 dist 中相应应用及公共包 wheel 交给目标机器后安装：
-python -m pip install --find-links dist rd-server==0.2.0
-# 驾驶端用 rd-driving，车辆端用 rd-vehicle；无需安装另外两个应用。
+python scripts/verify_wheels.py --wheels dist --output artifacts/wheel-acceptance.json
+# 将完整 wheel 集、验收报告和匹配源码/锁文件交付部署环境。
+# 按部署文档使用 manage_release.py prepare，固定依赖及配套配置。
 ```
 
 构建出的应用 wheel 依赖公共包 wheel；第三方运行依赖仍需通过包源或预备 wheelhouse 安装。ROS2 的 rclpy 由匹配 Python 3.12 的 ROS 环境提供；发行版及实车接口仍待确认。
