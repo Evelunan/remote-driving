@@ -149,10 +149,15 @@ class ControlCodec:
         return None
 
     @staticmethod
-    def is_newer(new_seq, old_seq) -> bool:
-        MAX_SEQ = 0xFFFF
-        HALF = 0x8000
-        return ((new_seq - old_seq) & MAX_SEQ) < HALF
+    def is_newer(new_seq: int, old_seq: int | None) -> bool:
+        """Accept the first uint16 sequence, then reject repeats and old packets."""
+        if not 0 <= new_seq <= 0xFFFF:
+            return False
+        if old_seq is None:
+            return True
+        if not 0 <= old_seq <= 0xFFFF:
+            return False
+        return 0 < ((new_seq - old_seq) & 0xFFFF) < 0x8000
 
     @staticmethod
     def compute_motion(throttle, brake, steering, max_v, max_w):

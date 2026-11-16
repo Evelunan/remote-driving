@@ -17,7 +17,7 @@ class SessionManager:
         # protocol -> session_id
         self._conn_to_session: dict[object, str] = {}
 
-    def bind_peer(self, session_id: str, role: str, protocol) -> None:
+    def bind_peer(self, session_id: str, role: str, protocol) -> bool:
         """
         绑定 car/driving 协议到一个 session。
 
@@ -26,9 +26,19 @@ class SessionManager:
             role: 角色，如 "car" 或 "driving"。
             protocol: 连接协议对象。
         """
+        if role not in {"car", "driving"} or not session_id:
+            return False
+        previous_session = self._conn_to_session.get(protocol)
+        if previous_session is not None:
+            # A repeat registration is idempotent; changing identity requires
+            # a fresh connection. Authentication is added in the new protocol.
+            return previous_session == session_id and self.get_peer(session_id, role) is protocol
+        if self.get_peer(session_id, role) is not None:
+            return False
         peer = self._sessions.setdefault(session_id, {})
         peer[role] = protocol
         self._conn_to_session[protocol] = session_id
+        return True
 
     def unbind(self, protocol) -> Optional[str]:
         """

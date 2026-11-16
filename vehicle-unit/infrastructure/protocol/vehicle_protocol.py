@@ -22,7 +22,7 @@ class VehicleProtocol(QuicConnectionProtocol):
         self._connected = False
         self._business_task: asyncio.Task | None = None
 
-        self._last_seq = -1
+        self._last_seq: int | None = None
         self._last_timestamp = -1
 
         self._batch_start_seq = -1   # 当前批次第一个包的 seq
