@@ -8,11 +8,7 @@ from typing import Optional, Dict, Type
 
 from rd_driving.interfaces.ui import ITheme
 from rd_driving.ui.themes import BaseTheme, DarkTechTheme, ModernGlassTheme
-from rd_driving.ui.components import (
-    VideoDisplay, StatusIndicator, ConnectionItem,
-    DataCard, StatItem
-)
-from rd_driving.ui.widgets import Navbar, ControlPanel, VideoPanel
+from rd_driving.ui.widgets import Navbar, ControlPanel
 
 
 class UIFactory:
@@ -44,47 +40,6 @@ class UIFactory:
             cls._current_theme = DarkTechTheme()
         return cls._current_theme
 
-    # ===== 基础组件创建 =====
-
-    @staticmethod
-    def create_video_display(scaling_mode: str = "balanced") -> VideoDisplay:
-        """创建视频显示组件"""
-        video = VideoDisplay(scaling_mode)
-        theme = UIFactory.get_theme()
-        video.apply_theme(theme)
-        return video
-
-    @staticmethod
-    def create_status_indicator(size: int = 10) -> StatusIndicator:
-        """创建状态指示器"""
-        indicator = StatusIndicator(size)
-        theme = UIFactory.get_theme()
-        indicator.apply_theme(theme)
-        return indicator
-
-    @staticmethod
-    def create_connection_item(name: str) -> ConnectionItem:
-        """创建连接状态项"""
-        item = ConnectionItem(name)
-        theme = UIFactory.get_theme()
-        item.apply_theme(theme)
-        return item
-
-    @staticmethod
-    def create_data_card(title: str) -> DataCard:
-        """创建数据卡片"""
-        card = DataCard(title)
-        theme = UIFactory.get_theme()
-        card.apply_theme(theme)
-        return card
-
-    @staticmethod
-    def create_stat_item(label: str, unit: str = "") -> StatItem:
-        """创建统计数据项"""
-        item = StatItem(label, unit)
-        theme = UIFactory.get_theme()
-        item.apply_theme(theme)
-        return item
 
     # ===== 复合组件创建 =====
 
@@ -100,14 +55,6 @@ class UIFactory:
     def create_control_panel() -> ControlPanel:
         """创建控制面板"""
         panel = ControlPanel()
-        theme = UIFactory.get_theme()
-        panel.apply_theme(theme)
-        return panel
-
-    @staticmethod
-    def create_video_panel(scaling_mode: str = "balanced") -> VideoPanel:
-        """创建视频面板"""
-        panel = VideoPanel(scaling_mode)
         theme = UIFactory.get_theme()
         panel.apply_theme(theme)
         return panel

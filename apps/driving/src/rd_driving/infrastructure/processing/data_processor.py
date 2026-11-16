@@ -1,9 +1,7 @@
-import json
 from typing import Dict
 from rd_core.samples import RawInput, ControlInput
 from rd_driving.interfaces import IDataProcessor, IAnalogCalculator, IMessageQueue
 from rd_driving.infrastructure.device import InputConfigManager, InputType
-from rd_driving.infrastructure.communication import ControlState
 
 from rd_core.logging import get_logger
 

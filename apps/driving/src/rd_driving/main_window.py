@@ -239,7 +239,6 @@ class MainWindow(QMainWindow):
         content_layout.setContentsMargins(20, 20, 20, 20)
         content_layout.setSpacing(20)
 
-        # self._multi_video_widget = GLMultiVideoWidget(self.fb)
         self._multi_video_widget = MultiVideoWidget(
             self.fb,
             stale_frame_ms=self.settings.video.stale_frame_ms,

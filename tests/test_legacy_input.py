@@ -35,9 +35,9 @@ def test_neutral_input_is_delivered_and_unplug_clears_online_state(legacy_python
 def test_control_queue_keeps_only_latest_sample(legacy_python):
     legacy_python("driving", """
         import asyncio
-        from rd_driving.factories.control_factory import ControlFactory
+        from rd_driving.infrastructure.communication import LatestValueQueue
         async def check():
-            q = ControlFactory.create_message_queue()
+            q = LatestValueQueue()
             for n in range(50):
                 await q.put({'throttle': n / 100})
             assert await q.get() == {'throttle': 0.49}

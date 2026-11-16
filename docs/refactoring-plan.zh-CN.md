@@ -42,7 +42,7 @@ P0 表示应在实车控制前解决；P1 表示直接影响正确性、可恢�
 | C03 | P0 | [车端断线处理](../apps/vehicle/src/rd_vehicle/infrastructure/protocol/vehicle_protocol.py#L40) 只停止业务任务，控制处理没有超时安全动作 | 使用最后一条有效控制指令的本地接收时间建立 watchdog；底盘另设独立超时保护 |
 | C04 | P0 | 旧车辆配置（`git show dd1d909:apps/vehicle/src/rd_vehicle/config/vehicle.yaml`） 标注 cm/s，旧加载器（`git show dd1d909:apps/vehicle/src/rd_vehicle/config/loaders/vehicle_loader.py`） 标注 mm/s；[ROS 控制器创建](../apps/vehicle/src/rd_vehicle/main.py#L35) 没有传入运动配置，实际发布 m/s | 内部统一 m/s、rad/s；明确传入限值；硬件适配器负责换算；验证配置到执行值的全过程 |
 | C05 | P0 | [会话绑定](../apps/server/src/rd_server/relay/services/session_manager.py#L20) 接受自报角色并覆盖既有连接；[中继](../apps/server/src/rd_server/relay/services/relay_protocol.py#L75) 未将报文身份与连接绑定核对；[信令转发](../apps/server/src/rd_server/signaling/services/room_manager.py#L151) 接受客户端自带 from | 认证设备与操作员，核验会话权限，设置独占控制租约，服务端确定消息来源 |
-| C06 | P1 | [FIFO 队列](../apps/driving/src/rd_driving/infrastructure/communication/async_queue.py#L7) 保留 10 个采样；[发送循环](../apps/driving/src/rd_driving/infrastructure/protocol/driving_protocol.py#L106) 每次 sleep 20ms | 连续控制改用最新状态和固定周期发送；采样须带新鲜度；离散事件使用独立通道 |
+| C06 | P1 | 旧 FIFO 队列（`git show 65ec86e:driving/infrastructure/communication/async_queue.py`）保留 10 个采样；[发送循环](../apps/driving/src/rd_driving/infrastructure/protocol/driving_protocol.py#L106) 每次 sleep 20ms | 连续控制改用最新状态和固定周期发送；采样须带新鲜度；离散事件使用独立通道 |
 | C07 | P1 | [序列比较](../apps/vehicle/src/rd_vehicle/infrastructure/protocol/codec.py#L152) 接受相同序号；接收端以 -1 初始化，部分首包会被拒绝 | 显式处理首包，使用严格序列比较，测试重复、乱序、回绕及发送端重启；增加会话代次 |
 | C08 | P1 | [STATE 生成](../apps/vehicle/src/rd_vehicle/infrastructure/protocol/vehicle_protocol.py#L171) 在控制器执行前回显命令；[驾驶端](../apps/driving/src/rd_driving/infrastructure/protocol/codec.py#L158) 将命令换算为速度 | 分离接收确认、执行结果和真实遥测；界面明确区分目标值与实测值 |
 | C09 | P1 | [USB 拔出处理](../apps/driving/src/rd_driving/infrastructure/device/usb_connector.py#L131) 退出读取循环但不清除连接状态，is_connected 仍可能为真 | 在 finally 中清理状态和句柄；发出输入失效事件后重连 |
@@ -72,7 +72,7 @@ is_newer(40000, -1) = False
 | R03 | P1 | [中继清理](../apps/server/src/rd_server/relay/services/relay_protocol.py#L22) 依赖 connection_lost，却忽略单个 QUIC 连接的 ConnectionTerminated | 在连接终止事件中清理会话和心跳任务；关闭操作幂等 |
 | R04 | P1 | [推流类](../apps/vehicle/src/rd_vehicle/infrastructure/streams/webrtc_streamer.py#L171) 第二次定义 close，覆盖前一个停止运行标志的实现 | 统一 shutdown，保存任务句柄，取消并等待任务结束，禁止关闭后自动重连 |
 | R05 | P1 | [接收信令循环](../apps/driving/src/rd_driving/infrastructure/video/webrtc_reciver.py#L279) 捕获断线异常后继续读旧连接 | 断线结束当前 session，由外层退避重连；区分可恢复消息错误和连接失效 |
-| R06 | P1 | [两端相同的 ICE 处理](../apps/vehicle/src/rd_vehicle/infrastructure/streams/peer_connection.py#L34) 使用 RTCIceCandidate(candidate=...)，不符合 aiortc API | 统一候选解析，或明确采用收集完成后的完整 SDP 交换；完整 SDP 路径可能掩盖此分支错误 |
+| R06 | P1 | 旧 ICE 处理（`git show 65ec86e:vehicle-unit/infrastructure/streams/peer_connection.py`）使用 RTCIceCandidate(candidate=...)，不符合 aiortc API | 统一候选解析，或明确采用收集完成后的完整 SDP 交换；完整 SDP 路径可能掩盖此分支错误 |
 | R07 | P1 | [控制线程](../apps/driving/src/rd_driving/infrastructure/workers/control_system_thread.py#L219) 调用 [主窗口绑定的 UI 回调](../apps/driving/src/rd_driving/main_window.py#L281) | 使用 Qt signal/slot 将界面更新交给 GUI 主线程 |
 | R08 | P1 | [手动重连](../apps/driving/src/rd_driving/main_window.py#L288) 没有把旧服务停止完成作为新服务启动的条件，多处后台任务未记录句柄 | 用统一生命周期管理器按序停止和启动；避免阻塞 GUI 线程；旧会话回调不能污染新会话 |
 | R09 | P2 | [创建 peer](../apps/vehicle/src/rd_vehicle/infrastructure/streams/webrtc_streamer.py#L82) 会 reset 全部共享轨道 | 采集源与订阅者生命周期分离；当前房间上限为两人，该问题主要影响多人扩展或重复建连 |
@@ -89,7 +89,7 @@ R01 与 R03 的行为已按 aioquic 1.3.0 官方实现核对。QUIC Datagram 不
 | S02 | P1 | [车端声明 Python ≥3.10](../apps/vehicle/pyproject.toml#L6)，却要求 NumPy ≥2.4.3；根 workspace 要求 ≥3.12 | 按真实 ROS Python 选择兼容依赖，或让 ROS bridge 与媒体进程使用独立环境 |
 | S03 | P1 | 两端 server.yaml 使用 ws、关闭证书校验并包含固定 TURN 凭据；Git 跟踪服务器私钥 | 生产配置开启身份及证书验证；使用 WSS；凭据在部署时注入；曾部署使用的入库私钥应轮换 |
 | S04 | P1 | [ROS 创建入口](../apps/vehicle/src/rd_vehicle/main.py#L35) 和 [串口初始化](../apps/vehicle/src/rd_vehicle/infrastructure/controller/serial_controller.py#L27) 未完整使用配置 | 为每个关键配置增加“配置值进入执行组件”的验证，避免只验证 YAML 能读入 |
-| S05 | P1 | [Linux 相机定位](../apps/vehicle/src/rd_vehicle/common/utils.py#L35) 依赖 libcamera_index.so，仓库未提供该库或构建流程 | 优先支持稳定设备路径；必须依赖原生库时，提供源码或制品来源、平台构建及安装检查 |
+| S05 | P1 | 旧 Linux 相机定位（`git show 65ec86e:vehicle-unit/common/utils.py`）依赖 libcamera_index.so，仓库未提供该库或构建流程 | 优先支持稳定设备路径；必须依赖原生库时，提供源码或制品来源、平台构建及安装检查 |
 | S06 | P2 | 三份近似 codec、四份 logger、两份完全相同的 peer_connection；部分实验代码与正式路径混放 | 抽取唯一公共实现；实验进入 examples 或 benchmarks；确认调用关系后清理遗留代码 |
 | S07 | P2 | 配置加载器使用模块单例；首次加载后新路径不生效；server loader 同时耦合多个通信库 | 入口加载并校验不可变配置；只加载当前角色所需部分；第三方配置转换放在适配层 |
 | S08 | P2 | 日志初始化发生在 get_logger 调用中，文件路径依赖当前工作目录；测试主要是调试脚本和 CSV 分析 | 入口显式初始化日志；运行目录可配置；建立协议、故障恢复和安装回归检查 |
@@ -132,7 +132,7 @@ USB 摄像头采集线程
 
 该数字是估算，实际轮询频率、相机协商尺寸和内存流量需测量。改造时在复制前比较版本；或采用明确所有权的不可变帧引用。当前显示代码会原地绘制时间文字，应先改为显示覆盖层，才能安全减少复制。
 
-**识别冻结和过期画面。** [推流循环](../apps/vehicle/src/rd_vehicle/application/multi_camera_manager.py#L69) 没有新帧时继续发布 pre_frame，[track](../apps/vehicle/src/rd_vehicle/infrastructure/streams/video_track.py#L31) 为旧图像生成新 PTS。因此接收 FPS 正常不代表摄像头正常。发布数据应保留采集序号、采集时间和源健康状态；重复发送用于保活时，不能把旧图像标成新采集。画面过期应明确提示，并按主视角失效策略联动控制。
+**识别冻结和过期画面。** [推流循环](../apps/vehicle/src/rd_vehicle/application/multi_camera_manager.py#L69) 没有新帧时继续发布 pre_frame，旧 track（`git show 65ec86e:vehicle-unit/infrastructure/streams/video_track.py`） 为旧图像生成新 PTS。因此接收 FPS 正常不代表摄像头正常。发布数据应保留采集序号、采集时间和源健康状态；重复发送用于保活时，不能把旧图像标成新采集。画面过期应明确提示，并按主视角失效策略联动控制。
 
 **统一帧率和调度。** [采集线程](../apps/vehicle/src/rd_vehicle/infrastructure/cameras/usb_camera.py#L123) 有忙等，发布协程再次 sleep，track 又使用默认时基限帧。相机 FPS 没有传入 [track 创建](../apps/vehicle/src/rd_vehicle/infrastructure/streams/track_manager.py#L13)，且仅修改 _fps 不会自动改变基类 next_timestamp 的节奏。应以新帧事件驱动数据更新，用单调时钟组织发布和超时，明确采集帧率、发送帧率及显示刷新率。
 
@@ -163,7 +163,7 @@ B11 已实现只读帧快照、重复帧过滤及本地接收过期提示；缓�
 
 跨主机的单调时钟不能直接相减。视频端到端延迟采用同一时钟画面或 LED 的拍摄测量，或者使用已校准的两端时钟并报告误差。QUIC echo RTT、RTT/2 都不能代替视频延迟或底盘执行延迟。
 
-[现有统计脚本](../benchmarks/legacy/test_data_process.py#L63) 会去除 FPS=0，当前 FPS 写入代码也已注释。历史 CSV 可供回顾，但不作为当前版本的可靠基准。
+旧统计脚本（`git show 59e4a84:benchmarks/legacy/test_data_process.py`）会去除 FPS=0，当时 FPS 写入代码也已注释。废弃脚本和 CSV 已随用户要求清理，仍可从 Git 历史查阅；当前可靠基准保存在 `benchmarks/baselines/`和`benchmarks/results/`。
 
 ## 4 应用结构和共享边界
 

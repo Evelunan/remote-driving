@@ -12,10 +12,11 @@ def test_processing_preserves_capture_time_and_accepts_short_axis_report(legacy_
     legacy_python("driving", """
         import asyncio
         from rd_core.samples import RawInput
-        from rd_driving.factories.control_factory import ControlFactory
+        from rd_driving.infrastructure.communication import LatestValueQueue
         async def check():
-            q = ControlFactory.create_message_queue()
-            p = ControlFactory.create_data_processor(q)
+            q = LatestValueQueue()
+            from rd_driving.infrastructure.processing import DataProcessor, AnalogCalculator
+            p = DataProcessor(q, AnalogCalculator())
             await p.process(RawInput(bytes([192, 0, 0, 128, 128]), 1.25, 123))
             value = await q.get()
             assert value.throttle == value.brake == value.steering == 0

@@ -156,7 +156,7 @@ class ControlPanel(QFrame):
     def apply_theme(self, theme: ITheme) -> None:
         self._theme = theme
 
-        # 外层 Frame 设置背景和圆角，与 VideoPanel 一致
+        # 外层 Frame 设置背景和圆角
         self.setObjectName("controlPanel")
         self.setStyleSheet(
             f"""

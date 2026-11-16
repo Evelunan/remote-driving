@@ -26,9 +26,6 @@ rd-vehicle = "rd_vehicle.main:cli"
 [tool.setuptools.packages.find]
 where = ["src"]
 
-[tool.setuptools.package-data]
-rd_vehicle = ["lib/*.dll"]
-
 [[tool.uv.index]]
 name = "aliyun"
 url = "https://mirrors.aliyun.com/pypi/simple/"
