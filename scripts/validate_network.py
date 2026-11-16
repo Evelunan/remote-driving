@@ -1,0 +1,668 @@
+"""Exercise real local WSS/WebRTC/QUIC/Qt under bounded UDP impairments.
+
+Synthetic cameras and a mock actuator only. Server restart cases create fresh
+runtime/listener/registry instances on the same ports, not systemd processes.
+"""
+
+import argparse
+import asyncio
+import hashlib
+import importlib.metadata
+import json
+import os
+import platform
+import secrets
+import ssl
+import subprocess
+import tempfile
+import threading
+import time
+from concurrent.futures import Future
+from dataclasses import asdict, replace
+from pathlib import Path
+from unittest.mock import patch
+
+from network_shaper import Policy, Shaper
+
+ROOT = Path(__file__).resolve().parents[1]
+CASES = (
+    "mild",
+    "rpc-only",
+    "control-blackhole",
+    "media-blackhole",
+    "clock-budget",
+    "signaling-restart",
+    "relay-restart",
+    "server-restart",
+)
+
+
+async def validate(args, cache, gate, interrupted):
+    import aioice.ice
+    from benchmark_media import network_delta, network_snapshot
+    from rd_core.auth import AuthProvider
+    from rd_core.samples import ControlInput
+    from rd_core.settings import (
+        AuthSettings,
+        ClientNetworkSettings,
+        CredentialSettings,
+        DrivingSettings,
+        PrincipalSettings,
+        RelaySettings,
+        SignalingSettings,
+        VehicleSettings,
+    )
+    from rd_driving.app.control_client import DrivingControlClient
+    from rd_driving.infrastructure.video.webrtc_reciver import WebRTCReceiver
+    from rd_quic.client import ClockError, ClockGuard
+    from rd_quic.protocol import RpcProtocol
+    from rd_server.relay.control_service import ControlRelayService
+    from rd_server.runtime import ServerRuntime
+    from rd_server.signaling.server import SignalingServer
+    from rd_vehicle.application.control_client import VehicleControlClient
+    from rd_vehicle.application.multi_camera_manager import MultiCameraManager
+    from rd_vehicle.infrastructure.cameras.test_camera import TestCamera
+    from rd_vehicle.infrastructure.controller.mock_controller import MockController
+    from rd_vehicle.infrastructure.streams.webrtc_streamer import WebRTCStreamer
+    from simulate_control import temporary_tls
+
+    credentials = {
+        name: secrets.token_urlsafe(32) for name in ("RD_NET_VEHICLE", "RD_NET_DRIVER")
+    }
+    previous = {name: os.environ.get(name) for name in credentials}
+    os.environ.update(credentials)
+    views = ("front", "back", "left", "right")[: args.views]
+    tasks, runtimes, statuses, executions = [], [], [], []
+    publisher = receiver = manager = vehicle = None
+    shaper = Shaper(seed=args.seed)
+    throttle = 0.0
+    report = {"case": args.case, "physical_stop_verified": False}
+    controller = None
+    clock_rejections = []
+    original_probe = ClockGuard.probe
+    original_datagram = RpcProtocol.send_datagram
+    datagrams = {"drop": False, "dropped": 0}
+
+    def application_datagram(protocol, data):
+        if datagrams["drop"]:
+            datagrams["dropped"] += 1
+            return
+        return original_datagram(protocol, data)
+
+    async def observed_clock_probe(guard, protocol):
+        try:
+            return await original_probe(guard, protocol)
+        except ClockError:
+            clock_rejections.append(
+                {"at": time.monotonic(), "budget_ms": guard.max_skew_ms}
+            )
+            raise
+
+    class Actuator(MockController):
+        def __init__(self, motion):
+            super().__init__(motion)
+            self.events = []
+
+        def send_command(self, throttle, brake, steering):
+            super().send_command(throttle, brake, steering)
+            if len(self.events) >= 10000:
+                raise RuntimeError("network validation actuator observation limit")
+            self.events.append((time.monotonic(), self.commands[-1]))
+
+    async def until(predicate, timeout=15):
+        async with asyncio.timeout(timeout):
+            while True:
+                if interrupted.is_set():
+                    raise RuntimeError("network validation interrupted")
+                for task in tasks:
+                    if task.done():
+                        task.result()
+                        raise RuntimeError("network validation component exited")
+                if shaper.errors:
+                    raise RuntimeError(f"UDP injection errors: {shaper.errors}")
+                if predicate():
+                    return
+                await asyncio.sleep(0.01)
+
+    async def duration(seconds, invariant=None):
+        end = time.monotonic() + seconds
+        while time.monotonic() < end:
+            if invariant is not None and not invariant():
+                raise RuntimeError("network validation invariant failed")
+            await until(lambda: True)
+            await asyncio.sleep(0.01)
+
+    with tempfile.TemporaryDirectory(prefix="rd-network-") as temporary:
+        try:
+            tls = temporary_tls(Path(temporary))
+            context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+            context.load_cert_chain(tls.cert, tls.key)
+            auth = AuthProvider(
+                AuthSettings(
+                    (
+                        PrincipalSettings(
+                            "net-vehicle",
+                            "vehicle",
+                            "RD_NET_VEHICLE",
+                            (42,),
+                            ("network",),
+                        ),
+                        PrincipalSettings(
+                            "net-driver",
+                            "driving",
+                            "RD_NET_DRIVER",
+                            (42,),
+                            ("network",),
+                        ),
+                    )
+                ),
+                environ=credentials,
+            )
+            signaling_settings = SignalingSettings(port=0)
+            relay_settings = RelaySettings(port=0, tls=tls)
+            signaling = SignalingServer(
+                signaling_settings, tls_context=context, auth=auth
+            )
+            relay = ControlRelayService(relay_settings, auth)
+            separate = args.case in {"signaling-restart", "relay-restart"}
+            active = (
+                {
+                    "signaling": ServerRuntime({"signaling": signaling}),
+                    "relay": ServerRuntime({"relay": relay}),
+                }
+                if separate
+                else {"both": ServerRuntime({"signaling": signaling, "relay": relay})}
+            )
+            with (
+                shaper.install(),
+                patch.object(ClockGuard, "probe", observed_clock_probe),
+                patch.object(RpcProtocol, "send_datagram", application_datagram),
+                patch.object(
+                    aioice.ice, "get_host_addresses", lambda **kwargs: ["127.0.0.1"]
+                ),
+            ):
+                try:
+                    for runtime in active.values():
+                        runtimes.append(runtime)
+                        await runtime.start()
+                    signaling_settings = replace(
+                        signaling_settings,
+                        port=signaling._server.sockets[0].getsockname()[1],
+                    )
+                    relay_settings = replace(
+                        relay_settings,
+                        port=relay.listener._transport.get_extra_info("sockname")[1],
+                    )
+                    network = ClientNetworkSettings(
+                        signaling_url=f"wss://127.0.0.1:{signaling_settings.port}",
+                        signaling_ca_file=tls.cert,
+                        quic_host="127.0.0.1",
+                        quic_port=relay_settings.port,
+                        quic_server_name="localhost",
+                        quic_ca_file=tls.cert,
+                        reconnect_delay_s=0.1,
+                    )
+                    vehicle_settings = VehicleSettings(
+                        controller="mock",
+                        session=42,
+                        room="network",
+                        network=network,
+                        credentials=CredentialSettings("RD_NET_VEHICLE"),
+                    )
+                    controller = Actuator(vehicle_settings.motion)
+                    vehicle = VehicleControlClient(vehicle_settings, controller)
+                    publisher = WebRTCStreamer(
+                        "network", network, vehicle_settings.credentials, session=42
+                    )
+                    manager = MultiCameraManager(publisher)
+                    for view in views:
+                        manager.add_camera(TestCamera(320, 240, 30, view))
+                    receiver = WebRTCReceiver(
+                        "network",
+                        network,
+                        CredentialSettings("RD_NET_DRIVER"),
+                        views=views,
+                    )
+                    receiver.on_frame(
+                        lambda name, frame, source: cache.put(
+                            name, frame, source=source
+                        )
+                    )
+
+                    def invalidate(source):
+                        cache.invalidate_source(source, generation=cache._generation)
+                        gate.invalidate("publisher_left", source=source)
+
+                    receiver.on_invalidate(invalidate)
+                    inputs = asyncio.Queue(maxsize=1)
+                    driver = DrivingControlClient(
+                        DrivingSettings(
+                            session=42,
+                            room="network",
+                            network=network,
+                            credentials=CredentialSettings("RD_NET_DRIVER"),
+                        ),
+                        inputs,
+                        video_gate=gate,
+                        on_execution=lambda sample, result, ms: executions.append(
+                            (time.monotonic(), ms)
+                        ),
+                        on_status=lambda state, detail: statuses.append(
+                            (time.monotonic(), state, detail)
+                        ),
+                    )
+
+                    async def samples():
+                        while True:
+                            if inputs.full():
+                                inputs.get_nowait()
+                            inputs.put_nowait(
+                                ControlInput(
+                                    throttle,
+                                    0,
+                                    0,
+                                    time.monotonic(),
+                                    time.time_ns() // 1_000_000,
+                                )
+                            )
+                            await asyncio.sleep(0.01)
+
+                    def picture(since):
+                        return publisher.my_id is not None and cache.ready(
+                            views, since, publisher.my_id
+                        )
+
+                    await manager.start()
+                    started = time.monotonic()
+                    tasks = [
+                        asyncio.create_task(job)
+                        for job in (
+                            manager.wait(),
+                            publisher.start(),
+                            receiver.start(),
+                            vehicle.run(),
+                            driver.run(),
+                            samples(),
+                        )
+                    ]
+                    await until(lambda: driver.armed and picture(started))
+                    report["initial_paths"] = (
+                        await network_snapshot(publisher, receiver)
+                    )["paths"]
+                    if not report["initial_paths"]:
+                        raise RuntimeError("no nominated media path")
+                    throttle = 0.25
+                    await until(lambda: controller.commands[-1][0] > 0)
+                    old_epoch, old_publisher = driver.epoch, publisher.my_id
+                    started_fault = time.monotonic()
+                    before_counts = cache.counts()
+                    before_network = await network_snapshot(publisher, receiver)
+                    report["udp_before_fault"] = shaper.snapshot()
+                    if args.case == "mild":
+                        shaper.set(
+                            "media",
+                            Policy(
+                                delay_ms=5, jitter_ms=3, loss=0.01, rate_bps=3_000_000
+                            ),
+                        )
+                        shaper.set(
+                            "control",
+                            Policy(
+                                delay_ms=2, jitter_ms=1, loss=0.01, rate_bps=256_000
+                            ),
+                        )
+                        await duration(
+                            args.seconds,
+                            lambda: driver.armed and vehicle.epoch == old_epoch,
+                        )
+                        if not picture(started_fault):
+                            raise RuntimeError(
+                                "a view stopped presenting under mild impairment"
+                            )
+                        report["control_retained"] = True
+                        report["sample_to_execution_ack_ms"] = [
+                            ms for stamp, ms in executions if stamp >= started_fault
+                        ]
+                    else:
+                        if args.case == "rpc-only":
+                            datagrams["drop"] = True
+                        elif args.case in {"control-blackhole", "media-blackhole"}:
+                            shaper.set(
+                                args.case.split("-", 1)[0], Policy(blackhole=True)
+                            )
+                        elif args.case == "clock-budget":
+                            shaper.set("control", Policy(delay_ms=80))
+                        else:
+                            key = (
+                                "both"
+                                if args.case == "server-restart"
+                                else args.case.split("-", 1)[0]
+                            )
+                            await active[key].stop()
+                        await until(
+                            lambda: (
+                                not driver.armed
+                                and vehicle.epoch is None
+                                and controller.commands[-1] == (0, 0)
+                            ),
+                            timeout=5,
+                        )
+                        stopped = time.monotonic()
+                        first_zero = next(
+                            stamp
+                            for stamp, command in controller.events
+                            if stamp >= started_fault and command == (0, 0)
+                        )
+                        report["fault_to_mock_zero_ms"] = (
+                            first_zero - started_fault
+                        ) * 1000
+                        report["fault_to_revoke_observed_ms"] = (
+                            stopped - started_fault
+                        ) * 1000
+                        await duration(
+                            0.6,
+                            lambda: (
+                                not driver.armed and controller.commands[-1] == (0, 0)
+                            ),
+                        )
+                        if args.case == "clock-budget":
+                            await until(
+                                lambda: any(
+                                    item["at"] >= started_fault
+                                    for item in clock_rejections
+                                ),
+                                timeout=5,
+                            )
+                            report["clock_budget_rejections"] = list(clock_rejections)
+                        if args.case == "rpc-only":
+                            if vehicle.connection is None:
+                                raise RuntimeError(
+                                    "RPC-only scenario lost its vehicle transport"
+                                )
+                            clock = await vehicle.connection.protocol.request(
+                                "clock", {}
+                            )
+                            report["reliable_rpc_survived_datagram_loss"] = (
+                                type(clock.get("server_time_ms")) is int
+                            )
+                            report["suppressed_application_datagrams"] = datagrams[
+                                "dropped"
+                            ]
+                            if (
+                                not report["reliable_rpc_survived_datagram_loss"]
+                                or not datagrams["dropped"]
+                            ):
+                                raise RuntimeError(
+                                    "RPC-only scenario did not exercise both paths"
+                                )
+                        if args.case == "media-blackhole":
+                            report["control_transport_survived_video_loss"] = (
+                                vehicle.connection is not None
+                            )
+                            if not report["control_transport_survived_video_loss"]:
+                                raise RuntimeError(
+                                    "media-only blackout lost the independent control transport"
+                                )
+                        report["fault_udp"] = shaper.snapshot()
+                        recovery = time.monotonic()
+                        datagrams["drop"] = False
+                        shaper.set("media", Policy(), discard_pending=False)
+                        shaper.set("control", Policy(), discard_pending=False)
+                        if args.case.endswith("restart"):
+                            services = {}
+                            if args.case != "relay-restart":
+                                signaling = SignalingServer(
+                                    signaling_settings, tls_context=context, auth=auth
+                                )
+                                services["signaling"] = signaling
+                            if args.case != "signaling-restart":
+                                relay = ControlRelayService(relay_settings, auth)
+                                services["relay"] = relay
+                            replacement = ServerRuntime(services)
+                            runtimes.append(replacement)
+                            await replacement.start()
+                        await until(
+                            lambda: (
+                                picture(recovery)
+                                and gate.snapshot().ready
+                                and driver.connection is not None
+                            )
+                        )
+                        report["recovery_to_all_views_ms"] = (
+                            time.monotonic() - recovery
+                        ) * 1000
+                        if (
+                            args.case in {"signaling-restart", "server-restart"}
+                            and publisher.my_id == old_publisher
+                        ):
+                            raise RuntimeError(
+                                "server restart reused publisher identity"
+                            )
+                        held_start = time.monotonic()
+                        await duration(
+                            0.75,
+                            lambda: (
+                                not driver.armed and controller.commands[-1] == (0, 0)
+                            ),
+                        )
+                        if any(
+                            v or w
+                            for stamp, (v, w) in controller.events
+                            if held_start <= stamp
+                        ):
+                            raise RuntimeError(
+                                "held input restored motion before neutral"
+                            )
+                        report["held_input_did_not_rearm"] = True
+                        throttle = 0.0
+                        await until(lambda: driver.armed and driver.epoch != old_epoch)
+                        report["recovery_to_new_epoch_ms"] = (
+                            time.monotonic() - recovery
+                        ) * 1000
+                        report["new_epoch_after_fresh_neutral"] = True
+                        if any(
+                            v or w
+                            for stamp, (v, w) in controller.events
+                            if stamp >= first_zero
+                        ):
+                            raise RuntimeError(
+                                "motion resumed between failsafe and fresh-neutral recovery"
+                            )
+                        report["zero_target_until_neutral_recovery"] = True
+                        throttle = 0.25
+                        await until(lambda: controller.commands[-1][0] > 0)
+                        await duration(args.seconds, lambda: driver.armed)
+                    report["frame_counts_before"] = before_counts
+                    report["frame_counts_after"] = cache.counts()
+                    after_network = await network_snapshot(publisher, receiver)
+                    report["final_paths"] = after_network["paths"]
+                    report["media_network"] = network_delta(
+                        before_network, after_network
+                    )
+                    report["udp_after_scenario"] = shaper.snapshot()
+                    report["settings"] = {
+                        "control": asdict(vehicle_settings.control),
+                        "video": asdict(vehicle_settings.video),
+                        "relay_clock_skew_ms": relay_settings.max_clock_skew_ms,
+                    }
+                    report["statuses"] = statuses
+                finally:
+                    # Restore the path before the protocols' bounded shutdown;
+                    # all injection handles are discarded and then reclaimed.
+                    datagrams["drop"] = False
+                    shaper.set("control", Policy())
+                    shaper.set("media", Policy())
+                    for task in tasks:
+                        task.cancel()
+                    results = await asyncio.gather(*tasks, return_exceptions=True)
+                    failures = [
+                        value for value in results if isinstance(value, Exception)
+                    ]
+                    for resource, method in (
+                        (manager, "stop"),
+                        (publisher, "close"),
+                        (receiver, "close"),
+                    ):
+                        if resource is not None:
+                            try:
+                                await getattr(resource, method)()
+                            except Exception as error:
+                                failures.append(error)
+                    for runtime in reversed(runtimes):
+                        try:
+                            await runtime.stop()
+                        except Exception as error:
+                            failures.append(error)
+                    # Check natural ownership cleanup before the harness fallback.
+                    report["udp_cleanup"] = shaper.snapshot()
+                    shaper.close()
+                    if failures:
+                        raise ExceptionGroup(
+                            "network validation cleanup failed", failures
+                        )
+        finally:
+            for name, value in previous.items():
+                if value is None:
+                    os.environ.pop(name, None)
+                else:
+                    os.environ[name] = value
+    report["camera_threads_closed"] = all(
+        camera._thread is None for camera in manager.cameras
+    )
+    report["device_threads_closed"] = not any(
+        thread.is_alive() for thread in vehicle.supervisor._threads
+    )
+    report["actuator_closed"] = controller.closed
+    report["media_tasks_closed"] = (
+        not receiver._peer_tasks and not receiver.peers and not publisher.peers
+    )
+    if not all(
+        report[name]
+        for name in (
+            "camera_threads_closed",
+            "device_threads_closed",
+            "actuator_closed",
+            "media_tasks_closed",
+        )
+    ):
+        raise RuntimeError("network validation component resource leak")
+    if (
+        any(
+            not item["closed"] or item["pending_packets"] or item["queued_bytes"]
+            for item in report["udp_cleanup"]["endpoints"]
+        )
+        or shaper.errors
+    ):
+        raise RuntimeError("network validation UDP endpoint leak/error")
+    return report
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--case", choices=CASES, required=True)
+    parser.add_argument("--views", type=int, choices=(1, 4), default=4)
+    parser.add_argument("--seconds", type=float, default=3)
+    parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--output", type=Path, required=True)
+    args = parser.parse_args()
+    if not 0.25 <= args.seconds <= 30:
+        parser.error("seconds must be 0.25..30")
+    if args.case == "mild" and args.seconds < 2:
+        parser.error("mild impairment needs at least 2 seconds to observe RTP recovery")
+    args.output.parent.mkdir(parents=True, exist_ok=True)
+    args.output.write_text('{"passed": false, "status": "started"}\n')
+    os.environ["QT_QPA_PLATFORM"] = "offscreen"
+    from PyQt6.QtCore import Qt, QTimer
+    from PyQt6.QtWidgets import QApplication
+    from rd_core.video_safety import VideoGate
+    from rd_driving.ui.widgets.multi_video_widget import MultiVideoWidget
+    from soak_media import Observations
+
+    app = QApplication([])
+    cache, gate = Observations(), VideoGate()
+    widget = MultiVideoWidget(cache, video_gate=gate)
+    cache.observe(widget)
+    widget.resize(1280, 720)
+    widget.show()
+    stop, outcome = threading.Event(), Future()
+    timer = QTimer()
+    timer.setTimerType(Qt.TimerType.PreciseTimer)
+
+    def tick():
+        widget.update()
+        if outcome.done():
+            app.quit()
+
+    timer.timeout.connect(tick)
+    timer.start(16)
+
+    def backend():
+        try:
+
+            async def bounded():
+                async with asyncio.timeout(args.seconds + 60):
+                    return await validate(args, cache, gate, stop)
+
+            outcome.set_result(asyncio.run(bounded()))
+        except BaseException as error:
+            outcome.set_exception(error)
+
+    worker = threading.Thread(target=backend, name="network-validation-backend")
+    worker.start()
+    try:
+        app.exec()
+    finally:
+        stop.set()
+        timer.stop()
+        widget.close()
+        worker.join(20)
+    if worker.is_alive():
+        raise RuntimeError("network validation worker did not terminate")
+    report = outcome.result()
+    sources = [
+        *ROOT.glob("apps/*/src/**/*.py"),
+        *ROOT.glob("packages/*/src/**/*.py"),
+        *ROOT.glob("scripts/*.py"),
+    ]
+    report.update(
+        schema="rd-network-validation/1",
+        passed=not cache.errors,
+        scope="single-host real WSS/WebRTC/QUIC and Qt offscreen; UDP send-side impairment before real loopback sockets; synthetic cameras, mock actuator; no TURN or physical-device certification",
+        injection_scope="per UDP endpoint send queue; TCP/WSS is not shaped; seeded packet randomness does not make adaptive codec traffic deterministic",
+        python=platform.python_version(),
+        platform=platform.platform(),
+        versions={
+            name: importlib.metadata.version(name)
+            for name in ("aiortc", "aioice", "aioquic", "av", "PyQt6")
+        },
+        workload={
+            "views": args.views,
+            "camera_size": [320, 240],
+            "fps": 30,
+            "seconds": args.seconds,
+            "seed": args.seed,
+        },
+        git_commit=subprocess.check_output(
+            ["git", "rev-parse", "HEAD"], cwd=ROOT, text=True
+        ).strip(),
+        git_dirty=bool(
+            subprocess.check_output(["git", "status", "--porcelain"], cwd=ROOT)
+        ),
+        source_sha256={
+            str(path.relative_to(ROOT)): hashlib.sha256(path.read_bytes()).hexdigest()
+            for path in sorted(sources)
+        },
+        presentation_errors=dict(cache.errors),
+    )
+    args.output.write_text(json.dumps(report, indent=2, allow_nan=False) + "\n")
+    print(
+        json.dumps(
+            {"passed": report["passed"], "case": args.case, "output": str(args.output)}
+        )
+    )
+    if not report["passed"]:
+        raise SystemExit(1)
+
+
+if __name__ == "__main__":
+    main()
