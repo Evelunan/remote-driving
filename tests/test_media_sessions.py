@@ -71,8 +71,9 @@ async def test_repeated_decoded_pts_is_not_new_picture_evidence():
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("budgeted", [False, True])
 async def test_actual_authenticated_media_clients_reconnect_and_own_all_tasks(
-    runtime_factory, local_tls, monkeypatch
+    runtime_factory, local_tls, monkeypatch, budgeted
 ):
     import aioice.ice
 
@@ -90,7 +91,11 @@ async def test_actual_authenticated_media_clients_reconnect_and_own_all_tasks(
         reconnect_delay_s=0.05,
     )
     publisher = WebRTCStreamer(
-        "video", network, CredentialSettings("TEST_VEHICLE"), session=42
+        "video",
+        network,
+        CredentialSettings("TEST_VEHICLE"),
+        session=42,
+        encoder_workers=1 if budgeted else None,
     )
     driver = WebRTCReceiver("video", network, CredentialSettings("TEST_DRIVER"))
     viewer = WebRTCReceiver("video", network, CredentialSettings("TEST_VIEWER"))
@@ -142,6 +147,9 @@ async def test_actual_authenticated_media_clients_reconnect_and_own_all_tasks(
         await asyncio.gather(*tasks, return_exceptions=True)
         await runtime.stop()
     assert camera._thread is None
+    if budgeted:
+        assert publisher.encoding_pool.completed > 0
+        assert publisher.encoding_pool._close_task.done()
     assert not service.manager.peers and not service.manager.rooms
     assert not [
         task

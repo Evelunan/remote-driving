@@ -1,0 +1,140 @@
+{
+  "scope": "isolated wheels; loopback networking, mock controller, synthetic video and Qt offscreen",
+  "created_at": "2026-11-16T11:16:54.656472+00:00",
+  "source_commit": "ee8ebbfedc22ca311776875768ef704835f95bbc",
+  "source_dirty": true,
+  "python": "3.12.16",
+  "platform": "Linux-6.18.58.1-microsoft-standard-WSL2-x86_64-with-glibc2.43",
+  "uv": "uv 0.13.8 (x86_64-unknown-linux-gnu)",
+  "lock_sha256": "372294257186adc23b4ea0ee359740c7f65a43b1497ae4cd5d2d2fc4c0252b43",
+  "wheels": {
+    "rd-core": {
+      "filename": "rd_core-0.2.0-py3-none-any.whl",
+      "version": "0.2.0",
+      "sha256": "48b980750719d478f83024c34a896a4a0473df9e397ebea99977712c656ec270"
+    },
+    "rd-driving": {
+      "filename": "rd_driving-0.2.0-py3-none-any.whl",
+      "version": "0.2.0",
+      "sha256": "503fb91826db36b55e82767f9da456796897fca0c84f08f22395b4bc562a362e"
+    },
+    "rd-quic": {
+      "filename": "rd_quic-0.2.0-py3-none-any.whl",
+      "version": "0.2.0",
+      "sha256": "20fbffe0f4c8df65010155357b39cfe85c124540171266ec6fa8efd5bc756985"
+    },
+    "rd-server": {
+      "filename": "rd_server-0.2.0-py3-none-any.whl",
+      "version": "0.2.0",
+      "sha256": "7bf7c28387eac29f9314a88f43da7feb524c188b8b33605d81fa923a22944c95"
+    },
+    "rd-vehicle": {
+      "filename": "rd_vehicle-0.2.0-py3-none-any.whl",
+      "version": "0.2.0",
+      "sha256": "001baf515574c211f274feeb39508f4d665c12df6ef30ac4be15ce746d1d6dad"
+    },
+    "rd-webrtc": {
+      "filename": "rd_webrtc-0.2.0-py3-none-any.whl",
+      "version": "0.2.0",
+      "sha256": "66eba2485a742e24681b5b081516c9370561fb488372e2fb0d2c27c9c1a86d71"
+    }
+  },
+  "roles": {
+    "server": {
+      "packages": {
+        "rd-server": "0.2.0",
+        "rd-quic": "0.2.0",
+        "rd-core": "0.2.0"
+      },
+      "installed_python_files_match_wheels": 38,
+      "other_apps_absent": true,
+      "cli_help_dump_check_and_lazy_imports": true,
+      "server_runtime": [
+        {
+          "services": [
+            "signaling",
+            "relay"
+          ],
+          "authenticated_probes": true,
+          "ports_released": true
+        },
+        {
+          "services": [
+            "signaling"
+          ],
+          "authenticated_probes": true,
+          "ports_released": true
+        },
+        {
+          "services": [
+            "relay"
+          ],
+          "authenticated_probes": true,
+          "ports_released": true
+        }
+      ]
+    },
+    "vehicle": {
+      "packages": {
+        "rd-quic": "0.2.0",
+        "rd-core": "0.2.0",
+        "rd-webrtc": "0.2.0",
+        "rd-vehicle": "0.2.0"
+      },
+      "installed_python_files_match_wheels": 57,
+      "other_apps_absent": true,
+      "cli_help_dump_check_and_lazy_imports": true,
+      "vehicle_cli": {
+        "python": "/tmp/rd-wheel-acceptance-yap6y643/vehicle/bin/python",
+        "results": [
+          {
+            "components": [
+              "control",
+              "media"
+            ],
+            "pids": {
+              "control": 615136,
+              "media": 615137
+            },
+            "exitcode": 0,
+            "children_reaped": true
+          },
+          {
+            "components": [
+              "control"
+            ],
+            "pids": {
+              "control": 615227
+            },
+            "exitcode": 0,
+            "children_reaped": true
+          },
+          {
+            "components": [
+              "media"
+            ],
+            "pids": {
+              "media": 615313
+            },
+            "exitcode": 0,
+            "children_reaped": true
+          }
+        ]
+      }
+    },
+    "driving": {
+      "packages": {
+        "rd-core": "0.2.0",
+        "rd-quic": "0.2.0",
+        "rd-driving": "0.2.0",
+        "rd-webrtc": "0.2.0"
+      },
+      "installed_python_files_match_wheels": 82,
+      "other_apps_absent": true,
+      "cli_help_dump_check_and_lazy_imports": true,
+      "qt_offscreen_open_close": true
+    }
+  },
+  "physical_stop_verified": false,
+  "passed": true
+}

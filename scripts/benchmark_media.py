@@ -34,6 +34,7 @@ from rd_core.auth import AuthProvider
 from rd_core.samples import ControlInput
 from rd_core.settings import (
     AuthSettings,
+    CameraEncodingSettings,
     ClientNetworkSettings,
     CredentialSettings,
     DrivingSettings,
@@ -270,7 +271,11 @@ async def run_case(args, probe, cache, gate, stop):
                 reconnect_delay_s=0.1,
             )
             publisher = WebRTCStreamer(
-                "benchmark", network, CredentialSettings("RD_BENCH_VEHICLE"), session=42
+                "benchmark",
+                network,
+                CredentialSettings("RD_BENCH_VEHICLE"),
+                session=42,
+                encoder_workers=args.encoder_workers,
             )
             receiver = WebRTCReceiver(
                 "benchmark", network, CredentialSettings("RD_BENCH_DRIVER"), views=views
@@ -295,7 +300,14 @@ async def run_case(args, probe, cache, gate, stop):
                 )
                 camera = Camera(width=width, height=height, fps=30, name=view)
                 camera.buffer = Buffer(view)
-                manager.add_camera(camera)
+                policy = None
+                if args.encoding_profile == "differentiated":
+                    policy = (
+                        CameraEncodingSettings(1_000_000, 250_000, 1_500_000, 1)
+                        if view == "front"
+                        else CameraEncodingSettings(500_000, 250_000, 600_000, 1)
+                    )
+                manager.add_camera(camera, encoding=policy)
             vehicle_settings = VehicleSettings(
                 controller="mock",
                 session=42,
@@ -433,6 +445,12 @@ async def run_case(args, probe, cache, gate, stop):
             await phase("recovered")
             report["cameras"] = [camera.diagnostics for camera in manager.cameras]
             report["network_samples"] = stats
+            if publisher.encoding_pool is not None:
+                report["encoding_pool"] = {
+                    "workers": publisher.encoding_pool.workers,
+                    "completed": publisher.encoding_pool.completed,
+                    "expired_after_encode": publisher.encoding_pool.expired,
+                }
         finally:
             for task in tasks:
                 task.cancel()
@@ -462,6 +480,10 @@ async def run_case(args, probe, cache, gate, stop):
     report["control_threads_closed"] = not any(
         thread.is_alive() for thread in vehicle.supervisor._threads
     )
+    report["encoding_threads_closed"] = not any(
+        thread.is_alive() and thread.name.startswith("rd-encode")
+        for thread in threading.enumerate()
+    )
     return report
 
 
@@ -478,7 +500,15 @@ def main():
         "--scene", choices=("moving-texture", "moving-flat"), default="moving-texture"
     )
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--encoder-workers", type=int)
+    parser.add_argument(
+        "--encoding-profile", choices=("upstream", "differentiated"), default="upstream"
+    )
     args = parser.parse_args()
+    if args.encoder_workers is not None and not 1 <= args.encoder_workers <= 32:
+        parser.error("encoder-workers must be 1..32")
+    if args.encoding_profile != "upstream" and args.encoder_workers is None:
+        parser.error("per-view encoding profile requires encoder-workers")
     if not (
         math.isfinite(args.seconds)
         and 0.5 <= args.seconds <= 60
@@ -616,6 +646,8 @@ def main():
             "subscribers": 1,
             "seed": 42,
             "scene": args.scene,
+            "encoder_workers": args.encoder_workers,
+            "encoding_profile": args.encoding_profile,
         },
         "encoder_instances": probe.codecs,
         "measurement_errors": probe.errors,

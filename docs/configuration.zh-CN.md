@@ -75,3 +75,44 @@ rd-server --config /path/server.yaml --services signaling --set signaling.port=8
 串口默认读写超时均为 0.02 s，13 字节模板显式可配，速度编码上限由 uint16 表示范围限制；这部分只保留兼容适配，用户当前选择 ROS2。运动限值和超时均需实车验收，停车接口尚未接入物理确认。
 
 主视角和控制授权使用统一 `video.primary_view` / `stale_frame_ms` / `recovery_ms`；不再接受 `ui.stale_frame_ms`。媒体发布身份/session 必须匹配控制租约的车辆，恢复须持续新帧与新的中立输入，详见 [画面与控制](video-safety.zh-CN.md)。三个应用须协同升级信令来源与 acquire 字段，缺少新字段时不会降级授权。
+
+## 可选编码预算
+
+`encoder_workers` 是车辆媒体进程内、所有视角和订阅者共享的编码工作线程数，范围 1–32；默认 `null` 保留 aiortc 原路径。配置后使用独立工作线程池，不占 asyncio 默认线程池的编码工作名额；这不是编解码及 Qt 全部原生线程数的上限，也不限制驾驶端解码器。
+
+每个 `cameras` 条目可包含 `encoding`，缺省为 `null`。设定此字段必须同时启用 `encoder_workers`，目前按视角预算仅支持 VP8；该视角通过 SDP 仅提供 VP8/RTX，遇到不支持的对端不会静默使用忽略预算的其他 codec。未启用逐视角预算的轨道保留原有 codec 协商。
+
+```yaml
+encoder_workers: 2
+cameras:
+  - name: front
+    source: synthetic
+    width: 1080
+    height: 720
+    fps: 30
+    encoding:
+      target_bitrate_bps: 1000000
+      min_bitrate_bps: 250000
+      max_bitrate_bps: 1500000
+      max_threads: 1
+  - name: back
+    source: synthetic
+    width: 640
+    height: 480
+    fps: 30
+    encoding:
+      target_bitrate_bps: 500000
+      min_bitrate_bps: 250000
+      max_bitrate_bps: 600000
+      max_threads: 1
+```
+
+上例用于合成视频实验，`cameras` 数组整体替换；需要四路时必须同时填写另两路。每路要求 `10000 <= min_bitrate_bps <= target_bitrate_bps <= max_bitrate_bps <= 50000000`，字段均为整数。REMB 反馈可改变目标值，但只能在配置范围内；底层编码器按原有超过 10% 的变化条件重新配置。目标和实际编码 bit_rate、实际 RTP payload 速率可用基准工具分别观测。关键帧、RTX、RTP/UDP/SRTP 等开销以及编码器的短期波动不受该目标字段严格封顶，不能据此直接承诺带宽硬限制。
+
+`max_threads` 为每个 VP8 编码器的线程上限（1–16 或 `null`）；上限不会强制将低分辨率编码器提升到更多线程，`null` 使用 aiortc 原有选择。高码率、低线程上限或过少工作线程可能增加 CPU、延迟或掉帧，需按实际视角和订阅数量测量。仓库默认配置未采用实验参数。
+
+等待编码名额时只保存轨道状态，名额可用后重新取最新且未过期的采集帧。冻结的相机不占名额。编码结束后若已超过采集年龄预算，则不发送该结果，并要求下一帧为关键帧，防止丢弃参考帧破坏解码。取消会等本次原生编码调用结束再回收，不能把取消 Future 当作已终止原生线程；原生调用永久阻塞仍由车端进程监督器超时处置。
+
+适配集中于 `rd_webrtc.encoding`，只绑定当前 sender 实例，不替换库级全局函数。所用 aiortc 1.14.0 / PyAV 16.1.0 已固定，启用预算时会在 `--check-config` 和运行时验证版本；升级必须复验真实编码、重连、取消及安装门槛。
+
+新增预算字段属于车辆应用配置。升级/回退时配置与对应车辆 wheel 一起切换；旧版车辆入口会拒绝新增字段，应恢复旧版完整配置，不能只回退二进制文件。性能与资源取舍见 [B21 测量](video-performance.zh-CN.md)。

@@ -104,7 +104,9 @@ async def check_mode(config, components, env):
         # Preserve bounded child diagnostics before temporary environments are
         # removed; otherwise an intermittent failure leaves only an exit code.
         detail = "".join(messages).replace(env["RD_SMOKE_TOKEN"], "<redacted>")
-        print(f"Vehicle smoke failed ({','.join(components)}):\n{detail}", file=sys.stderr)
+        print(
+            f"Vehicle smoke failed ({','.join(components)}):\n{detail}", file=sys.stderr
+        )
         raise
     finally:
         # This script owns a new process group; clean it up even on test failure.
@@ -134,6 +136,7 @@ async def main():
             yaml.safe_dump(
                 {
                     "controller": "mock",
+                    "encoder_workers": 2,
                     "credentials": {"token_env": "RD_SMOKE_TOKEN"},
                     "network": {
                         "quic_host": "127.0.0.1",
@@ -151,6 +154,7 @@ async def main():
                             "width": 96,
                             "height": 64,
                             "fps": 20,
+                            "encoding": {"max_threads": 1},
                         }
                     ],
                 }

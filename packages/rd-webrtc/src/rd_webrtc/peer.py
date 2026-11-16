@@ -1,4 +1,9 @@
-from aiortc import RTCConfiguration, RTCPeerConnection, RTCSessionDescription
+from aiortc import (
+    RTCConfiguration,
+    RTCPeerConnection,
+    RTCRtpSender,
+    RTCSessionDescription,
+)
 from aiortc.sdp import candidate_from_sdp
 
 
@@ -6,14 +11,33 @@ class PeerConnectionManager:
     def __init__(self, ice_servers):
         self.pc = RTCPeerConnection(RTCConfiguration(iceServers=ice_servers))
         self._on_ice_candidate = None
+        self._sender_adapters = []
 
     def on_ice_candidate(self, callback):
         # The aiortc peers exchange full SDP after setLocalDescription completes.
         # Keep this callback contract for peers that explicitly support trickle.
         self._on_ice_candidate = callback
 
-    def add_track(self, track):
-        self.pc.addTrack(track)
+    def add_track(self, track, *, encoding_pool=None, encoding=None):
+        sender = self.pc.addTrack(track)
+        if encoding_pool is not None:
+            from .encoding import bind_sender
+
+            self._sender_adapters.append(bind_sender(sender, encoding_pool, encoding))
+            if encoding is not None:
+                transceiver = next(
+                    t for t in self.pc.getTransceivers() if t.sender is sender
+                )
+                transceiver.setCodecPreferences(
+                    [
+                        codec
+                        for codec in RTCRtpSender.getCapabilities("video").codecs
+                        if codec.mimeType.lower() in {"video/vp8", "video/rtx"}
+                    ]
+                )
+        elif encoding is not None:
+            raise ValueError("per-view encoding requires a shared encoding pool")
+        return sender
 
     async def create_offer(self):
         offer = await self.pc.createOffer()
@@ -40,4 +64,9 @@ class PeerConnectionManager:
         await self.pc.addIceCandidate(parsed)
 
     async def close(self):
-        await self.pc.close()
+        try:
+            await self.pc.close()
+        finally:
+            for unbind in self._sender_adapters:
+                unbind()
+            self._sender_adapters.clear()

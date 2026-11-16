@@ -9,6 +9,7 @@ import pytest
 import yaml
 from rd_core.samples import RawInput
 from rd_core.settings import (
+    CameraEncodingSettings,
     CameraSettings,
     ClientNetworkSettings,
     CredentialSettings,
@@ -101,10 +102,22 @@ def test_client_cli_precedence_separate_instances_and_no_implicit_room_override(
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("budgeted", [False, True])
 async def test_formal_vehicle_runtime_and_driving_input_execute_configured_values_with_video(
-    runtime_factory, local_tls, monkeypatch
+    runtime_factory, local_tls, monkeypatch, budgeted
 ):
     import aioice.ice
+    from rd_webrtc import encoding
+
+    encoders = []
+    original = encoding.create_encoder
+
+    def recorded(codec, policy):
+        encoder = original(codec, policy)
+        encoders.append(encoder)
+        return encoder
+
+    monkeypatch.setattr(encoding, "create_encoder", recorded)
 
     monkeypatch.setattr(
         aioice.ice, "get_host_addresses", lambda **kwargs: ["127.0.0.1"]
@@ -129,12 +142,31 @@ async def test_formal_vehicle_runtime_and_driving_input_execute_configured_value
         session=42,
         room="video",
         controller="mock",
+        encoder_workers=1 if budgeted else None,
         network=network,
         credentials=CredentialSettings("TEST_VEHICLE"),
         motion=MotionSettings(1.2, 0.4),
         cameras=(
-            CameraSettings("front", "synthetic", 96, 64, 20),
-            CameraSettings("back", "synthetic", 64, 48, 40),
+            CameraSettings(
+                "front",
+                "synthetic",
+                96,
+                64,
+                20,
+                CameraEncodingSettings(800_000, 250_000, 1_000_000, 1)
+                if budgeted
+                else None,
+            ),
+            CameraSettings(
+                "back",
+                "synthetic",
+                64,
+                48,
+                40,
+                CameraEncodingSettings(300_000, 100_000, 500_000, 1)
+                if budgeted
+                else None,
+            ),
         ),
     )
     driving = DrivingSettings(
@@ -232,6 +264,18 @@ async def test_formal_vehicle_runtime_and_driving_input_execute_configured_value
         await until(lambda: inputs.client.armed and len(frames) == 2)
         assert frames == {"front": (64, 96, 3), "back": (48, 64, 3)}
         assert [camera.fps for camera in created] == [20, 40]
+        if budgeted:
+            assert {encoder.policy.target_bitrate_bps for encoder in encoders} == {
+                800_000,
+                300_000,
+            }
+            assert all(encoder.codec.thread_count == 1 for encoder in encoders)
+            assert all(
+                encoder.policy.min_bitrate_bps
+                <= encoder.codec.bit_rate
+                <= encoder.policy.max_bitrate_bps
+                for encoder in encoders
+            )
         device.axis = 64
         await until(lambda: (0.6, -0.2) in controller.commands)
         device.enabled = False
@@ -251,6 +295,11 @@ async def test_formal_vehicle_runtime_and_driving_input_execute_configured_value
     assert controller.closed
     assert all(camera._thread is None for camera in created)
     assert device.task is not None and device.task.done()
+    import threading
+
+    assert not any(
+        thread.name.startswith("rd-encode") for thread in threading.enumerate()
+    )
 
 
 def test_gui_settings_and_login_close_without_uninitialized_thread(legacy_python):

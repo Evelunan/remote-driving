@@ -223,3 +223,46 @@ RSS 在前段升高后波动，后半段线性趋势约 **−6.22 MiB/min**；�
 该工具在独立进程内运行一段四路重连，完整关闭媒体和 Qt 后再观察最终 GC、`malloc_trim(0)` 前后的 RSS。调用只发生在诊断进程退出前，不加入生产代码或稳定测量阶段。RSS 的可回收部分说明存在空闲堆页滞留；不能据此推断所有原生内存均已释放，也不能把它直接视为生产环境优化方案。工具限于 glibc，其他分配器需单独适配。
 
 本机另一次 6 窗口诊断中，完整关闭后的 RSS 为 519.36 MiB，额外 GC 后为 519.37 MiB，glibc 回收空闲堆页后降至 463.98 MiB，释放约 **55.39 MiB**。这证明部分滞留来自可回收堆页；剩余内存和原生线程不能全部归因于该分配器。结果见 [堆诊断](../benchmarks/results/media-heap-b20-4view.json) 与对应的 [短时重连记录](../benchmarks/results/media-heap-soak-b20-4view.json)。未根据此结果向生产程序加入周期性 GC 或 malloc_trim。
+
+## B21 编码并发和主辅视角预算
+
+车辆配置新增 `encoder_workers` 和每路 `cameras[].encoding`，具体字段、协商限制和资源范围见 [配置说明](configuration.zh-CN.md)。预算为可选项，默认仍使用原路径。aiortc 1.14.0 缺少公开的 encoder/executor 注入接口，适配集中在 `rd_webrtc.encoding`，只绑定该 sender 实例并在关闭时撤销；版本与 PyAV 16.1.0 一起固定，实际依赖版本未升级。VP8 码率反馈继续生效，但被限制在该视角的上下限内。
+
+线程池在整个媒体发布端共享，先等待帧就绪，再取得编码名额并重新选择最新帧；不在队列中堆积 AV 图像，冻结视角不会占住名额。原生编码开始后的取消需要等待其完成，随后回收线程池。编码结束后超过源新鲜度阈值的结果不发送，下一帧要求关键帧。模拟阻塞、重复取消、尺寸/码率切换、真实 VP8 解码、正式入口到编码器参数注入均纳入回归。
+
+由于预算路径在真正取得编码名额后才构造 AV 图像，B21 将同帧探针改挂到共享的非阻塞取帧方法，并覆盖原有及预算编码工厂。探针校准覆盖原路径、一个工作线程及按视角预算三种实际四路链路。**B18/B19 历史结论保持其原探针口径；B21 重新测量基线，不将新旧探针的原始数字直接拼成优化增益。**
+
+本轮在同一份源代码和探针上交替运行三组，每组重复三次。输入仍为 1080×720 前视与三路 640×480、30 FPS 移动纹理、一个接收端、实际 WSS/WebRTC/QUIC 与 Qt offscreen、模拟底盘，每阶段稳定 10 s、预热 2 s：
+
+| 组别 | 工作线程池 | 编码策略 |
+| --- | --- | --- |
+| stock | 原 asyncio 默认线程池 | aiortc 原 VP8 参数 |
+| pool2 | 两个独立编码工作线程 | aiortc 原 VP8 参数 |
+| views | 两个独立编码工作线程 | 前视目标 1 Mbit/s、最大 1.5 Mbit/s；辅助视角目标 0.5 Mbit/s、最大 0.6 Mbit/s；每路最大一个编码线程 |
+
+```bash
+# 对每组分别重复 r1/r2/r3，三组交替运行。
+.venv/bin/python scripts/benchmark_media.py --views 4 --seconds 10 --output /tmp/stock-r1.json
+.venv/bin/python scripts/benchmark_media.py --views 4 --seconds 10 --encoder-workers 2 --output /tmp/pool2-r1.json
+.venv/bin/python scripts/benchmark_media.py --views 4 --seconds 10 --encoder-workers 2 --encoding-profile differentiated --output /tmp/views-r1.json
+.venv/bin/python scripts/compare_media.py --vary-encoding --before /tmp/stock-r*.json --after /tmp/pool2-r*.json --output /tmp/pool2-comparison.json
+```
+
+`--vary-encoding` 专用于配置实验：要求代码、探针、环境、视频输入与每组内的设置保持一致，只允许改变编码工作线程/预算配置；仍拒绝无效记录、未回收线程、重复记录、视角/codec 后端变化。报告保留前后完整条件。码率或线程配置变化可能影响画质，不能宣称这些组具有相同的视觉质量，也不能将目标编码码率直接当作网络速率上限。
+
+各轮统计中位数如下；RSS 指每轮稳定窗口的 P95，CPU 的一个逻辑核为 100%。
+
+| 稳定阶段指标 | stock | pool2 | views |
+| --- | ---: | ---: | ---: |
+| 前视采集完成→Qt paint P95（ms） | 61.42 | 63.90 | 67.83 |
+| 前视绘制 FPS | 29.70 | 29.88 | 29.78 |
+| 进程 CPU（%） | 125.57 | 125.78 | 132.33 |
+| RSS P95（MiB） | 482.24 | 415.48 | 366.93 |
+| 原生线程 P95 | 97 | 97 | 94 |
+| 控制采样→模拟提交 P99（ms） | 13.79 | 13.49 | 13.40 |
+
+重连恢复阶段 RSS P95 分别为 559.51 / 451.32 / 420.20 MiB，前视 P95 为 63.35 / 65.55 / 67.64 ms。预算组没有超过 500 ms 源年龄而被丢弃的编码结果，结束时自有编码线程均回收。`pool2` 减少了本机观测的驻留内存，延迟略增、CPU 接近；`views` 改变了码率和编码线程设置，不能据其内存下降宣称是无成本优化。默认配置不改用这两个实验组合。
+
+REMB 生效后的目标值并非始终等于初始目标。`views` 稳定窗口中，前视目标码率 P50 的三轮中位数约 1.379 Mbit/s，实际 codec bit_rate 约 1.329 Mbit/s；三路辅助视角目标均被限定到 0.600 Mbit/s，实际 codec bit_rate 约 0.552–0.557 Mbit/s。原始报告还保存各路实际 RTP payload 速率，证明设置进入了真实编码器和传输链路；目标码率与网络吞吐不是同一指标。画质未做实车驾驶视野验收。
+
+[pool2 对比](../benchmarks/results/media-b21-pool2-comparison.json)、[views 对比](../benchmarks/results/media-b21-views-comparison.json) 包含全部指标、各轮范围、输入文件及 SHA-256。九份原始报告为 `benchmarks/results/media-b21-{stock,pool2,views}-4view-r{1,2,3}.json`，全部使用同一源代码与探针，无帧关联错误；没有用 B19 旧探针数据充当本轮基线。

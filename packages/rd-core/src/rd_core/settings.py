@@ -294,12 +294,36 @@ class MotionSettings:
 
 
 @dataclass(frozen=True)
+class CameraEncodingSettings:
+    """Optional VP8 budget; bitrates describe encoder targets, not wire-rate caps."""
+
+    target_bitrate_bps: int = 500_000
+    min_bitrate_bps: int = 250_000
+    max_bitrate_bps: int = 1_500_000
+    max_threads: int | None = None
+
+    def __post_init__(self):
+        rates = (self.min_bitrate_bps, self.target_bitrate_bps, self.max_bitrate_bps)
+        if any(type(value) is not int for value in rates) or not (
+            10_000 <= rates[0] <= rates[1] <= rates[2] <= 50_000_000
+        ):
+            raise ValueError(
+                "encoding requires 10000 <= min <= target <= max <= 50000000 bps"
+            )
+        if self.max_threads is not None and (
+            type(self.max_threads) is not int or not 1 <= self.max_threads <= 16
+        ):
+            raise ValueError("max_threads must be null or an integer in 1..16")
+
+
+@dataclass(frozen=True)
 class CameraSettings:
     name: str = "front"
     source: str | int = "synthetic"
     width: int = 640
     height: int = 480
     fps: float = 30.0
+    encoding: CameraEncodingSettings | None = None
 
     def __post_init__(self):
         if self.name not in {"front", "back", "left", "right"}:
@@ -378,6 +402,7 @@ class VehicleSettings:
     session: int = 1234
     room: str = "1234"
     controller: Literal["none", "mock", "ros2", "serial"] = "none"
+    encoder_workers: int | None = None
     components: tuple[Literal["control", "media"], ...] = ("control", "media")
     processes: ProcessSettings = field(default_factory=ProcessSettings)
     video: VideoSafetySettings = field(default_factory=VideoSafetySettings)
@@ -393,6 +418,15 @@ class VehicleSettings:
 
     def validate(self):
         validate_client(self)
+        if self.encoder_workers is not None and (
+            type(self.encoder_workers) is not int or not 1 <= self.encoder_workers <= 32
+        ):
+            raise ValueError("encoder_workers must be null or an integer in 1..32")
+        if (
+            any(camera.encoding is not None for camera in self.cameras)
+            and self.encoder_workers is None
+        ):
+            raise ValueError("camera encoding budgets require encoder_workers")
         if not self.components or len(set(self.components)) != len(self.components):
             raise ValueError("components must be nonempty and unique")
         if self.components == ("control",) and self.controller == "none":

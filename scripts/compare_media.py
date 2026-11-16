@@ -84,8 +84,10 @@ def load_runs(paths):
             or report.get("measurement_errors")
         ):
             raise ValueError(f"invalid measurement: {path.name}")
-        if not report.get("camera_threads_closed") or not report.get(
-            "control_threads_closed"
+        if (
+            report.get("camera_threads_closed") is not True
+            or report.get("control_threads_closed") is not True
+            or report.get("encoding_threads_closed", True) is not True
         ):
             raise ValueError(f"unfinished resource cleanup: {path.name}")
         records.append((path, digest, report))
@@ -108,13 +110,15 @@ def encoder_configuration(report):
     )
 
 
-def compare(before_paths, after_paths):
+def compare(before_paths, after_paths, *, vary_encoding=False):
     before, after = load_runs(before_paths), load_runs(after_paths)
     old, new = before[0][2], after[0][2]
     if any(old.get(key) != new.get(key) for key in ENVIRONMENT):
         raise ValueError("environment differs between before and after")
     if old["qt_platform"] != "offscreen":
         raise ValueError("this comparison requires the calibrated offscreen pipeline")
+    if vary_encoding and old["source_sha256"] != new["source_sha256"]:
+        raise ValueError("encoding experiments require identical source code")
     for path in PROBES:
         if not old["source_sha256"].get(path) or old["source_sha256"][path] != new[
             "source_sha256"
@@ -132,16 +136,61 @@ def compare(before_paths, after_paths):
             raise ValueError(
                 "each camera count requires equal groups of at least three runs"
             )
-        if any(r["workload"] != left[0]["workload"] for r in left + right):
+        for group in (left, right):
+            if any(r["workload"] != group[0]["workload"] for r in group):
+                raise ValueError("workload changed within a repeated group")
+        variable = {"encoder_workers", "encoding_profile"} if vary_encoding else set()
+
+        def fixed_workload(record, variable=variable):
+            return {
+                key: value
+                for key, value in record["workload"].items()
+                if key not in variable
+            }
+
+        if fixed_workload(left[0]) != fixed_workload(right[0]):
             raise ValueError(
                 "workload differs; FPS, scene, dimensions or timing changed"
             )
-        if any(
-            encoder_configuration(r) != encoder_configuration(left[0])
-            for r in left + right
-        ):
-            raise ValueError("codec or encoder resource configuration changed")
+        for group in (left, right):
+            if any(
+                encoder_configuration(r) != encoder_configuration(group[0])
+                for r in group
+            ):
+                raise ValueError(
+                    "encoder configuration changed within a repeated group"
+                )
+        if encoder_configuration(left[0]) != encoder_configuration(right[0]):
+            if not vary_encoding:
+                raise ValueError("codec or encoder resource configuration changed")
+
+            def fixed_encoders(record):
+                result = []
+                for encoder in record["encoder_instances"]:
+                    if encoder["implementation"] not in {
+                        "Vp8Encoder",
+                        "BudgetedVp8Encoder",
+                    }:
+                        raise ValueError("encoding experiment changed codec backend")
+                    result.append(
+                        json.dumps(
+                            {
+                                k: v
+                                for k, v in encoder.items()
+                                if k not in {"implementation", "thread_count"}
+                            },
+                            sort_keys=True,
+                        )
+                    )
+                return Counter(result)
+
+            if fixed_encoders(left[0]) != fixed_encoders(right[0]):
+                raise ValueError("encoding experiment changed codec or view coverage")
         case = {"workload": left[0]["workload"]}
+        if vary_encoding:
+            case["after_workload"] = right[0]["workload"]
+            case["before_encoders"] = left[0]["encoder_instances"]
+            case["after_encoders"] = right[0]["encoder_instances"]
         for phase in ("steady", "recovered"):
             a, b = [r[phase] for r in left], [r[phase] for r in right]
             result = {
@@ -209,6 +258,9 @@ def compare(before_paths, after_paths):
     )
     return {
         "comparable": True,
+        "comparison_kind": "encoding configuration experiment; visual quality equivalence is not established"
+        if vary_encoding
+        else "fixed workload and encoder configuration",
         "aggregation": "differences of median per-run statistics; frame percentiles are not pooled",
         "change_sign": "negative means a lower value, not automatically an improvement",
         "scope": old["scope"],
@@ -234,10 +286,15 @@ def main():
     parser.add_argument("--before", nargs="+", type=Path, required=True)
     parser.add_argument("--after", nargs="+", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument(
+        "--vary-encoding",
+        action="store_true",
+        help="allow only encoder_workers/encoding_profile changes with identical code; do not claim equivalent visual quality",
+    )
     args = parser.parse_args()
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text('{"comparable": false, "status": "started"}\n')
-    report = compare(args.before, args.after)
+    report = compare(args.before, args.after, vary_encoding=args.vary_encoding)
     args.output.write_text(json.dumps(report, indent=2, allow_nan=False) + "\n")
     print(
         f"Comparable groups: {', '.join(report['cases'])} views; {len(report['changed_sources'])} changed source files"

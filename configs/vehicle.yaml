@@ -4,6 +4,8 @@ session: 1234
 room: "1234"
 components: [control, media]
 controller: ros2
+# null 保留 aiortc 原路径；按目标设备测量后可设 1..32，见配置说明。
+encoder_workers: null
 credentials:
   token_env: RD_VEHICLE_TOKEN
 network:

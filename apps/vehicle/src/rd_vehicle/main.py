@@ -45,6 +45,10 @@ def check_config(settings):
         from rd_webrtc.signaling import check_media_config
 
         check_media_config(settings.network, settings.credentials)
+        if settings.encoder_workers is not None:
+            from rd_webrtc.encoding import check_encoding_runtime
+
+            check_encoding_runtime()
 
 
 def _create_controller(settings):
@@ -110,14 +114,21 @@ async def start_streaming(settings, *, camera_factory=None, on_fault=None):
     from rd_vehicle.infrastructure.streams.webrtc_streamer import WebRTCStreamer
 
     streamer = WebRTCStreamer(
-        settings.room, settings.network, settings.credentials, session=settings.session
+        settings.room,
+        settings.network,
+        settings.credentials,
+        session=settings.session,
+        encoder_workers=settings.encoder_workers,
     )
     manager = MultiCameraManager(
         streamer, video_policy=settings.video, on_fault=on_fault
     )
     try:
         for camera_settings in settings.cameras:
-            manager.add_camera((camera_factory or _create_camera)(camera_settings))
+            manager.add_camera(
+                (camera_factory or _create_camera)(camera_settings),
+                encoding=camera_settings.encoding,
+            )
         await manager.start()
         async with asyncio.TaskGroup() as tasks:
             tasks.create_task(streamer.start())

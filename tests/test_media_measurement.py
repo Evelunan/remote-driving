@@ -87,23 +87,28 @@ def test_hooks_restore_runtime_even_when_measurement_fails(monkeypatch):
     original = (
         aioice.ice.get_host_addresses,
         aiortc.rtcrtpsender.get_encoder,
-        VideoFrameTrack.recv,
+        VideoFrameTrack.recv_if_ready,
     )
     with pytest.raises(RuntimeError, match="injected"), probe.Probe().hooks():
-        assert VideoFrameTrack.recv is not original[2]
+        assert VideoFrameTrack.recv_if_ready is not original[2]
         raise RuntimeError("injected benchmark failure")
     assert original == (
         aioice.ice.get_host_addresses,
         aiortc.rtcrtpsender.get_encoder,
-        VideoFrameTrack.recv,
+        VideoFrameTrack.recv_if_ready,
     )
     monkeypatch.setattr("importlib.metadata.version", lambda name: "unknown")
     with pytest.raises(RuntimeError, match="review benchmark hooks"):
         probe.Probe().hooks()
-    assert VideoFrameTrack.recv is original[2]
+    assert VideoFrameTrack.recv_if_ready is original[2]
 
 
-def test_four_view_measurement_traces_real_pipeline_and_cleans_up(tmp_path):
+@pytest.mark.parametrize(
+    "workers,profile", [(None, "upstream"), (1, "upstream"), (2, "differentiated")]
+)
+def test_four_view_measurement_traces_real_pipeline_and_cleans_up(
+    tmp_path, workers, profile
+):
     root = Path(__file__).resolve().parents[1]
     output = tmp_path / "measurement.json"
     result = subprocess.run(
@@ -120,6 +125,9 @@ def test_four_view_measurement_traces_real_pipeline_and_cleans_up(tmp_path):
             "0",
             "--output",
             str(output),
+            "--encoding-profile",
+            profile,
+            *(["--encoder-workers", str(workers)] if workers is not None else []),
         ],
         cwd=tmp_path,
         env={**os.environ, "QT_QPA_PLATFORM": "offscreen"},
@@ -132,6 +140,15 @@ def test_four_view_measurement_traces_real_pipeline_and_cleans_up(tmp_path):
     report = json.loads(output.read_text())
     assert report["valid"] and not report["measurement_errors"]
     assert report["camera_threads_closed"] and report["control_threads_closed"]
+    assert report["encoding_threads_closed"]
+    if workers is not None:
+        assert report["encoding_pool"]["workers"] == workers
+        assert report["encoding_pool"]["completed"] > 0
+    if profile == "differentiated":
+        assert all(
+            item["implementation"] == "BudgetedVp8Encoder" and item["thread_count"] == 1
+            for item in report["encoder_instances"]
+        )
     assert (
         report["reconnect_new_control_epoch_ms"]
         >= report["reconnect_all_views_painted_ms"]

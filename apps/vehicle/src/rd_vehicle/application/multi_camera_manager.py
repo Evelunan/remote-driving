@@ -44,7 +44,7 @@ class MultiCameraManager:
         self._video_policy = video_policy
         self._on_fault = on_fault
 
-    def add_camera(self, camera):
+    def add_camera(self, camera, *, encoding=None):
         if self._running or self._stop_task is not None:
             raise RuntimeError("cannot add camera after start")
         if any(cam.camera_name == camera.camera_name for cam in self.cameras):
@@ -55,6 +55,7 @@ class MultiCameraManager:
             max_age_s=self._video_policy.stale_frame_ms / 1000
             if self._video_policy
             else 0.5,
+            **({"encoding": encoding} if encoding is not None else {}),
         )
         self.cameras.append(camera)
 

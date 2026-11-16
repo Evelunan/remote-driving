@@ -100,51 +100,73 @@ class VideoFrameTrack(VideoStreamTrack):
         self._capture_origin = None
         self._last_pts = -1
 
-    async def recv(self):
-        while self.readyState == "live" and not self.source.closed:
-            self._changed.clear()
-            image = self.source.latest
-            now = time.monotonic()
-            fresh = (
+    def _fresh_image(self, now):
+        image = self.source.latest
+        return (
+            image
+            if (
                 image is not None
                 and image.sequence > self._last_sequence
                 and 0 <= now - image.captured_at < self.source.max_age_s
             )
-            if fresh and now >= self._next_send:
-                # A distinct AV frame keeps encoder mutation local to this peer.
-                frame = VideoFrame.from_ndarray(image.pixels, format="bgr24")
-                completed = time.monotonic()
-                if completed - image.captured_at >= self.source.max_age_s:
-                    continue
-                if self._capture_origin is None:
-                    self._capture_origin = image.captured_at
-                pts = max(
-                    self._last_pts + 1,
-                    round((image.captured_at - self._capture_origin) * 90000),
-                )
-                frame.pts, frame.time_base = pts, Fraction(1, 90000)
-                self._last_pts, self._last_sequence = pts, image.sequence
-                # Keep a fixed cadence: conversion and timer wake-up latency
-                # consume the current period, rather than extending every one.
-                # Skip elapsed slots after a stall; there is still only one latest
-                # frame, and the next deadline is strictly after completed work.
-                deadline = self._next_send or now
-                slots = math.floor((completed - deadline) * self.source.fps) + 1
-                self._next_send = deadline + slots / self.source.fps
-                if self._next_send <= completed:  # floating-point boundary
-                    self._next_send += 1 / self.source.fps
-                return frame
-            if fresh:
-                # Recheck the latest snapshot at the deadline; never catch up.
+            else None
+        )
+
+    def _assert_live(self):
+        if self.readyState != "live" or self.source.closed:
+            raise MediaStreamError("video subscription ended")
+
+    async def wait_ready(self):
+        """Wait without owning an encoder slot or retaining a frame."""
+        while True:
+            self._assert_live()
+            self._changed.clear()
+            now = time.monotonic()
+            if self._fresh_image(now) is not None:
+                if now >= self._next_send:
+                    return
                 try:
-                    async with asyncio.timeout(max(0, self._next_send - now)):
+                    async with asyncio.timeout(self._next_send - now):
                         await self._changed.wait()
                 except TimeoutError:
                     pass
             else:
-                # No black placeholder or old image gets a fresh RTP timestamp.
                 await self._changed.wait()
-        raise MediaStreamError("video subscription ended")
+
+    def recv_if_ready(self):
+        """Select the latest frame after obtaining a slot, without blocking it."""
+        self._assert_live()
+        now = time.monotonic()
+        image = self._fresh_image(now)
+        if image is None or now < self._next_send:
+            return None
+        frame = VideoFrame.from_ndarray(image.pixels, format="bgr24")
+        completed = time.monotonic()
+        if completed - image.captured_at >= self.source.max_age_s:
+            return None
+        if self._capture_origin is None:
+            self._capture_origin = image.captured_at
+        pts = max(
+            self._last_pts + 1,
+            round((image.captured_at - self._capture_origin) * 90000),
+        )
+        frame.pts, frame.time_base = pts, Fraction(1, 90000)
+        self._last_pts, self._last_sequence = pts, image.sequence
+        self.last_captured_at = image.captured_at
+        # Conversion and timer lateness consume this slot; skip missed slots.
+        deadline = self._next_send or now
+        slots = math.floor((completed - deadline) * self.source.fps) + 1
+        self._next_send = deadline + slots / self.source.fps
+        if self._next_send <= completed:
+            self._next_send += 1 / self.source.fps
+        return frame
+
+    async def recv(self):
+        while True:
+            await self.wait_ready()
+            frame = self.recv_if_ready()
+            if frame is not None:
+                return frame
 
     def stop(self):
         self.source._subscribers.discard(self)

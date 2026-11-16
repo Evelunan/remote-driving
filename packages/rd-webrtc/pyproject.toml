@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "rd-webrtc"
 version = "0.2.0"
 requires-python = ">=3.12"
-dependencies = ["rd-core==0.2.0", "aiortc>=1.14.0", "numpy>=1.26", "websockets==16.0"]
+dependencies = ["rd-core==0.2.0", "aiortc==1.14.0", "av==16.1.0", "numpy>=1.26", "websockets==16.0"]
 
 [project.optional-dependencies]
 opencv = ["opencv-python>=4.13.0.92"]

@@ -190,18 +190,22 @@ class Probe:
         import aioice.ice
         import aiortc.rtcrtpreceiver as rx
         import aiortc.rtcrtpsender as tx
+        import rd_webrtc.encoding as budgeting
         from rd_webrtc.video import VideoFrameTrack
 
         if importlib.metadata.version("aiortc") != "1.14.0":
             raise RuntimeError("review benchmark hooks for this aiortc version")
         stack = ExitStack()
-        original_track = VideoFrameTrack.recv
+        original_track = VideoFrameTrack.recv_if_ready
         original_remote = rx.RemoteStreamTrack.recv
         encoder_factory, decoder_factory = tx.get_encoder, rx.get_decoder
+        budget_encoder_factory = budgeting.create_encoder
         probe = self
 
-        async def track_recv(track):
-            frame = await original_track(track)
+        def track_recv(track):
+            frame = original_track(track)
+            if frame is None:
+                return None
             key = (track.source.name, track._last_sequence)
             probe.mark(key, "encoder_input")
             with probe.lock:
@@ -209,8 +213,8 @@ class Probe:
             return frame
 
         class Encoder:
-            def __init__(self, codec):
-                self.inner = encoder_factory(codec)
+            def __init__(self, codec, inner=None):
+                self.inner = encoder_factory(codec) if inner is None else inner
                 self.info = {
                     "mime_type": codec.mimeType,
                     "clock_rate": codec.clockRate,
@@ -239,6 +243,10 @@ class Probe:
                     probe.mark(key, "encode_end")
                 context = getattr(self.inner, "codec", None)
                 if context is not None:
+                    probe.sample(
+                        f"encoder_target_bps_{key[0]}", self.inner.target_bitrate
+                    )
+                    probe.sample(f"encoder_actual_bps_{key[0]}", context.bit_rate)
                     self.info.update(
                         {
                             "codec": context.name,
@@ -278,8 +286,17 @@ class Probe:
                 aioice.ice, "get_host_addresses", lambda **kwargs: ["127.0.0.1"]
             )
         )
-        stack.enter_context(patch.object(VideoFrameTrack, "recv", track_recv))
+        stack.enter_context(patch.object(VideoFrameTrack, "recv_if_ready", track_recv))
         stack.enter_context(patch.object(tx, "get_encoder", Encoder))
+        stack.enter_context(
+            patch.object(
+                budgeting,
+                "create_encoder",
+                lambda codec, policy: Encoder(
+                    codec, budget_encoder_factory(codec, policy)
+                ),
+            )
+        )
         stack.enter_context(patch.object(rx, "get_decoder", Decoder))
         stack.enter_context(patch.object(rx.RemoteStreamTrack, "recv", remote_recv))
         return stack

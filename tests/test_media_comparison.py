@@ -95,3 +95,45 @@ def test_runtime_change_is_identified_without_changing_workload(tmp_path):
         "capture_to_qt_paint"
     ]["p95"]
     assert latency["change_percent"] == pytest.approx(-25)
+
+
+def test_controlled_encoding_experiment_records_variation_and_rejects_other_changes(
+    tmp_path,
+):
+    def change(report):
+        report["workload"]["encoder_workers"] = 2
+        report["encoding_threads_closed"] = True
+
+    after = copies(tmp_path, change)
+    with pytest.raises(ValueError, match="workload"):
+        comparison.compare(BASELINE, after)
+    report = comparison.compare(BASELINE, after, vary_encoding=True)
+    assert report["cases"]["1"]["after_workload"]["encoder_workers"] == 2
+    assert "quality equivalence is not established" in report["comparison_kind"]
+
+    def different_source(report):
+        change(report)
+        report["source_sha256"]["new-code.py"] = "changed"
+
+    with pytest.raises(ValueError, match="identical source"):
+        comparison.compare(
+            BASELINE, copies(tmp_path, different_source), vary_encoding=True
+        )
+
+    def different_input(report):
+        change(report)
+        report["workload"]["capture_fps"] = 15
+
+    with pytest.raises(ValueError, match="workload"):
+        comparison.compare(
+            BASELINE, copies(tmp_path, different_input), vary_encoding=True
+        )
+
+    def leaked_workers(report):
+        change(report)
+        report["encoding_threads_closed"] = False
+
+    with pytest.raises(ValueError, match="cleanup"):
+        comparison.compare(
+            BASELINE, copies(tmp_path, leaked_workers), vary_encoding=True
+        )
