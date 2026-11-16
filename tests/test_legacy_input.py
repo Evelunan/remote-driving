@@ -2,8 +2,8 @@ def test_neutral_input_is_delivered_and_unplug_clears_online_state(legacy_python
     legacy_python("driving", """
         import asyncio
         import usb1
-        from infrastructure.device.usb_connector import USBConnector
-        from infrastructure.processing.analog_calculator import AnalogCalculator
+        from rd_driving.infrastructure.device.usb_connector import USBConnector
+        from rd_driving.infrastructure.processing.analog_calculator import AnalogCalculator
 
         async def check():
             moving = bytes([0, 0, 0, 140, 64])
@@ -35,7 +35,7 @@ def test_neutral_input_is_delivered_and_unplug_clears_online_state(legacy_python
 def test_control_queue_keeps_only_latest_sample(legacy_python):
     legacy_python("driving", """
         import asyncio
-        from factories.control_factory import ControlFactory
+        from rd_driving.factories.control_factory import ControlFactory
         async def check():
             q = ControlFactory.create_message_queue()
             for n in range(50):
@@ -51,7 +51,7 @@ def test_usb_close_waits_for_inflight_read(legacy_python):
         import asyncio
         import threading
         import usb1
-        from infrastructure.device.usb_connector import USBConnector
+        from rd_driving.infrastructure.device.usb_connector import USBConnector
 
         async def check():
             entered = threading.Event()

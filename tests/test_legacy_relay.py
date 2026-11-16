@@ -6,9 +6,9 @@ def test_only_bound_sender_can_forward_to_opposite_role(legacy_python):
         import asyncio
         from aioquic.quic.configuration import QuicConfiguration
         from aioquic.quic.connection import QuicConnection
-        from services.codec import ControlCodec as C
-        from services.relay_protocol import RelayProtocol
-        from services.session_manager import SessionManager
+        from rd_server.relay.services.codec import ControlCodec as C
+        from rd_server.relay.services.relay_protocol import RelayProtocol
+        from rd_server.relay.services.session_manager import SessionManager
 
         async def check():
             manager = SessionManager()
@@ -44,7 +44,7 @@ def test_only_bound_sender_can_forward_to_opposite_role(legacy_python):
 
 def test_binding_cannot_be_overwritten_or_moved(legacy_python):
     legacy_python("servers/quic", """
-        from services.session_manager import SessionManager
+        from rd_server.relay.services.session_manager import SessionManager
         m = SessionManager()
         original, competitor = object(), object()
         assert m.bind_peer('0', 'driving', original)
@@ -70,8 +70,8 @@ def test_quic_termination_releases_binding_and_heartbeat(legacy_python):
         from aioquic.quic.configuration import QuicConfiguration
         from aioquic.quic.connection import QuicConnection
         from aioquic.quic.events import ConnectionTerminated
-        from services.relay_protocol import RelayProtocol
-        from services.session_manager import SessionManager
+        from rd_server.relay.services.relay_protocol import RelayProtocol
+        from rd_server.relay.services.session_manager import SessionManager
 
         async def check():
             p = RelayProtocol(QuicConnection(configuration=QuicConfiguration(is_client=True)))
@@ -97,8 +97,8 @@ def test_bad_datagram_does_not_forward_or_replace_binding(legacy_python):
         from aioquic.quic.configuration import QuicConfiguration
         from aioquic.quic.connection import QuicConnection
         from aioquic.quic.events import DatagramFrameReceived
-        from services.relay_protocol import RelayProtocol
-        from services.session_manager import SessionManager
+        from rd_server.relay.services.relay_protocol import RelayProtocol
+        from rd_server.relay.services.session_manager import SessionManager
         async def check():
             p = RelayProtocol(QuicConnection(configuration=QuicConfiguration(is_client=True)))
             p.session_manager = SessionManager()

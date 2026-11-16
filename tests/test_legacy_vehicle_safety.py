@@ -9,8 +9,8 @@ def test_vehicle_datagrams_use_supervisor_and_ack_after_device_execution(legacy_
         from aioquic.quic.connection import QuicConnection
         from aioquic.quic.events import ConnectionTerminated, HandshakeCompleted
         from rd_core.control import ControlState, ControlSupervisor
-        from infrastructure.protocol.vehicle_protocol import VehicleProtocol
-        from infrastructure.protocol.codec import ControlCodec
+        from rd_vehicle.infrastructure.protocol.vehicle_protocol import VehicleProtocol
+        from rd_vehicle.infrastructure.protocol.codec import ControlCodec
 
         async def check():
             entered, release = threading.Event(), threading.Event()

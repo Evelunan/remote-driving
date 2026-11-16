@@ -6,7 +6,7 @@ import pytest
 
 
 ROOT = Path(__file__).resolve().parents[1]
-motion = runpy.run_path(str(ROOT / "vehicle-unit/infrastructure/controller/motion.py"))
+motion = runpy.run_path(str(ROOT / "apps/vehicle/src/rd_vehicle/infrastructure/controller/motion.py"))
 
 
 @pytest.mark.parametrize("values", [
@@ -40,8 +40,8 @@ def test_ros_receives_configured_si_limits_and_stop_is_unconfirmed(legacy_python
         sys.modules['rclpy.node'] = SimpleNamespace(Node=Node)
         sys.modules['geometry_msgs'] = SimpleNamespace()
         sys.modules['geometry_msgs.msg'] = SimpleNamespace(Twist=Twist)
-        from main import _create_controller
-        from config.loaders.vehicle_loader import get_vehicle_config, MotionConfig
+        from rd_vehicle.main import _create_controller
+        from rd_vehicle.config.loaders.vehicle_loader import get_vehicle_config, MotionConfig
         cfg = replace(get_vehicle_config(), controller_type='ros2',
                       motion=MotionConfig(1.2, 0.4))
         ctrl = _create_controller(cfg)
@@ -69,8 +69,8 @@ def test_serial_timeouts_targets_and_short_writes(legacy_python):
     legacy_python("vehicle-unit", """
         from dataclasses import replace
         import serial
-        from config.loaders.vehicle_loader import get_vehicle_config, MotionConfig
-        from infrastructure.controller.serial_controller import SerialController
+        from rd_vehicle.config.loaders.vehicle_loader import get_vehicle_config, MotionConfig
+        from rd_vehicle.infrastructure.controller.serial_controller import SerialController
         opened = {}
         written = []
         class Serial:

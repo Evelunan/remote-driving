@@ -4,9 +4,9 @@ def test_control_worker_delivers_state_on_receivers_qt_thread(legacy_python):
         import threading
         import time
         from PyQt6.QtCore import QCoreApplication, QObject, QThread, pyqtSlot
-        from infrastructure.workers.signal_bridge import SignalBridge
-        from infrastructure.workers.control_system_thread import ControlSystemThread
-        from infrastructure.protocol import ControlCodec
+        from rd_driving.infrastructure.workers.signal_bridge import SignalBridge
+        from rd_driving.infrastructure.workers.control_system_thread import ControlSystemThread
+        from rd_driving.infrastructure.protocol import ControlCodec
 
         app = QCoreApplication([])
         received = []

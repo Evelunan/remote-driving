@@ -1,0 +1,62 @@
+import json
+from typing import Dict
+from rd_core.samples import RawInput, ControlInput
+from rd_driving.interfaces import IDataProcessor, IAnalogCalculator, IMessageQueue
+from rd_driving.infrastructure.device import InputConfigManager, InputType
+from rd_driving.infrastructure.communication import ControlState
+
+from rd_core.logging import get_logger
+
+logger = get_logger(__name__)
+
+
+class DataProcessor(IDataProcessor):
+    def __init__(
+        self,
+        processed_queue: IMessageQueue,
+        analog_calculator: IAnalogCalculator,
+    ):
+        self.processed_queue = processed_queue
+        self.analog = analog_calculator
+        self.configs = InputConfigManager().get_all_configs()
+        self.last_v = None
+        self.last_w = None
+
+    async def process(self, sample: RawInput) -> None:
+        data = sample.data
+        if data is None or len(data) < 5:
+            await self.processed_queue.put(ControlInput(
+                0, 0, 0, sample.sampled_at, sample.timestamp_ms, valid=False,
+            ))
+            return
+        # 数字输入
+        digital_state = self._process_digital(data)
+        # 模拟输入
+        analog_values = self.analog.calculate(data)
+        # logger.info(analog_values)
+        await self.processed_queue.put(ControlInput(
+            **analog_values, sampled_at=sample.sampled_at, timestamp_ms=sample.timestamp_ms,
+        ))
+
+        # logger.info(f" v_raw:{data[4]}, w_raw:{data[3]}")
+        # logger.info(f"v: {v}, w: {w}")
+
+    def _process_digital(self, data: bytes) -> Dict[InputType, bool]:
+        state = {}
+        for config in self.configs.values():
+            active = True
+            for i, pos in enumerate(config.positions):
+                if pos >= len(data):
+                    active = False
+                    break
+                value = data[pos] & 0xFF
+                if config.min_values[i] <= value <= config.max_values[i]:
+                    continue
+                active = False
+                break
+            state[config.input_type] = active
+        return state
+
+    @staticmethod
+    def _clamp(value: float, min_val: float, max_val: float) -> float:
+        return max(min_val, min(max_val, value))

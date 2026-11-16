@@ -12,7 +12,7 @@ def test_processing_preserves_capture_time_and_accepts_short_axis_report(legacy_
     legacy_python("driving", """
         import asyncio
         from rd_core.samples import RawInput
-        from factories.control_factory import ControlFactory
+        from rd_driving.factories.control_factory import ControlFactory
         async def check():
             q = ControlFactory.create_message_queue()
             p = ControlFactory.create_data_processor(q)
@@ -35,9 +35,9 @@ def test_sender_reuses_timestamp_but_stops_when_sampling_ceases(legacy_python):
         from aioquic.quic.configuration import QuicConfiguration
         from aioquic.quic.connection import QuicConnection
         from rd_core.samples import ControlInput
-        from infrastructure.communication.latest_value_queue import LatestValueQueue
-        from infrastructure.protocol.driving_protocol import DrivingProtocol
-        from infrastructure.protocol.codec import ControlCodec as C
+        from rd_driving.infrastructure.communication.latest_value_queue import LatestValueQueue
+        from rd_driving.infrastructure.protocol.driving_protocol import DrivingProtocol
+        from rd_driving.infrastructure.protocol.codec import ControlCodec as C
         async def check():
             queue = LatestValueQueue()
             packet_time = time.time_ns() // 1000000
@@ -69,9 +69,9 @@ def test_expired_or_invalid_input_never_emits_motion(legacy_python):
         from aioquic.quic.configuration import QuicConfiguration
         from aioquic.quic.connection import QuicConnection
         from rd_core.samples import ControlInput
-        from infrastructure.communication.latest_value_queue import LatestValueQueue
-        from infrastructure.protocol.driving_protocol import DrivingProtocol
-        from infrastructure.protocol.codec import ControlCodec as C
+        from rd_driving.infrastructure.communication.latest_value_queue import LatestValueQueue
+        from rd_driving.infrastructure.protocol.driving_protocol import DrivingProtocol
+        from rd_driving.infrastructure.protocol.codec import ControlCodec as C
         async def check():
             for valid, age in [(True, 1), (False, 0)]:
                 queue = LatestValueQueue()

@@ -10,9 +10,9 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 @pytest.fixture(params=[
-    "driving/infrastructure/protocol/codec.py",
-    "vehicle-unit/infrastructure/protocol/codec.py",
-    "servers/quic/services/codec.py",
+    "apps/driving/src/rd_driving/infrastructure/protocol/codec.py",
+    "apps/vehicle/src/rd_vehicle/infrastructure/protocol/codec.py",
+    "apps/server/src/rd_server/relay/services/codec.py",
 ])
 def codec(request):
     return runpy.run_path(str(ROOT / request.param))["ControlCodec"]

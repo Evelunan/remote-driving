@@ -207,3 +207,9 @@ marimo/_lsp/
 __marimo__/
 
 **/log/
+
+# Deployment secrets and generated local TLS material.
+*.key
+*.pem
+secrets/
+.rd-runtime/

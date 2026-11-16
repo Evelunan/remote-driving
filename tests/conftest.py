@@ -1,4 +1,4 @@
-"""Isolate legacy applications until they have distinct package namespaces."""
+"""Isolate Qt/ROS process state; all imports resolve installed named packages."""
 
 import os
 from pathlib import Path
@@ -16,7 +16,7 @@ ROOT = Path(__file__).resolve().parents[1]
 def legacy_python(tmp_path):
     def run(application, source):
         env = os.environ.copy()
-        env["PYTHONPATH"] = str(ROOT / application)
+        env.pop("PYTHONPATH", None)
         result = subprocess.run(
             [sys.executable, "-c", textwrap.dedent(source)],
             cwd=tmp_path,

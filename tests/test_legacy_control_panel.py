@@ -3,7 +3,7 @@ def test_panel_distinguishes_targets_from_unavailable_odometry(legacy_python):
         import os
         os.environ['QT_QPA_PLATFORM'] = 'offscreen'
         from PyQt6.QtWidgets import QApplication, QLabel
-        from ui.widgets.control_panel import ControlPanel
+        from rd_driving.ui.widgets.control_panel import ControlPanel
         app = QApplication([])
         panel = ControlPanel()
         assert all(item.get_value() == '--' for item in panel._command_stats.values())

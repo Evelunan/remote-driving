@@ -8,12 +8,13 @@ import pytest
 def test_transport_creation_does_not_complete_tls_handshake(
     legacy_python, application, module, constructor,
 ):
+    package = {"driving": "rd_driving", "vehicle-unit": "rd_vehicle"}[application]
     legacy_python(application, f"""
         import asyncio
         from aioquic.quic.configuration import QuicConfiguration
         from aioquic.quic.connection import QuicConnection
         from aioquic.quic.events import HandshakeCompleted
-        from infrastructure.protocol.{module} import *
+        from {package}.infrastructure.protocol.{module} import *
 
         async def check():
             quic = QuicConnection(configuration=QuicConfiguration(is_client=True))

@@ -1,0 +1,12 @@
+[build-system]
+requires = ["setuptools>=75"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "rd-webrtc"
+version = "0.2.0"
+requires-python = ">=3.12"
+dependencies = ["aiortc>=1.14.0"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
