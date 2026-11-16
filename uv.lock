@@ -1198,10 +1198,14 @@ version = "0.2.0"
 source = { editable = "packages/rd-webrtc" }
 dependencies = [
     { name = "aiortc" },
+    { name = "numpy" },
 ]
 
 [package.metadata]
-requires-dist = [{ name = "aiortc", specifier = ">=1.14.0" }]
+requires-dist = [
+    { name = "aiortc", specifier = ">=1.14.0" },
+    { name = "numpy", specifier = ">=1.26" },
+]
 
 [[package]]
 name = "remote-driving"

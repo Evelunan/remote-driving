@@ -1,38 +1,37 @@
-# track_manager.py
-from .video_track import VideoFrameTrack
+"""Capture sources outlive individual signaling / media subscriptions."""
+
+from rd_webrtc.video import CapturedImage, FrameSource
 
 
 class TrackManager:
     def __init__(self):
-        self.video_tracks: dict[str, VideoFrameTrack] = {}
-        self.track_names: set[str] = set()
+        self.sources: dict[str, FrameSource] = {}
+        self.subscriptions = {}
 
-    def register(self, name: str):
-        self.track_names.add(name)
+    def register(self, name: str, fps=30, max_age_s=0.5):
+        if name in self.sources:
+            raise ValueError("duplicate camera name")
+        self.sources[name] = FrameSource(name, fps, max_age_s)
 
-    def create_tracks(self):
-        self.video_tracks.clear()
+    def create_tracks(self, peer_id):
+        self.close_tracks(peer_id)
+        tracks = {name: source.subscribe() for name, source in self.sources.items()}
+        self.subscriptions[peer_id] = tracks
+        return tracks
 
-        for name in self.track_names:
-            self.video_tracks[name] = VideoFrameTrack(track_id=name)
+    def publish(self, name, image: CapturedImage):
+        return self.sources[name].publish(image)
 
-        return self.video_tracks
+    def invalidate(self, name):
+        self.sources[name].invalidate()
 
-    def get_track(self, name: str):
-        return self.video_tracks.get(name)
-
-    def all_tracks(self):
-        return self.video_tracks.values()
-
-    def close_tracks(self):
-        for track in self.video_tracks.values():
-            try:
+    def close_tracks(self, peer_id=None):
+        owners = tuple(self.subscriptions) if peer_id is None else (peer_id,)
+        for owner in owners:
+            for track in self.subscriptions.pop(owner, {}).values():
                 track.stop()
-            except Exception:
-                pass
 
-        self.video_tracks.clear()
-
-    def reset_tracks(self):
+    def close(self):
         self.close_tracks()
-        return self.create_tracks()
+        for source in self.sources.values():
+            source.close()

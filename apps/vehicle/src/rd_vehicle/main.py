@@ -74,10 +74,16 @@ async def start_streaming(room: str):
         manager.add_camera(camera)
 
     logger.info(f"推流服务启动 (room={room}, cameras={len(cameras)})")
-    await manager.start()
-    # manager.start() 内部通过 create_task 启动了推流 worker，
-    # streamer.start() 内部包含 while 循环持续运行重连逻辑并阻塞。
-    await streamer.start()
+    try:
+        await manager.start()
+        async with asyncio.TaskGroup() as tasks:
+            tasks.create_task(streamer.start())
+            tasks.create_task(manager.wait())
+    finally:
+        try:
+            await manager.stop()
+        finally:
+            await streamer.close()
 
 
 def parse_args():

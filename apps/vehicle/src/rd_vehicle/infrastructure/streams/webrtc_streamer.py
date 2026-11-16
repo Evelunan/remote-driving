@@ -1,174 +1,170 @@
-# webrtc_streamer.py
-import asyncio
-from typing import Dict
+"""Vehicle media publisher: capture sources survive individual peer reconnects."""
 
-from rd_vehicle.config.loaders import WebRTCConfig
+import asyncio
+
 from rd_core.logging import get_logger
 
-from .signaling_client import SignalingClient
 from .peer_connection import PeerConnectionManager
+from .signaling_client import SignalingClient
 from .track_manager import TrackManager
 
 logger = get_logger(__name__)
 
 
 class WebRTCStreamer:
-    def __init__(self, room: str, config: WebRTCConfig):
-        self.room = room
-        self.config = config
-
+    def __init__(self, room, config):
+        self.room, self.config = room, config
         self.signaling = SignalingClient(config.signaling.url)
         self.track_manager = TrackManager()
-
-        # 🔥 多 peer 支持
-        self.peers: Dict[str, PeerConnectionManager] = {}
-
+        self.peers = {}
         self.my_id = None
+        self._task = None
+        self._closed = False
+        self._close_task = None
+        self._peer_cleanup = set()
+        self._closing_peers = set()
+        for kind, handler in (
+            ("joined", self._on_joined),
+            ("new_peer", self._on_new_peer),
+            ("answer", self._on_answer),
+            ("candidate", self._on_candidate),
+            ("peer_left", self._on_peer_left),
+        ):
+            self.signaling.on(kind, handler)
 
-    # =====================================================
-    # 启动
-    # =====================================================
     async def start(self):
-        self._running = True
-        
-        while self._running:
-            try:
-                logger.info("正在连接信令服务器...")
-                await self.signaling.connect()
+        if self._closed or self._task is not None:
+            raise RuntimeError("streamer is single-use")
+        self._task = asyncio.current_task()
+        try:
+            while not self._closed:
+                try:
+                    await self.signaling.connect()
+                    await self.signaling.send({"type": "join", "room": self.room})
+                    await self.signaling.listen()
+                except asyncio.CancelledError:
+                    raise
+                except Exception as exc:  # noqa: BLE001 - network reconnect boundary
+                    logger.warning(
+                        "media signaling disconnected (%s)", type(exc).__name__
+                    )
+                finally:
+                    await self._close_connection()
+                if not self._closed:
+                    await asyncio.sleep(3)
+        finally:
+            self._closed = True
+            self.track_manager.close()
 
-                # 每次重连后清空旧状态
-                for peer_id, pc in list(self.peers.items()):
-                    await pc.close()
-                self.peers.clear()
-
-                # 注册信令回调
-                self.signaling.on("joined", self._on_joined)
-                self.signaling.on("new_peer", self._on_new_peer)
-                self.signaling.on("answer", self._on_answer)
-                self.signaling.on("candidate", self._on_candidate)
-                self.signaling.on("peer_left", self._on_peer_left)
-
-                await self.signaling.send({"type": "join", "room": self.room})
-
-                # 阻塞直到断开
-                await self.signaling.listen()
-
-            except asyncio.CancelledError:
-                break
-            except Exception as e:
-                logger.error(f"信令服务器连接失败或断开: {e}")
-
-            if self._running:
-                logger.info("等待 3 秒后重连信令服务器...")
-                await asyncio.sleep(3)
+    async def _close_connection(self):
+        if self._peer_cleanup:
+            await asyncio.gather(*tuple(self._peer_cleanup), return_exceptions=True)
+        self.track_manager.close_tracks()
+        peers = set(self.peers.values()) | self._closing_peers
+        self.peers = {}
+        results = await asyncio.gather(
+            *(peer.close() for peer in peers),
+            self.signaling.close(),
+            return_exceptions=True,
+        )
+        self.my_id = None
+        errors = [result for result in results if isinstance(result, Exception)]
+        if errors:
+            self._closing_peers.update(peers)
+            raise ExceptionGroup("media connection cleanup failed", errors)
+        self._closing_peers.clear()
 
     async def close(self):
-        self._running = False
-        try:
-            await self.signaling.close()
-        except Exception as e:
-            logger.warning(f"关闭 signaling 异常: {e}")
+        if self._close_task is None:
+            self._closed = True
+            self._close_task = asyncio.create_task(self._close_owned())
+        await asyncio.shield(self._close_task)
 
-        for peer_id, pc in self.peers.items():
-            try:
-                await pc.close()
-            except Exception as e:
-                logger.warning(f"关闭 peer 失败: {e}")
-        logger.info("推流端已关闭")
+    async def _close_owned(self):
+        if self._task is not None and not self._task.done():
+            self._task.cancel()
+            results = await asyncio.gather(self._task, return_exceptions=True)
+            if isinstance(results[0], Exception):
+                raise results[0]
+        else:
+            await self._close_connection()
+        self.track_manager.close()
 
-    # =====================================================
-    # Peer 创建
-    # =====================================================
-    async def _create_peer(self, peer_id: str):
+    async def _remove_peer(self, peer_id, expected=None):
+        pc = self.peers.get(peer_id)
+        if pc is None or (expected is not None and pc is not expected):
+            return
+        self.peers.pop(peer_id)
+        self._closing_peers.add(pc)
+        self.track_manager.close_tracks(peer_id)
+        await pc.close()
+        self._closing_peers.discard(pc)
+
+    async def _create_peer(self, peer_id):
+        await self._remove_peer(peer_id)
         pc = PeerConnectionManager(self.config.ice_servers)
-
-        self.track_manager.reset_tracks()
-        # 绑定 track
-        for track in self.track_manager.all_tracks():
+        self.peers[peer_id] = pc
+        for track in self.track_manager.create_tracks(peer_id).values():
             pc.add_track(track)
 
-        # ICE 回调
-        async def on_ice(candidate):
-            await self.signaling.send(
-                {
-                    "type": "candidate",
-                    "from": self.my_id,
-                    "to": peer_id,
-                    "candidate": {
-                        "candidate": candidate.candidate,
-                        "sdpMid": candidate.sdpMid,
-                        "sdpMLineIndex": candidate.sdpMLineIndex,
-                    },
-                }
-            )
+        @pc.pc.on("connectionstatechange")
+        def on_state():
+            if pc.pc.connectionState == "failed":
+                task = asyncio.create_task(self._remove_peer(peer_id, pc))
+                self._peer_cleanup.add(task)
+                task.add_done_callback(self._peer_cleanup.discard)
+                task.add_done_callback(self._observe_cleanup)
 
-        pc.on_ice_candidate(on_ice)
-
-        self.peers[peer_id] = pc
         return pc
 
-    # =====================================================
-    # 信令处理
-    # =====================================================
+    @staticmethod
+    def _observe_cleanup(task):
+        if not task.cancelled() and task.exception() is not None:
+            logger.error(
+                "media peer cleanup failed (%s)", type(task.exception()).__name__
+            )
+
     async def _on_joined(self, data):
         self.my_id = data["id"]
-        existing_peers = data.get("peers", [])
-        logger.info(f"peer joined: 房间-{self.room}, peers: {existing_peers}")
-        for peer_id in existing_peers:
+        for peer_id in data.get("peers", []):
             await self._handle_new_peer(peer_id)
 
     async def _on_new_peer(self, data):
-        peer_id = data["id"]
-        logger.info(f"new peer: {peer_id}已加入")
-        await self._handle_new_peer(peer_id)
+        await self._handle_new_peer(data["id"])
 
     async def _handle_new_peer(self, peer_id):
         pc = await self._create_peer(peer_id)
-
-        offer = await pc.create_offer()
-
-        await self.signaling.send(
-            {
-                "type": "offer",
-                "from": self.my_id,
-                "to": peer_id,
-                "sdp": offer.sdp,
-                "sdpType": offer.type,
-            }
-        )
+        async with asyncio.timeout(15):
+            offer = await pc.create_offer()
+            await self.signaling.send(
+                {
+                    "type": "offer",
+                    "to": peer_id,
+                    "sdp": offer.sdp,
+                    "sdpType": offer.type,
+                }
+            )
 
     async def _on_answer(self, data):
-        peer_id = data["from"]
-        pc = self.peers.get(peer_id)
-        if pc:
+        pc = self.peers.get(data["from"])
+        if pc is not None:
             await pc.set_answer(data["sdp"], data["sdpType"])
 
     async def _on_candidate(self, data):
-        peer_id = data["from"]
-        pc = self.peers.get(peer_id)
-        if pc:
+        pc = self.peers.get(data["from"])
+        if pc is not None:
             await pc.add_candidate(data["candidate"])
 
-    async def _on_peer_left(self, data: dict):
-        peer_id = data["id"]
-        pc = self.peers.get(peer_id)
-        if pc:
-            await pc.close()
-        self.peers.pop(peer_id, None)
-        logger.info(f"{peer_id}已离开")
+    async def _on_peer_left(self, data):
+        await self._remove_peer(data["id"])
 
-    # =====================================================
-    # 对外接口
-    # =====================================================
-    def regist_video_track(self, name="default"):
-        return self.track_manager.register(name)
+    def register_video_track(self, name, fps=30, max_age_s=0.5):
+        if self._closed:
+            raise RuntimeError("streamer is closed")
+        self.track_manager.register(name, fps, max_age_s)
 
-    async def push_frame(self, frame, track_name="default"):
-        track = self.track_manager.get_track(track_name)
-        if track:
-            await track.update_frame(frame)
+    async def push_frame(self, image, track_name):
+        return self.track_manager.publish(track_name, image)
 
-    async def close(self):
-        for pc in self.peers.values():
-            await pc.close()
-        await self.signaling.close()
+    def invalidate_frame(self, track_name):
+        self.track_manager.invalidate(track_name)
