@@ -20,6 +20,7 @@ apps/
 packages/
   rd-core/src/rd_core/       # 控制监护、配置、认证、采样契约、旧协议和日志
   rd-webrtc/src/rd_webrtc/   # 共享连接封装与 ICE 解析
+  rd-quic/src/rd_quic/       # v2 可靠 RPC 与有界 QUIC 适配，业务集成中
 examples/legacy/            # 待迁移的历史实验，不是正式入口
 benchmarks/legacy/          # 历史数据，不作为本次性能测量结果
 tests/

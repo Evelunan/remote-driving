@@ -1,0 +1,13 @@
+[build-system]
+requires = ["setuptools>=75"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "rd-quic"
+version = "0.2.0"
+description = "Bounded QUIC RPC and datagram transport for remote driving"
+requires-python = ">=3.12"
+dependencies = ["rd-core==0.2.0", "aioquic==1.3.0"]
+
+[tool.setuptools.packages.find]
+where = ["src"]

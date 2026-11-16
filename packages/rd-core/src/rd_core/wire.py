@@ -1,0 +1,182 @@
+"""Version 2 control datagrams. A receipt is never a physical-state measurement."""
+
+import math
+import struct
+from dataclasses import dataclass
+from enum import IntEnum
+from uuid import UUID
+
+VERSION = 2
+ALPN = "rd-control/2"
+_HEADER = struct.Struct("!2sBBH16sIQ")
+
+
+class Kind(IntEnum):
+    CONTROL = 1
+    EXECUTION = 2
+    TELEMETRY = 3
+    STOP_STATUS = 4
+
+
+class ExecutionStatus(IntEnum):
+    EXECUTED = 1  # Device API completed; does not prove physical motion/stop.
+    REJECTED = 2
+    NO_CONTROLLER = 3
+    INVALIDATED = 4
+
+
+def _uint(value, bits, field):
+    if type(value) is not int or not 0 <= value < 1 << bits:
+        raise ValueError(f"invalid {field}")
+
+
+def _finite(*values):
+    if any(
+        type(value) not in (float, int) or not math.isfinite(value) for value in values
+    ):
+        raise ValueError("non-finite or non-numeric payload")
+
+
+@dataclass(frozen=True)
+class Control:
+    throttle: float
+    brake: float
+    steering: float
+
+    def validate(self):
+        _finite(self.throttle, self.brake, self.steering)
+        if not (
+            -1 <= self.throttle <= 1
+            and 0 <= self.brake <= 1
+            and -1 <= self.steering <= 1
+        ):
+            raise ValueError("control outside normalized range")
+
+
+@dataclass(frozen=True)
+class Execution:
+    status: ExecutionStatus
+    completed_at_ms: int
+
+    def validate(self):
+        if not isinstance(self.status, ExecutionStatus):
+            raise ValueError("invalid execution status")  # noqa: TRY004 - uniform wire validation error
+        _uint(self.completed_at_ms, 64, "execution time")
+
+
+@dataclass(frozen=True)
+class Telemetry:
+    linear_mps: float
+    angular_radps: float
+
+    def validate(self):
+        _finite(self.linear_mps, self.angular_radps)
+
+
+@dataclass(frozen=True)
+class StopStatus:
+    requested: bool
+    confirmed: bool
+
+    def validate(self):
+        if type(self.requested) is not bool or type(self.confirmed) is not bool:
+            raise ValueError("stop flags must be boolean")
+        if self.confirmed and not self.requested:
+            raise ValueError("stop cannot be confirmed without a request")
+
+
+_LAYOUTS = {
+    Kind.CONTROL: (Control, struct.Struct("!fff")),
+    Kind.EXECUTION: (Execution, struct.Struct("!BQ")),
+    Kind.TELEMETRY: (Telemetry, struct.Struct("!ff")),
+    Kind.STOP_STATUS: (StopStatus, struct.Struct("!BB")),
+}
+
+
+@dataclass(frozen=True)
+class Packet:
+    session: int
+    epoch: UUID
+    seq: int
+    source_time_ms: int
+    payload: Control | Execution | Telemetry | StopStatus
+
+    @property
+    def kind(self):
+        for kind, (model, _) in _LAYOUTS.items():
+            if type(self.payload) is model:
+                return kind
+        raise ValueError("unknown payload type")
+
+    def encode(self) -> bytes:
+        _uint(self.session, 16, "session")
+        _uint(self.seq, 32, "sequence")
+        _uint(self.source_time_ms, 64, "source timestamp")
+        if not isinstance(self.epoch, UUID) or self.epoch.int == 0:
+            raise ValueError("lease epoch must be a nonzero UUID")
+        kind = self.kind
+        self.payload.validate()
+        fields = tuple(vars(self.payload).values())
+        try:
+            return _HEADER.pack(
+                b"RD",
+                VERSION,
+                kind,
+                self.session,
+                self.epoch.bytes,
+                self.seq,
+                self.source_time_ms,
+            ) + _LAYOUTS[kind][1].pack(*fields)
+        except (struct.error, OverflowError):
+            raise ValueError("payload cannot be represented on the wire") from None
+
+    @classmethod
+    def decode(cls, data: bytes):
+        if len(data) < _HEADER.size:
+            raise ValueError("truncated header")
+        magic, version, raw_kind, session, epoch, seq, timestamp = _HEADER.unpack_from(
+            data
+        )
+        if magic != b"RD" or version != VERSION:
+            raise ValueError("unsupported datagram version")
+        try:
+            kind = Kind(raw_kind)
+        except ValueError:
+            raise ValueError("unknown datagram type") from None
+        model, layout = _LAYOUTS[kind]
+        if len(data) != _HEADER.size + layout.size:
+            raise ValueError("invalid datagram length")
+        fields = layout.unpack_from(data, _HEADER.size)
+        if kind == Kind.EXECUTION:
+            fields = (ExecutionStatus(fields[0]), fields[1])
+        elif kind == Kind.STOP_STATUS:
+            if any(value not in (0, 1) for value in fields):
+                raise ValueError("invalid stop flags")
+            fields = tuple(bool(value) for value in fields)
+        payload = model(*fields)
+        payload.validate()
+        identifier = UUID(bytes=epoch)
+        if identifier.int == 0:
+            raise ValueError("invalid lease epoch")
+        return cls(session, identifier, seq, timestamp, payload)
+
+
+def conservative_age_ms(
+    source_time_ms: int, now_ms: int, *, max_age_ms: int, clock_skew_ms: int
+) -> int:
+    """Upper age bound, assuming sender/receiver clock error <= clock_skew_ms.
+
+    The source timestamp must remain unchanged when a cached sample is repeated.
+    A local monotonic watchdog must still enforce expiry between messages.
+    """
+    _uint(source_time_ms, 64, "source timestamp")
+    _uint(now_ms, 64, "current timestamp")
+    if not 0 <= clock_skew_ms < max_age_ms:
+        raise ValueError("invalid age budget")
+    delta = now_ms - source_time_ms
+    if delta < -clock_skew_ms:
+        raise ValueError("timestamp too far in the future")
+    age = max(0, delta + clock_skew_ms)
+    if age >= max_age_ms:
+        raise ValueError("sample expired")
+    return age

@@ -16,11 +16,13 @@ members = [
     "apps/server",
     "packages/rd-core",
     "packages/rd-webrtc",
+    "packages/rd-quic",
 ]
 
 [tool.uv.sources]
 rd-core = { workspace = true }
 rd-webrtc = { workspace = true }
+rd-quic = { workspace = true }
 
 [[tool.uv.index]]
 name = "aliyun"
