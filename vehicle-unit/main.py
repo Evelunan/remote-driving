@@ -33,11 +33,13 @@ def _create_controller(vehicle_config):
         from infrastructure.controller import SerialController
         return SerialController(vehicle_config)
     elif ctrl_type == "ros2":
-        from infrastructure.controller import RCLpyCmdVelController
-        return RCLpyCmdVelController()
+        from infrastructure.controller.ros2_cmd_vel_controller import RCLpyCmdVelController
+        return RCLpyCmdVelController(
+            max_linear=vehicle_config.motion.max_linear_velocity,
+            max_angular=vehicle_config.motion.max_angular_velocity,
+        )
     else:
-        logger.warning(f"未知的控制器类型: {ctrl_type}，将不启用底盘控制")
-        return None
+        raise ValueError(f"未知的控制器类型: {ctrl_type}")
 
 
 async def start_control(session_id: int):
@@ -51,7 +53,11 @@ async def start_control(session_id: int):
         controller=controller,
     )
     logger.info(f"控制服务启动 (session={session_id})")
-    await client.start()
+    try:
+        await client.start()
+    finally:
+        if controller is not None:
+            await asyncio.to_thread(controller.close)
 
 
 async def start_streaming(room: str):

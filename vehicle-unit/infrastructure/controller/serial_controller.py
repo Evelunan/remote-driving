@@ -1,5 +1,6 @@
 import serial
-from interfaces.icontroller import IController
+from interfaces.icontroller import IController, StopResult
+from .motion import target_velocity
 
 from config.loaders import VehicleConfig
 from logger import get_logger
@@ -12,10 +13,12 @@ class SerialController(IController):
         # 运动控制参数
         self.max_linear_velocity = config.motion.max_linear_velocity
         self.max_angular_velocity = config.motion.max_angular_velocity
-
-        self.current_linear = 0
+        if max(self.max_linear_velocity, self.max_angular_velocity) > 655.35:
+            raise ValueError("motion limit exceeds the serial uint16 representation")
 
         self.command_template = bytearray(config.communication.protocol.template_bytes)
+        if len(self.command_template) != 13:
+            raise ValueError("serial command template must contain 13 bytes")
         # 预分配缓冲区
         self.command_buffer = bytearray(self.command_template)
 
@@ -32,21 +35,22 @@ class SerialController(IController):
             stopbits=serial.STOPBITS_ONE,
             rtscts=False,
             xonxoff=False,
-            timeout=0.01,
+            timeout=config.communication.serial.read_timeout,
+            write_timeout=config.communication.serial.write_timeout,
         )
 
     def send_command(self, throttle, brake, steering):
         """高效发送控制指令"""
-        v, w = self._compute_motion(
+        v, w = target_velocity(
             throttle,
             brake,
             steering,
-            self.current_linear,
             self.max_linear_velocity,
             self.max_angular_velocity,
         )
         cmd = self._prepare_command(v, w)
-        self.serial.write(cmd)
+        if self.serial.write(cmd) != len(cmd):
+            raise IOError("partial serial control write")
         logger.debug(f"[car] Send command: {cmd}")
 
     def _prepare_command(self, v, w):
@@ -69,21 +73,14 @@ class SerialController(IController):
 
         return cmd
 
-    def _compute_motion(self, throttle, brake, steering, current_v, max_v, max_w):
-        w = steering * max_w
-        # 刹车优先
-        if brake > 0:
-            if current_v > 0:
-                v = max(0.0, current_v - brake * max_v)
-            elif current_v < 0:
-                v = min(0.0, current_v + brake * max_v)
-            else:
-                v = 0.0
-        else:
-            v = throttle * max_v
-        return v, w
+    def request_safe_stop(self, reason: str) -> StopResult:
+        self.send_command(0.0, 1.0, 0.0)
+        return StopResult(requested=True, detail=f"zero serial target requested: {reason}")
 
     def close(self):
         """关闭串口连接"""
         if self.serial and self.serial.is_open:
-            self.serial.close()
+            try:
+                self.request_safe_stop("controller shutdown")
+            finally:
+                self.serial.close()

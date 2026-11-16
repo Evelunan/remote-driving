@@ -9,7 +9,7 @@ controller: none
 # ======================
 motion:
   # 线速度限制
-  max_linear_velocity: 5.0      # 单位: cm/s
+  max_linear_velocity: 5.0      # 单位: m/s；用户确认暂保留该值，实车需单独验收
   # 角速度限制
   max_angular_velocity: 2.0       # 单位: rad/s
 

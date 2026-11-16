@@ -2,6 +2,7 @@ from typing import Optional
 from pathlib import Path
 import yaml
 from dataclasses import dataclass, field
+import math
 
 from logger import get_logger
 from common.constants import CONFIG_PATH
@@ -15,8 +16,13 @@ logger = get_logger(__name__)
 class MotionConfig:
     """运动控制参数"""
 
-    max_linear_velocity: float  # mm/s
+    max_linear_velocity: float  # m/s
     max_angular_velocity: float  # rad/s
+
+    def __post_init__(self):
+        for value in (self.max_linear_velocity, self.max_angular_velocity):
+            if not math.isfinite(value) or value <= 0:
+                raise ValueError("motion limits must be finite and positive")
 
 
 @dataclass(frozen=True)
@@ -27,6 +33,13 @@ class SerialConfig:
     baud_rate: int
     read_timeout: float
     write_timeout: float
+
+    def __post_init__(self):
+        if not self.port or self.baud_rate <= 0:
+            raise ValueError("serial port and positive baud rate are required")
+        for value in (self.read_timeout, self.write_timeout):
+            if not math.isfinite(value) or value <= 0:
+                raise ValueError("serial timeouts must be finite and positive")
 
 
 @dataclass(frozen=True)
