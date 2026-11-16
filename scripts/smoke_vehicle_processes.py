@@ -100,6 +100,12 @@ async def check_mode(config, components, env):
             "exitcode": result,
             "children_reaped": True,
         }
+    except Exception:
+        # Preserve bounded child diagnostics before temporary environments are
+        # removed; otherwise an intermittent failure leaves only an exit code.
+        detail = "".join(messages).replace(env["RD_SMOKE_TOKEN"], "<redacted>")
+        print(f"Vehicle smoke failed ({','.join(components)}):\n{detail}", file=sys.stderr)
+        raise
     finally:
         # This script owns a new process group; clean it up even on test failure.
         try:

@@ -113,7 +113,8 @@ class VideoFrameTrack(VideoStreamTrack):
             if fresh and now >= self._next_send:
                 # A distinct AV frame keeps encoder mutation local to this peer.
                 frame = VideoFrame.from_ndarray(image.pixels, format="bgr24")
-                if time.monotonic() - image.captured_at >= self.source.max_age_s:
+                completed = time.monotonic()
+                if completed - image.captured_at >= self.source.max_age_s:
                     continue
                 if self._capture_origin is None:
                     self._capture_origin = image.captured_at
@@ -123,7 +124,15 @@ class VideoFrameTrack(VideoStreamTrack):
                 )
                 frame.pts, frame.time_base = pts, Fraction(1, 90000)
                 self._last_pts, self._last_sequence = pts, image.sequence
-                self._next_send = time.monotonic() + 1 / self.source.fps
+                # Keep a fixed cadence: conversion and timer wake-up latency
+                # consume the current period, rather than extending every one.
+                # Skip elapsed slots after a stall; there is still only one latest
+                # frame, and the next deadline is strictly after completed work.
+                deadline = self._next_send or now
+                slots = math.floor((completed - deadline) * self.source.fps) + 1
+                self._next_send = deadline + slots / self.source.fps
+                if self._next_send <= completed:  # floating-point boundary
+                    self._next_send += 1 / self.source.fps
                 return frame
             if fresh:
                 # Recheck the latest snapshot at the deadline; never catch up.

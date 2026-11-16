@@ -1,0 +1,80 @@
+{
+  "scope": "isolated wheels; loopback networking, mock controller, synthetic video and Qt offscreen",
+  "created_at": "2026-11-16T10:23:56.730810+00:00",
+  "source_commit": "db38fb551feb3f610067a0c3f46d790b2252e6cc",
+  "source_dirty": true,
+  "python": "3.12.16",
+  "platform": "Linux-6.18.58.1-microsoft-standard-WSL2-x86_64-with-glibc2.43",
+  "uv": "uv 0.13.8 (x86_64-unknown-linux-gnu)",
+  "lock_sha256": "c71b541989875c2cf3719f07664d3835d4ac32661d8dae5723cf5781ee7bc153",
+  "wheels": {
+    "rd-core": {
+      "filename": "rd_core-0.2.0-py3-none-any.whl",
+      "version": "0.2.0",
+      "sha256": "013a9b16edae11789a5a2dabc0cd4ea0b96e2ce13676e29c92e13b6d7e2c5b8e"
+    },
+    "rd-driving": {
+      "filename": "rd_driving-0.2.0-py3-none-any.whl",
+      "version": "0.2.0",
+      "sha256": "ff7623599be18185e84d1019a3cf1401ab188c1aabc32d487e85c9a2cd6a616b"
+    },
+    "rd-quic": {
+      "filename": "rd_quic-0.2.0-py3-none-any.whl",
+      "version": "0.2.0",
+      "sha256": "4497bfb9413caff930debb65913f963e26fb8d1c8cc89c23bd4f626d32ee64e2"
+    },
+    "rd-server": {
+      "filename": "rd_server-0.2.0-py3-none-any.whl",
+      "version": "0.2.0",
+      "sha256": "571abf7c9196fc537283274f635fb86fc8e0a414e577f83f9be48762a138784f"
+    },
+    "rd-vehicle": {
+      "filename": "rd_vehicle-0.2.0-py3-none-any.whl",
+      "version": "0.2.0",
+      "sha256": "9d790d4181e090e176db8073754603c48f1aa2254bfb7301ba8ec1fd2318726d"
+    },
+    "rd-webrtc": {
+      "filename": "rd_webrtc-0.2.0-py3-none-any.whl",
+      "version": "0.2.0",
+      "sha256": "e2ca3c1debc9037f4f00d00a4b75cbe0db9a42d42b0695e6ff779abf55865d31"
+    }
+  },
+  "roles": {
+    "server": {
+      "packages": {
+        "rd-core": "0.2.0",
+        "rd-quic": "0.2.0",
+        "rd-server": "0.2.0"
+      },
+      "installed_python_files_match_wheels": 38,
+      "other_apps_absent": true,
+      "cli_help_dump_check_and_lazy_imports": true,
+      "server_runtime": [
+        {
+          "services": [
+            "signaling",
+            "relay"
+          ],
+          "authenticated_probes": true,
+          "ports_released": true
+        },
+        {
+          "services": [
+            "signaling"
+          ],
+          "authenticated_probes": true,
+          "ports_released": true
+        },
+        {
+          "services": [
+            "relay"
+          ],
+          "authenticated_probes": true,
+          "ports_released": true
+        }
+      ]
+    }
+  },
+  "physical_stop_verified": false,
+  "passed": false
+}

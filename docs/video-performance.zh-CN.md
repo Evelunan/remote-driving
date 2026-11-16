@@ -137,3 +137,47 @@ Qt 工作线程使用受管理的 asyncio 生命周期，停止请求立即返�
 重连后的 RSS 高于首个稳定阶段，当前短时记录不能判断是分配器保留、编解码缓存还是泄漏，需补充长期重复重连测试。跨轮前视画面 P95 范围：单路 86.97–88.91 ms，四路 91.49–92.79 ms。
 
 [汇总 JSON](../benchmarks/results/media-b18-summary.json) 包含各视角、两阶段以及原始报告文件名；原始记录：[单路第1轮](../benchmarks/results/media-b18-1view-r1.json)、[单路第2轮](../benchmarks/results/media-b18-1view-r2.json)、[单路第3轮](../benchmarks/results/media-b18-1view-r3.json)；[四路第1轮](../benchmarks/results/media-b18-4view-r1.json)、[四路第2轮](../benchmarks/results/media-b18-4view-r2.json)、[四路第3轮](../benchmarks/results/media-b18-4view-r3.json)。六次运行均无测量关联错误，源文件哈希和同类负载一致，相机及控制线程全部关闭。此处是优化前基线，尚不是优化前后对比。
+
+
+## B19：消除节拍累积等待
+
+B18 发现采集到编码输入的 P95 约为一帧周期（32.5 ms），而编码函数自身约为 7–9 ms。旧轨道每次构造 AV 帧后都将下一次截止时间设为“当前时间 + 周期”，转换耗时与定时器晚醒会逐帧累积，使 30 FPS 订阅逐渐落后于采集。
+
+轨道现在按固定单调时钟节拍取最新帧，图像构造耗时计入本周期；发生卡顿或转换超时后，跳过已经经过的时隙，下一截止时间始终在完成当前工作之后。每个节拍只取一个最新采集快照，不补发历史时隙。PTS 仍来自原始采集时间，过期检查、无新图像时等待、订阅者独立性以及停止唤醒均保留。测试用可控时钟覆盖 40 ms 转换、1 ms 定时器晚醒，以及 240 ms 转换跨越多个 100 ms 周期，避免依赖主机实时调度作断言。
+
+### 同条件对比
+
+使用 B18 的测量脚本和探针逐字节不变，正式尺寸、纹理、种子、帧率、显示刷新、编解码器与线程配置相同，单路和四路各重复三轮。全部 12 次前后记录都无测量关联错误，源文件差异只有 `rd_webrtc/video.py`。比较各轮阶段统计的中位数，不混合不同轮次的帧样本。复现：
+
+```bash
+# 每个视角数量分别重复三次，建议按 1、4 交替执行。
+.venv/bin/python scripts/benchmark_media.py --views 1 --seconds 10 --label candidate --output /tmp/after-1view-r1.json
+.venv/bin/python scripts/benchmark_media.py --views 4 --seconds 10 --label candidate --output /tmp/after-4view-r1.json
+# 同样生成 r2、r3，然后比较整组，不能只选一次最好结果。
+.venv/bin/python scripts/compare_media.py \
+  --before benchmarks/results/media-b18-*view-r*.json \
+  --after /tmp/after-*view-r*.json \
+  --output /tmp/media-comparison.json
+```
+
+比较工具要求每种路数至少三次且前后数量相等，拒绝重复文件内容、无效测量、未完整退出、环境/负载/探针/编码器变化及缺少视角覆盖。某轮没有延迟样本时保留 null 并不给出汇总增益，不丢弃这一轮；零帧率仍保留。`comparable: true` 只表示可比，不表示每项性能都改善。
+
+| 稳定阶段指标 | 单路：B18 → B19 | 四路负载：B18 → B19 |
+| --- | ---: | ---: |
+| 前视采集完成→Qt paint P50（ms） | 69.52 → 51.79 | 73.81 → 52.86 |
+| 前视采集完成→Qt paint P95（ms） | 87.96 → 59.45 | 91.57 → 61.00 |
+| 前视采集完成→Qt paint P99（ms） | 93.13 → 62.66 | 95.40 → 72.79 |
+| 前视绘制 FPS | 28.88 → 29.78 | 29.00 → 29.79 |
+| 前视采集→编码输入 P95（ms） | 32.46 → 1.35 | 32.55 → 1.28 |
+| 整个进程 CPU（一个核 = 100%） | 55.33 → 55.39 | 121.60 → 118.85 |
+| CPU 耗时 / 唯一绘制帧（ms，所有视角合计） | 19.16 → 18.59 | 10.51 → 9.99 |
+| 控制采样→模拟提交 P99（ms） | 13.18 → 12.94 | 17.56 → 14.73 |
+| 控制采样→ACK P99（ms） | 14.60 → 14.05 | 20.49 → 17.27 |
+
+本机稳定阶段前视画面 P95 降低约 **32.4%（单路）和 33.4%（四路）**。三轮四路 P95 从 91.49–92.79 ms 变为 60.40–61.31 ms。这里指合成相机读取完成到 Qt offscreen paint，不能直接作为实车曝光到显示器延迟。
+
+重连恢复阶段，四路前视 P95 为 91.28 → 60.81 ms；控制采样到模拟提交 P99 为 15.41 → 16.18 ms，采样到 ACK P99 为 19.04 → 17.78 ms。单路恢复阶段后台调度 P99 约 1.69 → 2.02 ms。控制时延存在小幅波动，未把“所有指标都下降”作为结论；用户尚未提供实车验收阈值。整体 CPU 基本持平或略降，不能由三轮短时测量断言所有硬件上的资源收益。
+
+保留 WebRTC/aiortc、VP8/libvpx 软件编码、OpenCV 和普通 PyQt 显示路径，没有更换媒体后端、减少视角、降低分辨率或帧率。主辅视角码率/资源预算、独立进程部署开销、弱网/TURN、长期重连 RSS 和实机链路仍在后续阶段。
+
+[完整对比 JSON](../benchmarks/results/media-b19-comparison.json) 保存全部指标与输入 SHA-256；新原始报告：[单路第1轮](../benchmarks/results/media-b19-1view-r1.json)、[单路第2轮](../benchmarks/results/media-b19-1view-r2.json)、[单路第3轮](../benchmarks/results/media-b19-1view-r3.json)；[四路第1轮](../benchmarks/results/media-b19-4view-r1.json)、[四路第2轮](../benchmarks/results/media-b19-4view-r2.json)、[四路第3轮](../benchmarks/results/media-b19-4view-r3.json)。

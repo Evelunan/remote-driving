@@ -110,6 +110,99 @@ async def test_rate_uses_camera_fps_and_pts_uses_capture_time(fps):
         source.close()
 
 
+@pytest.mark.asyncio
+async def test_conversion_time_is_inside_frame_period_and_late_work_does_not_catch_up(
+    monkeypatch,
+):
+    import rd_webrtc.video as module
+
+    clock = SimpleNamespace(now=10.0)
+
+    class Conversion:
+        @staticmethod
+        def from_ndarray(pixels, **kwargs):
+            clock.now += 0.04  # 40 ms of work within a 100 ms frame period.
+            return SimpleNamespace()
+
+    monkeypatch.setattr(module, "time", SimpleNamespace(monotonic=lambda: clock.now))
+    monkeypatch.setattr(module, "VideoFrame", Conversion)
+    source = FrameSource("front", 10)
+    track = source.subscribe()
+    pending = None
+    try:
+        source.publish(captured(1, at=clock.now))
+        assert (await track.recv()).pts == 0
+        clock.now = 10.101  # Timer woke up 1 ms late.
+        source.publish(captured(2, at=clock.now))
+        pending = asyncio.create_task(track.recv())
+        await asyncio.sleep(0)
+        assert pending.done(), "frame conversion must not add another 40 ms of pacing"
+        assert pending.result().pts == 9090
+
+        clock.now = 10.2
+        source.publish(captured(3, at=clock.now))
+        pending = asyncio.create_task(track.recv())
+        await asyncio.sleep(0)
+        assert pending.done(), "timer wake-up delay must not accumulate every frame"
+        assert pending.result().pts == 18000
+
+        # A long scheduling interruption selects one latest frame, then starts
+        # a new interval instead of emitting missed historical slots.
+        clock.now = 11.0
+        source.publish(captured(4, at=clock.now))
+        assert (await track.recv()).pts == 90000
+        source.publish(captured(5, at=clock.now))
+        pending = asyncio.create_task(track.recv())
+        await asyncio.sleep(0)
+        assert not pending.done()
+        clock.now = 11.1
+        source.publish(captured(6, at=clock.now))
+        await asyncio.sleep(0)
+        assert pending.done() and pending.result().pts == 99000
+    finally:
+        source.close()
+        if pending is not None:
+            await asyncio.gather(pending, return_exceptions=True)
+
+
+@pytest.mark.asyncio
+async def test_conversion_overrun_skips_slots_and_waits_before_next_latest_frame(
+    monkeypatch,
+):
+    import rd_webrtc.video as module
+
+    clock = SimpleNamespace(now=10.0)
+
+    class SlowConversion:
+        @staticmethod
+        def from_ndarray(pixels, **kwargs):
+            clock.now += 0.24
+            return SimpleNamespace()
+
+    monkeypatch.setattr(module, "time", SimpleNamespace(monotonic=lambda: clock.now))
+    monkeypatch.setattr(module, "VideoFrame", SlowConversion)
+    source = FrameSource("front", 10)
+    track = source.subscribe()
+    pending = None
+    try:
+        source.publish(captured(1, at=clock.now))
+        assert (await track.recv()).pts == 0
+        source.publish(captured(2, at=clock.now))
+        pending = asyncio.create_task(track.recv())
+        await asyncio.sleep(0)
+        assert not pending.done(), (
+            "an overrun must not emit missed frame slots immediately"
+        )
+        clock.now = 10.3
+        source.publish(captured(3, at=clock.now))
+        await asyncio.sleep(0)
+        assert pending.done() and pending.result().pts == 27000
+    finally:
+        source.close()
+        if pending is not None:
+            await asyncio.gather(pending, return_exceptions=True)
+
+
 class LocalPublisher:
     def __init__(self):
         self.tracks = TrackManager()
