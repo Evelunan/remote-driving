@@ -12,6 +12,7 @@ from rd_core.configuration import ConfigError, cli_overrides, load_config
 from rd_core.logging import configure_logging, get_logger
 from rd_core.settings import ServerSettings
 
+from .relay.control_service import ControlRelayService
 from .relay.service import RelayService
 from .runtime import ServerRuntime
 from .signaling.server import SignalingServer
@@ -91,10 +92,6 @@ def parse_args(argv=None):
 
 def create_runtime(args):
     settings = args.loaded.value
-    if "relay" in settings.services and not settings.allow_legacy_development:
-        raise ConfigError(
-            "authenticated QUIC v2 is pending; relay currently requires explicit loopback legacy mode"
-        )
     auth = None if settings.allow_legacy_development else AuthProvider(settings.auth)
     services = {}
     for name in settings.services:
@@ -111,6 +108,8 @@ def create_runtime(args):
                 auth=auth,
                 allow_legacy_development=settings.allow_legacy_development,
             )
+        elif not settings.allow_legacy_development:
+            services[name] = ControlRelayService(config, auth)
         else:
             configuration = QuicConfiguration(
                 is_client=False,

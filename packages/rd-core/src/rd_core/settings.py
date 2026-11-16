@@ -134,6 +134,10 @@ class RelaySettings:
             raise ValueError("max_clock_skew_ms must be below max_control_age_ms")
         if self.max_datagram_bytes > 65536 or self.max_rpc_bytes > 1_048_576:
             raise ValueError("protocol buffer limits are too large")
+        if self.register_timeout_s > 60:
+            raise ValueError("register_timeout_s must not exceed 60")
+        if self.lease_ttl_s * 1000 <= self.max_control_age_ms:
+            raise ValueError("lease_ttl_s must exceed max_control_age_ms / 1000")
 
 
 @dataclass(frozen=True)

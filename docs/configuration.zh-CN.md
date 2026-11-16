@@ -1,6 +1,6 @@
 # 配置与身份授权
 
-当前实施状态：统一服务端已接入下述加载机制；驾驶端和车辆端的不可变配置模型已建立，运行组件尚在迁移。认证信令已实现；QUIC 可靠注册、控制租约和客户端认证仍待后续批次，不应据此认为整套系统已可用于实车。
+当前实施状态：统一服务端已接入下述加载机制；驾驶端和车辆端的不可变配置模型已建立，运行组件尚在迁移。认证信令、QUIC v2 服务端可靠注册与独占租约已实现；客户端认证/新协议迁移和时钟诊断仍待完成，不应据此认为整套系统已可用于实车。
 
 ## 加载规则
 
@@ -19,7 +19,7 @@ rd-server --config /path/server.yaml --dump-config
 rd-server --config /path/server.yaml --services signaling --set signaling.port=8767
 ```
 
-`--dump-config` 只进行配置模式校验，因此可在尚未注入令牌、尚未安装证书时使用；它不是可启动性验收。`--check-config` 在配置校验后创建监听器配置，但不启动监听器。未实现的认证 QUIC 模式会明确报错，不能自动退回旧协议。
+`--dump-config` 只进行配置模式校验，因此可在尚未注入令牌、尚未安装证书时使用；它不是可启动性验收。`--check-config` 在配置校验后创建监听器配置，但不启动监听器。认证 QUIC 模式仅接受 `rd-control/2`，不匹配的协议会被拒绝，不能自动退回旧协议。
 
 ## 身份与信令权限
 
@@ -27,17 +27,18 @@ rd-server --config /path/server.yaml --services signaling --set signaling.port=8
 
 客户端在 WebSocket 握手头中发送 `Authorization: Bearer <token>`。服务端在登记 peer 前验证令牌；无令牌、无效令牌和已过期令牌均关闭连接（1008）。加入房间前检查 room 权限，过期身份不能发送或接收信令；有 `expires_at` 的空闲连接也会自动关闭。身份过期配置使用带时区的 ISO 时间。变更或撤销令牌目前需要重启服务，现有连接将关闭，不提供静默热更新。
 
-`viewer` 可以访问被授予的视频房间，但其角色不能用于取得驾驶控制权。房间成员关系不代表控制租约；控制授权由后续 relay 模块独立裁决。服务端总是根据连接填充消息 `from`；指定 `to` 时，目标必须是同房间其他成员，非法目标不会变成广播。
+`viewer` 可以访问被授予的视频房间，但其角色不能用于取得驾驶控制权。房间成员关系不代表控制租约；控制授权由 relay 模块独立裁决。服务端总是根据连接填充消息 `from`；指定 `to` 时，目标必须是同房间其他成员，非法目标不会变成广播。
 
 应用 DEBUG 日志不打开 WebSocket 传输层的报文/头部 DEBUG 输出，避免记录 Authorization。配置转储只显示环境变量引用；应用错误信息不包含令牌、SDP 或原始 YAML 行。
 
 ## 示例与迁移
 
+- [server.yaml](../configs/server.yaml)：认证双模块示例；用 `--services relay` 或 `--services signaling` 可分别部署。
 - [server.local.yaml](../configs/server.local.yaml)：显式旧协议、本机 signaling；可配合当前未迁移客户端测试。
 - [server.signaling.yaml](../configs/server.signaling.yaml)：认证 WSS 示例，需部署方提供证书和三个令牌环境变量。相对 TLS 路径在 `configs/tls/` 下解析。
 
 旧信令模块内的 `server.yaml` 和缓存加载器已移除，入口统一为 `rd-server`。字段映射：`ping_interval` → `signaling.ping_interval_s`，`ping_timeout` → `signaling.ping_timeout_s`，`max_message_size` → `signaling.max_message_bytes`；host、port、max_peers_per_room 移入 signaling。
 
-信令和中继可分别配置监听地址和 TLS 路径。生产信令必须使用 WSS；认证的非回环监听在任何环境都要求 TLS。未经认证的旧模式只能显式启用 `allow_legacy_development`，且仅允许 development 环境与回环地址。QUIC 旧入口仍需证书，`relay.idle_timeout_s`、`relay.max_datagram_bytes` 已传入 aioquic；其余新版租约字段尚未接入旧协议，不能当作已生效的安全策略。
+信令和中继可分别配置监听地址和 TLS 路径。生产信令必须使用 WSS；认证的非回环监听在任何环境都要求 TLS。未经认证的旧模式只能显式启用 `allow_legacy_development`，且仅允许 development 环境与回环地址。QUIC 旧入口仍需证书，且不提供认证租约。在认证 v2 中，`idle_timeout_s` 进入传输配置，`register_timeout_s` 限定注册/准备阶段，`lease_ttl_s` 控制授权过期，`max_control_age_ms` 与 `max_clock_skew_ms` 约束采样新鲜度，`max_datagram_bytes` 与 `max_rpc_bytes` 限定消息大小；这些租约字段不适用于旧协议。租约 TTL 必须大于控制采样年龄上限。
 
 回退须匹配对应版本的制品与配置；新文件不能直接交给旧入口。认证连接不降级为匿名连接。当前三应用的联动认证迁移尚未完成，后续发布文档会给出完整协同升级/回退步骤。

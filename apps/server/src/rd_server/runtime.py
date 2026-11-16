@@ -54,6 +54,8 @@ class ServerRuntime:
             done, _ = await asyncio.wait(
                 [requested, *monitors], return_when=asyncio.FIRST_COMPLETED
             )
+            for task in done - {requested}:
+                task.result()  # Preserve the failing module's cause after cleanup.
             if requested not in done:
                 raise RuntimeError("a required listener stopped unexpectedly")
         finally:

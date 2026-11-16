@@ -57,6 +57,10 @@ class RpcProtocol(QuicConnectionProtocol):
         self._tasks = {}
         self._receive_deadlines = {}
 
+    @property
+    def transport_closed(self):
+        return self._closed.is_set()
+
     def _ensure_ready(self):
         if self._rpc_closed or not self.rpc_ready:
             raise ConnectionError("QUIC handshake is not ready")

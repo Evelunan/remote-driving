@@ -3,6 +3,7 @@ from aioquic.asyncio import QuicConnectionProtocol
 from aioquic.quic.events import ConnectionTerminated, DatagramFrameReceived
 
 from rd_core.logging import get_logger
+from rd_quic.compat import cancel_pending_io
 from .session_manager import SessionManager
 
 from .codec import ControlCodec
@@ -47,10 +48,7 @@ class RelayProtocol(QuicConnectionProtocol):
         # aioquic 1.3 has no abort/wait_closed API on its server. Ensure a forced
         # listener shutdown cannot leave protocol timers writing to a closed UDP
         # socket. Keep this version-specific cleanup inside the transport adapter.
-        for handle in (self._timer, self._transmit_task):
-            if handle is not None:
-                handle.cancel()
-        self._timer = self._transmit_task = None
+        cancel_pending_io(self)
 
     def quic_event_received(self, event):
         if isinstance(event, ConnectionTerminated):

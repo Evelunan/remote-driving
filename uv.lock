@@ -1146,6 +1146,7 @@ dependencies = [
     { name = "aioquic" },
     { name = "pyyaml" },
     { name = "rd-core" },
+    { name = "rd-quic" },
     { name = "websockets" },
 ]
 
@@ -1154,6 +1155,7 @@ requires-dist = [
     { name = "aioquic", specifier = ">=1.3.0" },
     { name = "pyyaml", specifier = ">=6.0.3" },
     { name = "rd-core", editable = "packages/rd-core" },
+    { name = "rd-quic", editable = "packages/rd-quic" },
     { name = "websockets", specifier = ">=16.0" },
 ]
 
