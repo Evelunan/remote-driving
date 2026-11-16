@@ -6,7 +6,7 @@
 
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, Optional
+from typing import Any
 
 from .peer import Peer
 
@@ -50,7 +50,7 @@ class Room:
         self.peers[peer.id] = peer
         return True
 
-    def remove_peer(self, peer_id: str) -> Optional[Peer]:
+    def remove_peer(self, peer_id: str) -> Peer | None:
         """移除对等端"""
         peer = self.peers.pop(peer_id, None)
         if peer:
@@ -62,7 +62,7 @@ class Room:
         return [pid for pid in self.peers if pid != exclude_id]
 
     async def broadcast(
-        self, message: dict[str, Any], exclude_id: Optional[str] = None
+        self, message: dict[str, Any], exclude_id: str | None = None
     ) -> int:
         """
         广播消息给房间内所有人
@@ -74,10 +74,9 @@ class Room:
         返回: 成功发送的数量
         """
         count = 0
-        for peer_id, peer in self.peers.items():
-            if peer_id == exclude_id:
+        for peer_id, peer in list(self.peers.items()):
+            if peer_id == exclude_id or peer.room_id != self.id:
                 continue
             if await peer.send(message):
                 count += 1
         return count
-

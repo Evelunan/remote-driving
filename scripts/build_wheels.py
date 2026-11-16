@@ -2,6 +2,7 @@
 
 import argparse
 import subprocess
+import tempfile
 import tomllib
 from pathlib import Path
 
@@ -17,18 +18,38 @@ def main():
     )
     for manifest in manifests:
         name = tomllib.loads(manifest.read_text())["project"]["name"]
-        command = [
-            "uv",
-            "build",
-            "--package",
-            name,
-            "--wheel",
-            "--out-dir",
-            str(args.output_dir.resolve()),
-        ]
-        if args.offline:
-            command.append("--offline")
-        subprocess.run(command, cwd=root, check=True)
+        flags = ["--offline"] if args.offline else []
+        # Build the wheel from a clean source archive. In-place setuptools
+        # build/lib can otherwise reintroduce files deleted from src/.
+        with tempfile.TemporaryDirectory(prefix="rd-sdist-") as temporary:
+            subprocess.run(
+                [
+                    "uv",
+                    "build",
+                    "--package",
+                    name,
+                    "--sdist",
+                    "--out-dir",
+                    temporary,
+                    *flags,
+                ],
+                cwd=root,
+                check=True,
+            )
+            (archive,) = Path(temporary).glob("*.tar.gz")
+            subprocess.run(
+                [
+                    "uv",
+                    "build",
+                    str(archive),
+                    "--wheel",
+                    "--out-dir",
+                    str(args.output_dir.resolve()),
+                    *flags,
+                ],
+                cwd=root,
+                check=True,
+            )
 
 
 if __name__ == "__main__":

@@ -1,8 +1,0 @@
-# server.yaml
-
-host: "0.0.0.0"
-port: 8765
-max_peers_per_room: 2
-ping_interval: 30.0
-ping_timeout: 10.0
-max_message_size: 1_048_576 # 1MB

@@ -1,174 +1,127 @@
-"""
-房间管理服务
+"""Room-scoped routing; connection identity never comes from a message body."""
 
-负责管理所有房间和对等端，处理加入/离开/消息路由等业务逻辑
-"""
-
-from dataclasses import dataclass, field
-from typing import Any, Optional
-import uuid
 import json
+import uuid
+from dataclasses import dataclass, field
+from typing import Any
 
-from rd_core.logging import get_logger
+from rd_core.auth import AuthorizationError, Principal
+
 from rd_server.signaling.models import Peer, Room
-
-logger = get_logger(__name__)
 
 
 @dataclass
 class RoomManager:
-    """
-    房间管理器
-
-    负责管理所有房间和对等端，处理加入/离开/消息路由
-    """
-
     max_peers_per_room: int = 2
+    send_timeout_s: float = 3.0
     rooms: dict[str, Room] = field(default_factory=dict)
     peers: dict[str, Peer] = field(default_factory=dict)
 
-    # -------------------- 房间操作 --------------------
-
-    def get_room(self, room_id: str) -> Optional[Room]:
-        """获取房间"""
-        return self.rooms.get(room_id)
-
-    def get_or_create_room(self, room_id: str) -> Room:
-        """获取或创建房间"""
-        if room_id not in self.rooms:
-            self.rooms[room_id] = Room(
-                id=room_id,
-                max_peers=self.max_peers_per_room,
-            )
-            logger.info(f"房间已创建: {room_id}")
-        return self.rooms[room_id]
-
-    def remove_room_if_empty(self, room_id: str) -> None:
-        """如果房间为空则删除"""
-        room = self.rooms.get(room_id)
-        if room and room.is_empty:
-            del self.rooms[room_id]
-            logger.info(f"房间已销毁: {room_id}")
-
-    # -------------------- 对等端操作 --------------------
-    async def register_peer(self, websocket) -> Peer:
-        """注册新的对等端"""
-        peer_id = str(uuid.uuid4())
-        peer = Peer(id=peer_id, websocket=websocket)
-        self.peers[peer_id] = peer
-        logger.info(f"对等端已连接: {peer_id}")
+    async def register_peer(
+        self, websocket, principal: Principal | None = None
+    ) -> Peer:
+        peer = Peer(
+            str(uuid.uuid4()), websocket, principal, send_timeout_s=self.send_timeout_s
+        )
+        self.peers[peer.id] = peer
         return peer
 
     async def unregister_peer(self, peer: Peer) -> None:
-        """注销对等端"""
-        if peer.room_id:
-            await self.leave_room(peer)
+        await self.leave_room(peer)
         self.peers.pop(peer.id, None)
-        logger.info(f"对等端已断开: {peer.id}")
 
     async def join_room(self, peer: Peer, room_id: str) -> bool:
-        """
-        加入房间
-
-        返回: 是否成功加入
-        """
-        room = self.get_or_create_room(room_id)
-
-        if room.is_full:
+        if peer.principal is not None:
+            peer.principal.check_room(room_id)
+        if peer.room_id == room_id:
+            room = self.rooms[room_id]
+            await peer.send(
+                {
+                    "type": "joined",
+                    "id": peer.id,
+                    "peers": room.get_other_peer_ids(peer.id),
+                }
+            )
+            return True
+        if peer.room_id is not None:
+            await self.leave_room(peer)
+        room = self.rooms.setdefault(
+            room_id, Room(id=room_id, max_peers=self.max_peers_per_room)
+        )
+        # Capacity check and membership insertion contain no suspension point.
+        if not room.add_peer(peer):
             await peer.send({"type": "full", "message": "room is full"})
-            logger.info(f"对等端 {peer.id} 加入被拒绝 - 房间 {room_id} 已满")
             return False
-
-        await room.broadcast({"type": "new_peer", "id": peer.id})
-        room.add_peer(peer)
-
-        existing_peer = room.get_other_peer_ids(peer.id)
-
-        await peer.send({"type": "joined", "id": peer.id, "peers": existing_peer})
-        logger.info(f"[{room_id}] {peer.id} 加入 ({room.peer_count}/{room.max_peers})")
+        await peer.send(
+            {"type": "joined", "id": peer.id, "peers": room.get_other_peer_ids(peer.id)}
+        )
+        await room.broadcast({"type": "new_peer", "id": peer.id}, peer.id)
         return True
 
     async def leave_room(self, peer: Peer) -> None:
-        """离开房间"""
-        if not peer.room_id:
-            return
-
-        room_id = peer.room_id
-        room = self.get_room(room_id)
-
-        if not room:
+        room = self.rooms.get(peer.room_id)
+        if room is None:
             peer.room_id = None
             return
-
         room.remove_peer(peer.id)
-
+        if room.is_empty:
+            self.rooms.pop(room.id, None)
         await room.broadcast({"type": "peer_left", "id": peer.id})
-        logger.info(f"[{room_id}] {peer.id} 离开 ({room.peer_count}/{room.max_peers})")
-
-        self.remove_room_if_empty(room_id)
 
     async def handle_message(self, peer: Peer, raw_message: str) -> None:
-        """处理收到的消息"""
         try:
-            message = json.loads(raw_message)
-        except json.JSONDecodeError:
-            await peer.send({"type": "error", "message": "无效的JSON格式"})
-            return
+            if peer.principal is not None:
+                peer.principal.check_active()
+            try:
+                message = json.loads(raw_message)
+            except (ValueError, TypeError, RecursionError):
+                await self.error(peer, "invalid_json")
+                return
+            if not isinstance(message, dict) or not isinstance(
+                message.get("type"), str
+            ):
+                await self.error(peer, "invalid_message")
+                return
+            handler = {
+                "join": self.handle_join,
+                "offer": self.handle_forward,
+                "answer": self.handle_forward,
+                "candidate": self.handle_forward,
+            }.get(message["type"])
+            if handler is None:
+                await self.error(peer, "unknown_message")
+            else:
+                await handler(peer, message)
+        except AuthorizationError:
+            await peer.close(1008, "access denied")
 
-        msg_type = message.get("type")
-        if not msg_type:
-            return
-
-        # 查找并执行处理器
-        handler_method = {
-            "join": self.handle_join,
-            "offer": self.handle_forward,
-            "answer": self.handle_forward,
-            "candidate": self.handle_forward,
-        }.get(msg_type)
-        if handler_method is not None:
-            await handler_method(peer, message)
-        else:
-            logger.warning(f"未知消息类型: {msg_type}")
+    async def error(self, peer: Peer, reason: str):
+        await peer.send({"type": "error", "message": reason})
 
     async def handle_join(self, peer: Peer, message: dict[str, Any]):
-        """
-        处理加入房间请求
-
-        消息格式: {"type": "join", "room": "<room_id>"}
-        """
-
         room_id = message.get("room")
-        if not room_id:
-            await peer.send({"type": "error", "message": "invalid_room_id"})
+        if not isinstance(room_id, str) or not 1 <= len(room_id) <= 128:
+            await self.error(peer, "invalid_room_id")
             return
-
-        if peer.room_id:
-            await self.leave_room(peer)
-
         await self.join_room(peer, room_id)
 
     async def handle_forward(self, peer: Peer, message: dict[str, Any]):
-        """
-        转发消息处理器
-
-        用于转发 offer/answer/candidate 等 WebRTC 信令消息
-        支持定向发送(带to字段)和广播
-        """
-
-        if not peer.room_id:
+        room = self.rooms.get(peer.room_id)
+        if room is None or room.peers.get(peer.id) is not peer:
+            await self.error(peer, "join_required")
             return
-
-        room = self.get_room(peer.room_id)
-        if not room:
-            return
-
-        if "from" not in message:
-            message["from"] = peer.id
-
-        target_id = message.get("to")
-        if target_id and target_id in room.peers:
-            await room.peers[target_id].send(message)
+        if peer.principal is not None:
+            peer.principal.check_room(room.id)
+        forwarded = {**message, "from": peer.id}
+        if "to" in message:
+            target_id = message["to"]
+            if (
+                not isinstance(target_id, str)
+                or target_id == peer.id
+                or target_id not in room.peers
+            ):
+                await self.error(peer, "invalid_target")
+                return
+            await room.peers[target_id].send(forwarded)
         else:
-            await room.broadcast(message, peer.id)
-
+            await room.broadcast(forwarded, peer.id)

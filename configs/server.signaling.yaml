@@ -1,0 +1,36 @@
+# 已实现的认证信令示例；驾驶端/车端认证客户端将在后续批次接入。
+environment: production
+services: [signaling]
+logging:
+  level: INFO
+signaling:
+  host: 127.0.0.1
+  port: 8765
+  max_peers_per_room: 2
+  max_message_bytes: 65536
+  ping_interval_s: 20
+  ping_timeout_s: 20
+  send_timeout_s: 3
+  close_timeout_s: 3
+  tls:
+    cert: tls/server.pem
+    key: tls/server.key
+# 身份、角色和资源权限由服务端配置确定，客户端不能自报提升权限。
+auth:
+  principals:
+    - id: vehicle-1234
+      role: vehicle
+      token_env: RD_VEHICLE_TOKEN
+      sessions: [1234]
+      rooms: ["1234"]
+    - id: operator-1234
+      role: driving
+      token_env: RD_OPERATOR_TOKEN
+      sessions: [1234]
+      rooms: ["1234"]
+    - id: viewer-1234
+      role: viewer
+      token_env: RD_VIEWER_TOKEN
+      sessions: []
+      rooms: ["1234"]
+# 可为各身份设置带时区的 expires_at，过期后会关闭已有信令连接。

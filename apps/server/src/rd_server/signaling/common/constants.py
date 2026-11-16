@@ -11,4 +11,3 @@ ROOT_PATH = Path(__file__).parent.parent.resolve()
 
 # 配置文件路径
 CONFIG_PATH = ROOT_PATH / "config"
-

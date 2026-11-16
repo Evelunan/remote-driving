@@ -6,12 +6,11 @@
 """
 
 from .constants import (
-    ROOT_PATH,
     CONFIG_PATH,
+    ROOT_PATH,
 )
 
 __all__ = [
-    "ROOT_PATH",
     "CONFIG_PATH",
+    "ROOT_PATH",
 ]
-

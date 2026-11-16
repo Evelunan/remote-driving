@@ -1,0 +1,11 @@
+# 仅用于旧客户端的本机开发。不要用于实车或公网。
+environment: development
+services: [signaling]
+allow_legacy_development: true
+logging:
+  level: INFO
+signaling:
+  host: 127.0.0.1
+  port: 8765
+  max_peers_per_room: 2
+# 启用 relay 时仍需提供 relay.tls.cert/key。
