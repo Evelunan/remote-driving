@@ -133,8 +133,11 @@ async def run(
     camera_factory=None,
     install_signals=False,
 ):
+    """In-process component host; the production CLI owns separate spawned hosts."""
     check_config(settings)
     stop = stop or asyncio.Event()
+    if stop.is_set():
+        return
     loop = asyncio.get_running_loop()
     signals = []
     for sig in (signal.SIGINT, signal.SIGTERM) if install_signals else ():
@@ -203,7 +206,9 @@ def cli(argv=None):
                 "Configuration, credentials, TLS and selected controller imports are valid; no devices opened."
             )
         else:
-            asyncio.run(run(settings, install_signals=True))
+            from rd_vehicle.processes import VehicleProcesses
+
+            asyncio.run(VehicleProcesses(settings).run(install_signals=True))
     except KeyboardInterrupt:
         pass
     except (ConfigError, OSError, ImportError, ValueError) as exc:

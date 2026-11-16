@@ -343,12 +343,33 @@ class SerialSettings:
 
 
 @dataclass(frozen=True)
+class ProcessSettings:
+    heartbeat_interval_s: float = 0.1
+    heartbeat_timeout_s: float = 1.0
+    startup_timeout_s: float = 15.0
+    shutdown_timeout_s: float = 5.0
+    kill_timeout_s: float = 1.0
+
+    def __post_init__(self):
+        _positive(**vars(self))
+        if not (
+            self.heartbeat_interval_s
+            < self.heartbeat_timeout_s
+            <= self.startup_timeout_s
+        ):
+            raise ValueError(
+                "process heartbeat interval < timeout <= startup timeout required"
+            )
+
+
+@dataclass(frozen=True)
 class VehicleSettings:
     environment: Environment = "development"
     session: int = 1234
     room: str = "1234"
     controller: Literal["none", "mock", "ros2", "serial"] = "none"
     components: tuple[Literal["control", "media"], ...] = ("control", "media")
+    processes: ProcessSettings = field(default_factory=ProcessSettings)
     logging: LoggingSettings = field(default_factory=LoggingSettings)
     credentials: CredentialSettings = field(default_factory=CredentialSettings)
     network: ClientNetworkSettings = field(default_factory=ClientNetworkSettings)
