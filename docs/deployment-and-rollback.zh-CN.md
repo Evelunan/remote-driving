@@ -88,7 +88,7 @@ python3.12 scripts/manage_release.py activate \
 
 - [rd-server@.service](../deploy/systemd/rd-server@.service)：`server-main`实例默认同时运行两模块；故障重启间隔 3 秒、60 秒最多 5 次。需故障隔离时，建立不同根目录/实例配置，分别指定 `services: [signaling]`和`services: [relay]`，仍使用同一个服务端 wheel。先停共同运行实例，再启用拆分实例，避免端口冲突。
 - [rd-vehicle@.service](../deploy/systemd/rd-vehicle@.service)：应用内部管理 control/media 进程及重连；进程监护失败后保持退出，检查设备和停车接口后重新启动。`KillMode=mixed`先通知父进程，让父进程关闭并回收子进程；最终超时由 systemd 处理整个进程组。默认 20 秒停止预算大于当前 5+1+1 秒进程退出预算；修改这些配置需同步校核。
-- [rd-driving@.service](../deploy/systemd/rd-driving@.service)：桌面用户服务，发布根目录为 `%h/.local/share/remote-driving/%i`。由图形会话启动并提供 DISPLAY/WAYLAND_DISPLAY、XDG_RUNTIME_DIR 等会话环境；不在系统服务中硬编码其他用户的显示权限。关闭窗口走已验证的异步清理路径；当前 GUI 未处理 Unix SIGTERM 为优雅退出，终止后的远端失效保护仍由各端超时与连接关闭承担。
+- [rd-driving@.service](../deploy/systemd/rd-driving@.service)：桌面用户服务，发布根目录为 `%h/.local/share/remote-driving/%i`。由图形会话启动并提供 DISPLAY/WAYLAND_DISPLAY、XDG_RUNTIME_DIR 等会话环境；不在系统服务中硬编码其他用户的显示权限。关闭窗口走已验证的异步清理路径；B23 起 `SIGINT`/`SIGTERM`请求同一个异步关闭流程，等待控制/媒体工作线程结束后退出；此前的历史版本直接按信号退出，回退记录会保留该差异。
 
 部署时将 `manage_release.py`、车辆包装器放入 `/usr/local/lib/remote-driving/`，模板放入相应 systemd system/user unit 目录。模板中的 `/usr/bin/python3.12`需对应目标机器的长期保留解释器；修改路径后执行 `systemd-analyze verify`。服务数据写到独立 StateDirectory；如另设 `logging.directory`，须确保服务账号可写且在版本目录以外。
 
@@ -142,6 +142,8 @@ python3.12 scripts/smoke_release_rollback.py \
   --offline --output /tmp/rd-rollback.json
 ```
 
-输出只有全部步骤通过才置 `passed: true`，失败保留此前完成的阶段。这里的演练逐角色执行，不代表三端联动、真实系统服务、真实设备或公网网络全部验收；完整三端模拟另见[控制验证](control-simulation.zh-CN.md)和[视频安全策略](video-safety.zh-CN.md)。ROS2 发行版、真实制动/停车反馈、物理显示、相机/USB权限以及外部 TURN 仍待目标环境确认。
+输出只有全部步骤通过才置 `passed: true`，失败保留此前完成的阶段。这里的演练逐角色执行，不代表三端联动、真实系统服务、真实设备或公网网络全部验收；当前 wheel 还通过独立安装检查严格要求 `SIGINT`/`SIGTERM`退出码为 0；演练工具为支持历史发布仍接受旧驾驶端的 -15，并显式记录 `graceful_exit`。完整三端模拟另见[控制验证](control-simulation.zh-CN.md)和[视频安全策略](video-safety.zh-CN.md)。ROS2 发行版、真实制动/停车反馈、物理显示、相机/USB权限以及外部 TURN 仍待目标环境确认。
 
 B22 本地[原始报告](validation/release-rollback-b22.json)已通过：旧制品取自 B19（匹配源码 `e55e4dc`），新制品取自 B21（`04c6f49`），九次角色启动/退出及三组配置选择完成。安装环境使用 Python 3.12.16。六套复制环境需要数 GiB 临时空间；本机 `/tmp` 容量不足，实际以 `TMPDIR`指定空间充足且被 Git 忽略的 `artifacts/b22-tmp`后完成，退出时清理。
+
+B23 后续[回退报告](validation/release-rollback-b23.json)使用 B21/B23 制品：驾驶端 old/new/old 的退出码分别为 -15/0/-15，三个阶段的服务端和车辆端均为 0。当前 wheel 的 SIGINT/SIGTERM 正常关闭另有[严格安装验收](validation/wheel-acceptance-b23.json)。

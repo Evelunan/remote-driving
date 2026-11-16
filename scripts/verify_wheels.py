@@ -118,7 +118,11 @@ def main():
         )
         # No package import can resolve through the source checkout, including via
         # sys.path[0] of the acceptance scripts themselves.
-        for name in ("check_installed.py", "smoke_vehicle_processes.py"):
+        for name in (
+            "check_installed.py",
+            "smoke_vehicle_processes.py",
+            "smoke_driving_signals.py",
+        ):
             shutil.copy2(ROOT / "scripts" / name, work / name)
         shutil.copytree(
             ROOT / "configs",

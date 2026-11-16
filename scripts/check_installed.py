@@ -305,6 +305,17 @@ assert window._closing_ready
                 ]
             )
             report["qt_offscreen_open_close"] = True
+            report["driving_cli_signals"] = json.loads(
+                run(
+                    [
+                        sys.executable,
+                        str(Path(__file__).with_name("smoke_driving_signals.py")),
+                        "--config",
+                        str(config_path),
+                    ],
+                    timeout=40,
+                )
+            )
         args.output.write_text(json.dumps(report, indent=2) + "\n")
 
 

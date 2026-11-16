@@ -33,6 +33,7 @@ from rd_driving.infrastructure.workers import (
     SignalBridge,
     WebRTCReceiverThread,
 )
+from rd_driving.shutdown import shutdown_signals
 from rd_driving.ui.widgets import LoginPage, MultiVideoWidget
 
 logger = get_logger(__name__)
@@ -561,7 +562,9 @@ def run_gui(settings, *, connect=False):
         settings=settings,
     )
     window.show()
-    return app.exec()
+    with shutdown_signals(window):
+        QTimer.singleShot(0, lambda: logger.info("Driving GUI event loop responding"))
+        return app.exec()
 
 
 def main(argv=None):

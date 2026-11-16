@@ -148,8 +148,9 @@ async def exercise(root, role, release_id, env, work, network):
             assert "still running" in duplicate.stderr
             process.send_signal(signal.SIGTERM)
             await asyncio.to_thread(process.wait, timeout=12)
-            # Qt does not install a Unix SIGTERM handler; systemd's user-session
-            # unit accepts that termination. Server and vehicle must close cleanly.
+            # Historical driving releases exited directly on SIGTERM. Preserve
+            # that fact in rollback reports; current wheels additionally face a
+            # strict zero-exit CLI signal check in verify_wheels.py.
             expected = {-signal.SIGTERM, 0} if role == "driving" else {0}
             if process.returncode not in expected:
                 raise RuntimeError(f"{role} shutdown returned {process.returncode}")
@@ -175,6 +176,7 @@ async def exercise(root, role, release_id, env, work, network):
             return {
                 "started": True,
                 "exitcode": process.returncode,
+                "graceful_exit": process.returncode == 0,
                 "selection_while_running_rejected": True,
                 "duplicate_start_rejected": True,
                 "children_reaped": True,

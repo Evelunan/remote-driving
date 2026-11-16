@@ -1,0 +1,154 @@
+{
+  "scope": "isolated wheels; loopback networking, mock controller, synthetic video and Qt offscreen",
+  "created_at": "2026-11-16T11:52:32.152011+00:00",
+  "source_commit": "43930e9783bae9a5380dbc88b70e79a0a607bb87",
+  "source_dirty": true,
+  "python": "3.12.16",
+  "platform": "Linux-6.18.58.1-microsoft-standard-WSL2-x86_64-with-glibc2.43",
+  "uv": "uv 0.13.8 (x86_64-unknown-linux-gnu)",
+  "lock_sha256": "372294257186adc23b4ea0ee359740c7f65a43b1497ae4cd5d2d2fc4c0252b43",
+  "wheels": {
+    "rd-core": {
+      "filename": "rd_core-0.2.0-py3-none-any.whl",
+      "version": "0.2.0",
+      "sha256": "66225e0962079c288915b8995fb8a64715dcc7202478b1c2fed3299852c55f8b"
+    },
+    "rd-driving": {
+      "filename": "rd_driving-0.2.0-py3-none-any.whl",
+      "version": "0.2.0",
+      "sha256": "a41fe030a3cb984abf9fdc0507ec71d3b9bd6ec5493a8c06c899526b11e740e1"
+    },
+    "rd-quic": {
+      "filename": "rd_quic-0.2.0-py3-none-any.whl",
+      "version": "0.2.0",
+      "sha256": "de641cde9e5882572bccb652bdc002ad52dc33430b67a29edd82de55b335ea25"
+    },
+    "rd-server": {
+      "filename": "rd_server-0.2.0-py3-none-any.whl",
+      "version": "0.2.0",
+      "sha256": "78cc3efcb71079203b7ce516cb6a3b2a5b80f0bdd6e98d27db84c2261d610707"
+    },
+    "rd-vehicle": {
+      "filename": "rd_vehicle-0.2.0-py3-none-any.whl",
+      "version": "0.2.0",
+      "sha256": "e07226e88c6d9fe9484c8c85ea1c905f5a429de35d298d4466a997312ae9175e"
+    },
+    "rd-webrtc": {
+      "filename": "rd_webrtc-0.2.0-py3-none-any.whl",
+      "version": "0.2.0",
+      "sha256": "a4bb6ac6b04ab10b36db05aae3d1b9689b778b986a337a39b94b9e66c72fb675"
+    }
+  },
+  "roles": {
+    "server": {
+      "packages": {
+        "rd-server": "0.2.0",
+        "rd-quic": "0.2.0",
+        "rd-core": "0.2.0"
+      },
+      "installed_python_files_match_wheels": 38,
+      "other_apps_absent": true,
+      "cli_help_dump_check_and_lazy_imports": true,
+      "server_runtime": [
+        {
+          "services": [
+            "signaling",
+            "relay"
+          ],
+          "authenticated_probes": true,
+          "ports_released": true
+        },
+        {
+          "services": [
+            "signaling"
+          ],
+          "authenticated_probes": true,
+          "ports_released": true
+        },
+        {
+          "services": [
+            "relay"
+          ],
+          "authenticated_probes": true,
+          "ports_released": true
+        }
+      ]
+    },
+    "vehicle": {
+      "packages": {
+        "rd-webrtc": "0.2.0",
+        "rd-core": "0.2.0",
+        "rd-vehicle": "0.2.0",
+        "rd-quic": "0.2.0"
+      },
+      "installed_python_files_match_wheels": 57,
+      "other_apps_absent": true,
+      "cli_help_dump_check_and_lazy_imports": true,
+      "vehicle_cli": {
+        "python": "/tmp/rd-wheel-acceptance-c7gaeacv/vehicle/bin/python",
+        "results": [
+          {
+            "components": [
+              "control",
+              "media"
+            ],
+            "pids": {
+              "control": 632211,
+              "media": 632212
+            },
+            "exitcode": 0,
+            "children_reaped": true
+          },
+          {
+            "components": [
+              "control"
+            ],
+            "pids": {
+              "control": 632327
+            },
+            "exitcode": 0,
+            "children_reaped": true
+          },
+          {
+            "components": [
+              "media"
+            ],
+            "pids": {
+              "media": 632432
+            },
+            "exitcode": 0,
+            "children_reaped": true
+          }
+        ]
+      }
+    },
+    "driving": {
+      "packages": {
+        "rd-driving": "0.2.0",
+        "rd-quic": "0.2.0",
+        "rd-core": "0.2.0",
+        "rd-webrtc": "0.2.0"
+      },
+      "installed_python_files_match_wheels": 83,
+      "other_apps_absent": true,
+      "cli_help_dump_check_and_lazy_imports": true,
+      "qt_offscreen_open_close": true,
+      "driving_cli_signals": {
+        "results": [
+          {
+            "signal": "SIGTERM",
+            "gui_event_loop_ready": true,
+            "exitcode": 0
+          },
+          {
+            "signal": "SIGINT",
+            "gui_event_loop_ready": true,
+            "exitcode": 0
+          }
+        ]
+      }
+    }
+  },
+  "physical_stop_verified": false,
+  "passed": true
+}
