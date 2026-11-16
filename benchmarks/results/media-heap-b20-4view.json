@@ -1,0 +1,57 @@
+{
+  "schema": "rd-media-heap-diagnostic/1",
+  "valid": true,
+  "scope": "four-view media soak followed by final Python GC and glibc malloc_trim; no control devices or production allocator changes",
+  "diagnostic_sha256": "79e572c24c7fd3a4b0a46774a45e32a0b36d4d00f5381fcda3df0a084416e2c9",
+  "soak_report": {
+    "file": "benchmarks/results/media-heap-soak-b20-4view.json",
+    "sha256": "994cfd0ed27ef68f276787dffcea5d9b853847376bebf3b4b0faf28e7c3ad292"
+  },
+  "after_soak_return": {
+    "monotonic_s": 126994.55463409,
+    "cpu_s": 18.785721148,
+    "rss_mib": 519.36328125,
+    "file_descriptors": 9,
+    "native_threads": 50,
+    "python_threads": [
+      "MainThread"
+    ],
+    "gc_collections": [
+      363,
+      33,
+      4
+    ]
+  },
+  "after_final_gc": {
+    "monotonic_s": 126994.572399556,
+    "cpu_s": 18.803488483,
+    "rss_mib": 519.3671875,
+    "file_descriptors": 9,
+    "native_threads": 50,
+    "python_threads": [
+      "MainThread"
+    ],
+    "gc_collections": [
+      363,
+      33,
+      5
+    ]
+  },
+  "malloc_trim_return": 1,
+  "after_trim": {
+    "monotonic_s": 126994.575003736,
+    "cpu_s": 18.806091163,
+    "rss_mib": 463.98046875,
+    "file_descriptors": 9,
+    "native_threads": 50,
+    "python_threads": [
+      "MainThread"
+    ],
+    "gc_collections": [
+      363,
+      33,
+      5
+    ]
+  },
+  "reclaimed_mib": 55.38671875
+}

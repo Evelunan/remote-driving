@@ -181,3 +181,45 @@ B18 发现采集到编码输入的 P95 约为一帧周期（32.5 ms），而编�
 保留 WebRTC/aiortc、VP8/libvpx 软件编码、OpenCV 和普通 PyQt 显示路径，没有更换媒体后端、减少视角、降低分辨率或帧率。主辅视角码率/资源预算、独立进程部署开销、弱网/TURN、长期重连 RSS 和实机链路仍在后续阶段。
 
 [完整对比 JSON](../benchmarks/results/media-b19-comparison.json) 保存全部指标与输入 SHA-256；新原始报告：[单路第1轮](../benchmarks/results/media-b19-1view-r1.json)、[单路第2轮](../benchmarks/results/media-b19-1view-r2.json)、[单路第3轮](../benchmarks/results/media-b19-1view-r3.json)；[四路第1轮](../benchmarks/results/media-b19-4view-r1.json)、[四路第2轮](../benchmarks/results/media-b19-4view-r2.json)、[四路第3轮](../benchmarks/results/media-b19-4view-r3.json)。
+
+## B20 持续重连与资源观测
+
+`scripts/soak_media.py` 使用同一进程持续运行真实 WSS/WebRTC、四路合成相机、解码、帧缓存和 Qt offscreen 绘制；在推流端和接收端之间轮流强制断开信令，等待新的连接身份以及所有视角重新绘制后再进入下一测量窗口。每个窗口保留各路接收/绘制 FPS，包括零值；任一视角整段没有进展就报错。此工具不建立 QUIC 控制连接，不替代正式车端分进程开销、弱网/TURN 或实车测试。
+
+```bash
+# 快速检查：两种方向的重连都执行一次。
+.venv/bin/python scripts/soak_media.py --profile small --cycles 3 --seconds 0.5 --warmup 0 --output /tmp/media-soak-smoke.json
+# 正式尺寸，60 个稳定窗口及 59 次重连，约十分钟。
+.venv/bin/python scripts/soak_media.py --cycles 60 --seconds 10 --warmup 2 --output /tmp/media-soak.json
+```
+
+观测包括 Linux RSS、进程 CPU、文件描述符、原生/Python 线程、asyncio 任务类型与数量、GC 回收次数，以及旧 RTCPeerConnection 的弱引用。只保存有界标量、计数和最新帧；不会为了测量保留历史图像或强引用旧连接。ICE 限定并实际核验为 `127.0.0.1` 的 host 候选；临时证书和随机令牌用后清理。工作负载为确定的移动色块，不能与 B18/B19 移动纹理的延迟/CPU 数字直接比较。
+
+稳定阶段不强制 GC；在所有端点关闭后分别记录 GC 前后资源，再退出事件循环和后台线程。关闭后要求相机线程退出、端点/服务端容器清空、没有遗留 asyncio 任务，且旧连接在最终 GC 后不再可达。RSS 没有立即回落不等于已经证明泄漏，也不等于已经证明没有泄漏；原生分配器、编解码器、Qt 缓存仍需结合趋势分析。`valid: true` 仅表示规定窗口、重连、绘制与清理完成，不是通用内存稳定性认证。工具记录后半段 RSS 斜率，默认 2048 MiB 驻留内存上限超出即失败，不删除不利样本。
+
+校准：四路实际往返、两端重连、新身份关联、关闭回收、增长/零值统计及失败不沿用旧成功报告的检查通过。退出后的 glibc 诊断亦纳入校准，全量回归 256 项通过（41.69 s）。
+
+正式尺寸结果：约 **617.21 s**，60 个稳定窗口、59 次重连均完成，测量和关闭检查通过。稳定阶段各路绘制 FPS 的中位数约 29.80–29.85，最小窗口约 29.47；重新绘制全部视角耗时 206.82–337.99 ms。完整记录见 [60 窗口资源报告](../benchmarks/results/media-soak-b20-4view.json)。
+
+| 稳定窗口末端资源 | 首个窗口 | 最后窗口 | 60 个窗口范围 |
+| --- | ---: | ---: | ---: |
+| RSS（MiB） | 446.70 | 724.30 | 446.70–776.86 |
+| asyncio 任务数 | 39 | 39 | 39 |
+| 原生线程数 | 109 | 109 | 109 |
+| 文件描述符数 | 19 | 19 | 19 |
+| 尚可达的旧连接数 | 0 | 0 | 0–2 |
+
+RSS 在前段升高后波动，后半段线性趋势约 **−6.22 MiB/min**；不能由这一段负斜率推断无限期无泄漏。旧连接随自动 GC 回收，关闭后强制 GC 的旧连接可达数为 0，所有相机线程退出、服务端房间/端点容器清空、无额外 asyncio 任务。后台退出后 Python 线程只剩主线程；原生线程仍为 50、文件描述符为 9，RSS 为 511.22 MiB。原生资源未恢复到启动前的 32 线程、8 描述符、149.75 MiB，不能把“没有逐轮增长”写成“所有原生内存均已释放”。
+
+本次给出了特定负载下的重复重连证据。正式进程部署、硬件环境和更长运行周期仍按部署验收执行；未把十分钟的软件记录当作实车长期稳定性认证。
+
+可选 glibc 诊断：
+
+```bash
+.venv/bin/python scripts/diagnose_media_memory.py --cycles 6 --seconds 2 \
+  --soak-output /tmp/media-heap-soak.json --output /tmp/media-heap.json
+```
+
+该工具在独立进程内运行一段四路重连，完整关闭媒体和 Qt 后再观察最终 GC、`malloc_trim(0)` 前后的 RSS。调用只发生在诊断进程退出前，不加入生产代码或稳定测量阶段。RSS 的可回收部分说明存在空闲堆页滞留；不能据此推断所有原生内存均已释放，也不能把它直接视为生产环境优化方案。工具限于 glibc，其他分配器需单独适配。
+
+本机另一次 6 窗口诊断中，完整关闭后的 RSS 为 519.36 MiB，额外 GC 后为 519.37 MiB，glibc 回收空闲堆页后降至 463.98 MiB，释放约 **55.39 MiB**。这证明部分滞留来自可回收堆页；剩余内存和原生线程不能全部归因于该分配器。结果见 [堆诊断](../benchmarks/results/media-heap-b20-4view.json) 与对应的 [短时重连记录](../benchmarks/results/media-heap-soak-b20-4view.json)。未根据此结果向生产程序加入周期性 GC 或 malloc_trim。

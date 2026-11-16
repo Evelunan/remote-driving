@@ -39,7 +39,7 @@ uv run --no-sync python scripts/verify_wheels.py --wheels artifacts/wheels --out
 
 | 环境 | 状态和边界 |
 | --- | --- |
-| 本机 Linux/WSL2，x86_64，Python 3.12.16 | 以 `--locked` 建立全新开发环境，全量 235 项回归通过；三个干净角色环境的安装和生命周期检查通过 |
+| 本机 Linux/WSL2，x86_64，Python 3.12.16 | 以 `--locked` 建立全新开发环境，最新全量 256 项回归通过；独立安装重复检查通过，B19 首次车辆退出失败尚待定位（详见下文） |
 | GitHub 托管 Ubuntu 24.04，x86_64，Python 3.12.16 | 工作流已配置；本次仅本地提交，尚未推送或执行远端 Actions。远端 apt/包源及 runner 的执行结果仍需首次运行确认 |
 | 车辆 ROS2 + Python 3.12 | 用户已确认技术路线；ROS2 发行版、系统依赖、实际底盘停车接口仍待实机验证 |
 | 真实桌面 / GPU / 摄像头 / USB | offscreen 与合成设备通过不能代替对应验收 |
@@ -50,3 +50,7 @@ Linux offscreen 仍需要 Qt/OpenCV 原生库。工作流安装 `libgl1`、`libe
 B17 本地报告见 [独立安装记录](validation/wheel-acceptance-b17.json)。其中 `source_commit` 为开始验证时的父提交，`source_dirty: true` 表示本批验证脚本尚未提交；制品以 SHA-256 标识。Git 提交关联见 [实施记录](refactoring-progress.zh-CN.md)。
 
 工作流配置依据 [uv 的 GitHub Actions 文档](https://docs.astral.sh/uv/guides/integration/github/)、[checkout v7.0.1](https://github.com/actions/checkout/tree/v7.0.1) 和 [upload-artifact v7.0.2](https://github.com/actions/upload-artifact/tree/v7.0.2)。
+
+B19 视频优化后，独立安装首次在车辆退出阶段返回 1；失败记录没有删除。随后复查及额外 12 轮全新环境验收通过，目前不能认定已修复偶发退出问题。[首次失败](validation/wheel-acceptance-b19-first-failed.json)、[复查](validation/wheel-acceptance-b19.json) 和 [B20 重复检查](validation/wheel-acceptance-b20-repeats.json) 均保留。验收入口不自动重试失败，不把后一次通过替代失败原因。
+
+持续重连与资源观测命令、边界及结果见 [视频性能记录](video-performance.zh-CN.md)。

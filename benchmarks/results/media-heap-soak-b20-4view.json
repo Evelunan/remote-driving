@@ -1,0 +1,2799 @@
+{
+  "schema": "rd-media-soak/1",
+  "valid": true,
+  "valid_meaning": "all requested windows and reconnects completed, all views rendered, and owned resources closed; RSS trend is observational, not a stability certification",
+  "created_at": "2026-11-16T10:50:22.448375+00:00",
+  "scope": "single-process local WSS/WebRTC, synthetic camera, real decode/cache/Qt offscreen paint; no QUIC, control device, physical display or TURN",
+  "python": "3.12.16",
+  "platform": "Linux-6.18.58.1-microsoft-standard-WSL2-x86_64-with-glibc2.43",
+  "versions": {
+    "aiortc": "1.14.0",
+    "aioice": "0.10.2",
+    "av": "16.1.0",
+    "numpy": "2.4.4",
+    "opencv-python": "4.13.0.92",
+    "PyQt6": "6.11.0",
+    "websockets": "16.0"
+  },
+  "git_commit": "e55e4dc02c424bb545fbf8f58e53ea0040ba25f4",
+  "git_dirty": true,
+  "source_sha256": {
+    "apps/driving/src/rd_driving/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "apps/driving/src/rd_driving/app/__init__.py": "f8bb0ec1954cadd26d7beb3432da798a7f28e6c8519c939120d30fc859e335dd",
+    "apps/driving/src/rd_driving/app/control_client.py": "a2225adca04bd2e7b77f0300a0a547d7ea96dc9413381a4b8eb52917384e9872",
+    "apps/driving/src/rd_driving/app/input_service.py": "dedbdc4d35f0456b0d07707c58900c7c0a779f632d6e60d4712eea72b29d11bd",
+    "apps/driving/src/rd_driving/branding.py": "7a3eb0a50c3c9dcf33e446d5eb7a9c4151fb933d191ad85cc17b73e032cd58d3",
+    "apps/driving/src/rd_driving/cli.py": "c6bf7fe93f596b114599832848ccb2eb785e564f1bb0ca293353085bf207f28c",
+    "apps/driving/src/rd_driving/common/constants.py": "15a838715e166001c3b0a7b5071b88b99dfe393edc459b95785d985296927dc5",
+    "apps/driving/src/rd_driving/factories/__init__.py": "7ecc58a2fbb17ecc34e7f0333aa9accaf99e4855efaa9286d6b231dd71ef7c60",
+    "apps/driving/src/rd_driving/factories/control_factory.py": "f956a431ebc3bad68f71bd38147043d540ba8b89b0a8ad2732da64b2658f643c",
+    "apps/driving/src/rd_driving/factories/ui_factory.py": "90467b5599b7c875bf9c3367d3f5d3e486a1291228f5adf9eaf153b00eba1302",
+    "apps/driving/src/rd_driving/factories/video_factory.py": "c3ad55af3804966bc895862ec1c3f23be8c5eee7d9631f23a317324e7b251be9",
+    "apps/driving/src/rd_driving/infrastructure/communication/__init__.py": "4232a4c04e184fa221ceae3c1e74fe756651188ed53317b5ceaaa92d2853c660",
+    "apps/driving/src/rd_driving/infrastructure/communication/async_queue.py": "667da5402d6a653bd8eafabfc02fc09d0bf3ae847c323e5c79fa91ac4a9ddc4f",
+    "apps/driving/src/rd_driving/infrastructure/communication/control_states.py": "a86c865fbb6e14b0895cba2b67af959be49f7a5333cb16e3827bb6f3f6413d1d",
+    "apps/driving/src/rd_driving/infrastructure/communication/latest_value_queue.py": "1a27fe957c8721573a0d012a82f0aafbf848ee95591f1d7411c77d60270cfeb2",
+    "apps/driving/src/rd_driving/infrastructure/device/__init__.py": "96f27e80c0593692d41d53477dcee469f62b8c5a329a6cc035523e3e9abbf748",
+    "apps/driving/src/rd_driving/infrastructure/device/input_config.py": "12115d36acb1d16bb4796cef826633a7d37ecef191f38c5033f55e7eb7e4ab11",
+    "apps/driving/src/rd_driving/infrastructure/device/usb_connector.py": "0a2acef9a62eef000305791e4bd1cd3dac5fb8cb84219ca3011b06fc0ba34e84",
+    "apps/driving/src/rd_driving/infrastructure/processing/__init__.py": "29cb97edf889f3dde90d203c78fcd07a576d39f523cfbffee2a6eb6e5180e833",
+    "apps/driving/src/rd_driving/infrastructure/processing/analog_calculator.py": "a379b12813a8aba8b9c2cea8c469ec9a2fddec33cdd0bc005ee5d1493a3c786c",
+    "apps/driving/src/rd_driving/infrastructure/processing/data_processor.py": "d93080e5a9230b3d4d613c0c20f957c89765620f159ae9afa5cd859f358d906c",
+    "apps/driving/src/rd_driving/infrastructure/protocol/__init__.py": "50e5dc004a146f6d5f90701ecc57b4d5d67f55133c996a421b4f40d61de4726a",
+    "apps/driving/src/rd_driving/infrastructure/protocol/codec.py": "c8740399549e1ce70aafe0635c6750c6a96979af6b31a88382be5ff81eabea90",
+    "apps/driving/src/rd_driving/infrastructure/protocol/driving_protocol.py": "265866cb5c5d301e7754f5202ddce4972239761c9549635587d9b1ea795f9dc8",
+    "apps/driving/src/rd_driving/infrastructure/video/__init__.py": "f77c1ec8a619428646d8aa8f389ce4b8284be8cdf8289b1a71e82b818921af67",
+    "apps/driving/src/rd_driving/infrastructure/video/frame_buffer.py": "cc0912686e30c479f02b185fbf52860a590311353cb3980b4ebc58afb205f620",
+    "apps/driving/src/rd_driving/infrastructure/video/multi_camera_display.py": "6f37ccdb70a5629b90ac525340be29e9a1e68a5f891aee648bcf45152e95b69b",
+    "apps/driving/src/rd_driving/infrastructure/video/peer_connection.py": "9438828bb3807bfce0e01a67ed3f83304894af4152e49c3dc7141de950844cee",
+    "apps/driving/src/rd_driving/infrastructure/video/signaling_client_.py": "4e1c8afdfb5c4db59bb6ac0dd2cc734ddbf67e6d591384fe73ed231ed6f70d81",
+    "apps/driving/src/rd_driving/infrastructure/video/webrtc_reciver.py": "960922559f9efc5c51ab3f6293f3dbe6a22342b3bb96f29341b62155b7d88482",
+    "apps/driving/src/rd_driving/infrastructure/workers/__init__.py": "7482d477873940de5eedce69a407ec18984960c4890bf9cb7adfe11b8d4bd067",
+    "apps/driving/src/rd_driving/infrastructure/workers/control_system_thread.py": "489f39ffb186ffe9ec6dbda3902459616aa254e467e1e251f0d9a80c9a0223ea",
+    "apps/driving/src/rd_driving/infrastructure/workers/signal_bridge.py": "10fc8a2298fffe502eaf224780386cd75897899cdeb918c1fcdb9994851c3651",
+    "apps/driving/src/rd_driving/infrastructure/workers/vehicle_status_thread.py": "fbfd9b737f7f49c018e1916413268ec7a3c0f281ac7922d06172e490c3811c2d",
+    "apps/driving/src/rd_driving/infrastructure/workers/video_reciver_thread.py": "3fc53cd8b2a43ff4e95c6f6c99d991064d6fb39e70601d21381bf58abe97ab7a",
+    "apps/driving/src/rd_driving/interfaces/__init__.py": "ec864a70540bad48a0c5c0cbf89436fb1b1bfb04ada60e249f2c9f2ca256e9c7",
+    "apps/driving/src/rd_driving/interfaces/communication.py": "1a3e29dc85b632fcb0cb6261b80135d098f6ebe22b00e136dfad8a6aa27adcdc",
+    "apps/driving/src/rd_driving/interfaces/device.py": "a2320e620f159c3a6cbfcc94a45b27dedbb01b2e7849babd76f082b8e30135f3",
+    "apps/driving/src/rd_driving/interfaces/processor.py": "ea16419b6bcfe4bd3b8d7c2144440d8b527977369c09aac845de8d35d5a57d70",
+    "apps/driving/src/rd_driving/interfaces/ui.py": "cc14f78097d6deedca4fd4ead48b63c58001534d08cc9383ed7c0779cf79c265",
+    "apps/driving/src/rd_driving/interfaces/video.py": "27940011d97cdf74b1620d478318e5e18dcedb63d08198c612b82ac56adaa21e",
+    "apps/driving/src/rd_driving/main_window.py": "f271a213f2ba14432e673b0d49a346cc2296953ced7df1aa4415cac7f8c59faa",
+    "apps/driving/src/rd_driving/ui/components/__init__.py": "68d21b9035e181a3ab8901b9e8feab4d88a35eb7a5ec1196a655b43a9f6f7d34",
+    "apps/driving/src/rd_driving/ui/components/connection_item.py": "bc4663c5f271bd01e139dbc70b8310f07d220f0fa29663c32d95c784329103bb",
+    "apps/driving/src/rd_driving/ui/components/data_card.py": "e2bf182dcd34cca13a507538e9823102926673c4b522e1395b0d91e5142fb7b6",
+    "apps/driving/src/rd_driving/ui/components/stat_item.py": "c857ff06682663a83fbcf4543d165908bcd4ff59410ebb11e0f6b176b103309f",
+    "apps/driving/src/rd_driving/ui/components/status_indicator.py": "1e46182779a871b7d332efe469c10efa63b0f14e326315e3231ef1835c98be22",
+    "apps/driving/src/rd_driving/ui/components/video_display.py": "b32bd9701ce97404bc2ecf0dcb0839883896067c51eec0cb8bd2282ff3df87f8",
+    "apps/driving/src/rd_driving/ui/themes/__init__.py": "d941de5ebfe4b8fc7795b143d8c4ffdb08df1bb6c93c5b32e49e2a9ceb8adab2",
+    "apps/driving/src/rd_driving/ui/themes/base_theme.py": "39aa8d20ccfade183aa8281138e51bbfcaf719b77db945cbdb982632ed6e00bd",
+    "apps/driving/src/rd_driving/ui/themes/dark_tech_theme.py": "72e72ca2222d046beaefc8359351ab3ba18cf82da4050d72fb6e4b56889526b7",
+    "apps/driving/src/rd_driving/ui/themes/modern_glass_theme.py": "7beb34647547af348d7d2468c8a03b79fdb0018947d65a12b1d3d1d427d83201",
+    "apps/driving/src/rd_driving/ui/widgets/__init__.py": "705d3f4f802a729cf275b96fb794fb08b63af6a436ee5b4ccd3e956c18b48a13",
+    "apps/driving/src/rd_driving/ui/widgets/control_panel.py": "de5e54c9bb4e2e62dc7373b847ba98f3fbda0ca4f8a0838616b09d91f0188d09",
+    "apps/driving/src/rd_driving/ui/widgets/gl_multi_video_widget.py": "b9d04d8568333fbc367e7bd0f80de23541a130e05b839883eda9f717d6a43f6d",
+    "apps/driving/src/rd_driving/ui/widgets/login_window.py": "245e8b0496a62479e7940aeda5f82f038d04b8662b4b9f2f3e583e75e49d7002",
+    "apps/driving/src/rd_driving/ui/widgets/multi_video_widget.py": "03b241e8e401e6387f97deb15018acd152bdef08c58359c558252df8c35e01f9",
+    "apps/driving/src/rd_driving/ui/widgets/navbar.py": "e5355bf1f8631dfe84f6205b3cc25a09098f6c30c51ff849c70a261d74a49688",
+    "apps/driving/src/rd_driving/ui/widgets/video_panel.py": "9cbe6b284d5c3455b8d9c521377126caa9c13c99a1ea2a3c5b0de57c763b61bd",
+    "apps/server/src/rd_server/__init__.py": "e2c584dae1124a19e14a7368ec485cc4f3194794e35dd8917c381efc407206b7",
+    "apps/server/src/rd_server/main.py": "0b49e97b9b1a40dd18db8f9e94ab2fad40793eef854ef3c33a1bfe19b410cfef",
+    "apps/server/src/rd_server/relay/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "apps/server/src/rd_server/relay/common/constants.py": "4035a8d2ab6d2ad824c2d2514cb31ae5ebf6286851cb786ce58fddbff71b279b",
+    "apps/server/src/rd_server/relay/control_service.py": "8f6371ea1213f50f73ac354a059df93d4f7dccdd2bcab8164ce1cee7470d4345",
+    "apps/server/src/rd_server/relay/registry.py": "7576ad15029256fcb4845f7351a8d83fd1efb0a10ffffc463ad634a90c367e70",
+    "apps/server/src/rd_server/relay/service.py": "0cfad0617d03f73e461667c46989bbcfa275848a4f2c1021984a128bf50e0e5f",
+    "apps/server/src/rd_server/relay/services/__init__.py": "95df8071f063640d3de7246b99b5813c4ec2ca6f5a554444fef10600fc6164df",
+    "apps/server/src/rd_server/relay/services/codec.py": "c8740399549e1ce70aafe0635c6750c6a96979af6b31a88382be5ff81eabea90",
+    "apps/server/src/rd_server/relay/services/relay_protocol.py": "121a71c91fc0bfd89830b4e4e85542c1e660d7533deb6329e434be1594ca73ca",
+    "apps/server/src/rd_server/relay/services/session_manager.py": "d907d830c0dda9cb6a33892b8538749a0347f73d4ec1326e9cf338ec41367b85",
+    "apps/server/src/rd_server/runtime.py": "37418180a361ef2a9588727ce438884157a5dee26dd154ee7a4eba1d0c3ac568",
+    "apps/server/src/rd_server/signaling/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "apps/server/src/rd_server/signaling/common/__init__.py": "daba4de865be25e6ef34110a62e88f6b49f337f705b61abcb9796282da815148",
+    "apps/server/src/rd_server/signaling/common/constants.py": "642d80512f780f44afc70074a30deed8372955d76d71bfe11ba33a2c607dbbab",
+    "apps/server/src/rd_server/signaling/models/__init__.py": "a98d8ea6db48fedfa0817dd6f9909db8068892d26d0b9d0619853ed783ea73d3",
+    "apps/server/src/rd_server/signaling/models/peer.py": "f91485e614bd3f42da6cb3e578e1406df4cf13c743f64aa6feb1325cf5036c3b",
+    "apps/server/src/rd_server/signaling/models/room.py": "274304138d435d87c5d36c39516210c90f0d2ed1f901caa448fc11f214465c1c",
+    "apps/server/src/rd_server/signaling/server/__init__.py": "0fdd9b2cd045db2fd93684111aef0ff246f9b34f588ca672fb80f69519f84c91",
+    "apps/server/src/rd_server/signaling/server/signaling_server.py": "360cb26f1a473f91e9a3aecef283aac2139ab974685a0f382bd3ef2575698e75",
+    "apps/server/src/rd_server/signaling/services/__init__.py": "58f824dd41b56b6568d876a767e9aa99f682c03875f225ba3cac4c8e8de79898",
+    "apps/server/src/rd_server/signaling/services/room_manager.py": "9187c87a00069f7dda02b9e96d31a416f01add50fb0d5b05313f3e87e8d8f315",
+    "apps/vehicle/src/rd_vehicle/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "apps/vehicle/src/rd_vehicle/application/__init__.py": "7e714803b2bbd4a989ff3fae7c908a2e3fe2a70005d97f932d41bb4b616f5183",
+    "apps/vehicle/src/rd_vehicle/application/control_client.py": "7b1e7dfda822361882c2a1cea7ffe4fa93b1acf5d172697378fcb4bfe5e1efb5",
+    "apps/vehicle/src/rd_vehicle/application/multi_camera_manager.py": "a6839263fddbb3848fcab1cca876290cda5de12541c7079f5e1978e43fb8b9c1",
+    "apps/vehicle/src/rd_vehicle/common/constants.py": "74e7a8c18c1ab538c3346ba9af99db1f5daa025f5a00b335afa921e7362bc243",
+    "apps/vehicle/src/rd_vehicle/common/utils.py": "e9b3b5cb2051de4b462a96b363080c4d53eb22168be7f2e72755cbf0295c3599",
+    "apps/vehicle/src/rd_vehicle/infrastructure/cameras/__init__.py": "4d4838d7d99aa1aea1a8b3196a870ee80c732462e596489105e87caf02629442",
+    "apps/vehicle/src/rd_vehicle/infrastructure/cameras/buffer.py": "c4db65fcb1db00495d5a95b9ccfe10c13b34f799c150b726a2f9b53f2ea74d07",
+    "apps/vehicle/src/rd_vehicle/infrastructure/cameras/test_camera.py": "9cf6c1a53ee94b085dd2df0aa609a631b4b921174ed70ba1db2aa74abb8843e5",
+    "apps/vehicle/src/rd_vehicle/infrastructure/cameras/thread_camera.py": "4f8eeb61374f9fb2d1a4708c7d7c4c1e9fe793a2e098091a4b04ac0dd7f64971",
+    "apps/vehicle/src/rd_vehicle/infrastructure/cameras/usb_camera.py": "73d79e2773dbf34b2437965960419d36ca435257595f10ba7f20d6d9414671f6",
+    "apps/vehicle/src/rd_vehicle/infrastructure/compositors/__init__.py": "44d7eb568b317fb4b9ce29874f31dd1ae0afdd229582d7d7ce8c05f61be1ced5",
+    "apps/vehicle/src/rd_vehicle/infrastructure/compositors/driving_compositor.py": "a241ef82c364cd490e0eaac21de16aa1fba636b857e3e346c805f981cf9805e9",
+    "apps/vehicle/src/rd_vehicle/infrastructure/controller/__init__.py": "df3c950ea4cfbd999756cf1725d3510630defe8b034d93afbfea545c7771ef68",
+    "apps/vehicle/src/rd_vehicle/infrastructure/controller/mock_controller.py": "3ec941e3295660bbad0287841eea953fb1f106633c056db5b6fc9945bc2f5879",
+    "apps/vehicle/src/rd_vehicle/infrastructure/controller/motion.py": "617c2bb34bbda99e72d80ed8e816e3811a89e09df646788bb1b2d6c0934ed82d",
+    "apps/vehicle/src/rd_vehicle/infrastructure/controller/ros2_cmd_vel_controller.py": "a4762b98e066b776a1325c36ccb7c259e496d1fe5d4ab8bddb314d5384ec5a2e",
+    "apps/vehicle/src/rd_vehicle/infrastructure/controller/serial_controller.py": "1b8490c7925118e5f3e8aa0f2498bd7ceb206df4bf083145a8ff8d54dd30af41",
+    "apps/vehicle/src/rd_vehicle/infrastructure/protocol/__init__.py": "5e496dcf7e4291a903aeb9ea5288d3d1fe85c4b3922b6b85d0f789458ec8ab5b",
+    "apps/vehicle/src/rd_vehicle/infrastructure/protocol/codec.py": "c8740399549e1ce70aafe0635c6750c6a96979af6b31a88382be5ff81eabea90",
+    "apps/vehicle/src/rd_vehicle/infrastructure/protocol/vehicle_protocol.py": "80b64df5f39aea3ce7674d56565df57c5f95bbb6d4424f1606304c78044caeac",
+    "apps/vehicle/src/rd_vehicle/infrastructure/streams/__init__.py": "3497f4484896c0528e35f9a6a1276e2b02882a1832307bca62e2b8c8e5578c2e",
+    "apps/vehicle/src/rd_vehicle/infrastructure/streams/peer_connection.py": "9438828bb3807bfce0e01a67ed3f83304894af4152e49c3dc7141de950844cee",
+    "apps/vehicle/src/rd_vehicle/infrastructure/streams/signaling_client.py": "4e1c8afdfb5c4db59bb6ac0dd2cc734ddbf67e6d591384fe73ed231ed6f70d81",
+    "apps/vehicle/src/rd_vehicle/infrastructure/streams/track_manager.py": "1271ecb9e9eba903b3221f54606b4fb3421983fac0eea65bfa3d2a667b379438",
+    "apps/vehicle/src/rd_vehicle/infrastructure/streams/video_track.py": "17e3e0d9d63a1a92ecb127b458a03022d301b003acc1f944380e74dee8445989",
+    "apps/vehicle/src/rd_vehicle/infrastructure/streams/webrtc_streamer.py": "170dae28fc8eb40aedf78a64b888e161b91096bf27edc99701fed268eb9817f3",
+    "apps/vehicle/src/rd_vehicle/interfaces/__init__.py": "24c4af39fb180a1f6ab67980481be6a9d9d654b3cbc40b1331ca201a22ca8406",
+    "apps/vehicle/src/rd_vehicle/interfaces/icamera.py": "3340bce3c5e837494bd0d6fa4e7f842e5ddd5c369bfe55d5706452030eaaeb87",
+    "apps/vehicle/src/rd_vehicle/interfaces/icompositor.py": "ca76000f2b14124ddd74b88da028e1673ea7ec998d4f133db7364fbb96a3137e",
+    "apps/vehicle/src/rd_vehicle/interfaces/icontroller.py": "8342b34ac2f1496aadcdc3e72ac9acf6f3f1134f0c7a097894b119a7be206c9c",
+    "apps/vehicle/src/rd_vehicle/interfaces/istream.py": "4d76433e7f0eb5bcb53cd1a2238e77398446bff41b73211d22c433a2fd43e2b3",
+    "apps/vehicle/src/rd_vehicle/main.py": "7749b364726460f749fff07734c0c13003ef100d6d518bdb25099ced194a7415",
+    "apps/vehicle/src/rd_vehicle/processes.py": "7c30b3df399c0193607117a39171c5ba80894299842ddde20ff5a03ea7393d15",
+    "packages/rd-core/src/rd_core/__init__.py": "578e18de95ebbd8f10a2189a653851a5707c3c1a6d547a4876c9c6c444556966",
+    "packages/rd-core/src/rd_core/auth.py": "ea2902f3a56e611360b6750f2cd3987020a40537f7939285aba1471d21a3df12",
+    "packages/rd-core/src/rd_core/cli.py": "5d48dd20b6932d4a317a0d44c3fbb8bf8dbc61adc328df4929502954dfbad53b",
+    "packages/rd-core/src/rd_core/configuration.py": "ca93c702f1aef0ae4f66d67067fc7355a2f0ee10c966e8daf1684fdf05287abc",
+    "packages/rd-core/src/rd_core/control.py": "9e282d3014448d080a9720f8f7985af7bdd50a2eab1ff404eab73ff4ab0268d8",
+    "packages/rd-core/src/rd_core/legacy_codec.py": "84e1dbb7b053470e7b45d64082af3b43031be6fd82b39d4b04b4bcfdab70d60e",
+    "packages/rd-core/src/rd_core/logging.py": "85ab26e2b23c444768b1b1bbf272f013bf2df0f8046605f7cd6f910accf5a0a2",
+    "packages/rd-core/src/rd_core/samples.py": "cb87aa74a2234d38400c08440f8ac0a34d371057480bebbef7d54c38935e24bc",
+    "packages/rd-core/src/rd_core/settings.py": "d36b7047b3377e121d7fbe5b4fd211c41e131c0bcdd6b09b491a106697006136",
+    "packages/rd-core/src/rd_core/video_safety.py": "4761247cd1d5102f04dc4907e5e367bb8ba03f470c9749254cb61f45cacf42c9",
+    "packages/rd-core/src/rd_core/wire.py": "9ef7f340d3d0e401f429f6bb71d59853809ad16aa7f71ea30b22b107830f8971",
+    "packages/rd-quic/src/rd_quic/__init__.py": "dc0a34d00580a1c4fc1dd73717ab0b87e4311f287de3ea05b35755f2541396fa",
+    "packages/rd-quic/src/rd_quic/client.py": "7eb32f7d926683d244693b8c10d8de31514eee38a46de02bdef0b958aefddd59",
+    "packages/rd-quic/src/rd_quic/compat.py": "5c4ee161919a45916a74e81f6d6076e39cbf182f31f9c101cb864d7c918e2b37",
+    "packages/rd-quic/src/rd_quic/framing.py": "ccbc4b0175218193219e437e0aacc541823a88b0bdf99a7881f505d7ecac211c",
+    "packages/rd-quic/src/rd_quic/protocol.py": "e705237631a2b8fec29a91cd6f247bb967265a743bf1ed45df52bd1f753c13d7",
+    "packages/rd-webrtc/src/rd_webrtc/__init__.py": "e1ca1c281a22df76e1764579d5cd8a30ddba88322ecab3afedcadc749b8bd747",
+    "packages/rd-webrtc/src/rd_webrtc/opencv.py": "4d17df46a8ff23ab1d15c005b001660651e724f26d9254c52b4e8e0730385db0",
+    "packages/rd-webrtc/src/rd_webrtc/peer.py": "be5aecc192679f60acb185d71dab3083bb92496db00be773e2d3c9d7e9134c97",
+    "packages/rd-webrtc/src/rd_webrtc/session.py": "cb849e9eab1e1a3c1d96fd754682a583a2f25240b352986fe13821914904432c",
+    "packages/rd-webrtc/src/rd_webrtc/signaling.py": "8034dd8f4f014e0897c2e4602d8d719c37a1a5dafc02e612de2ce0cce77ecc8b",
+    "packages/rd-webrtc/src/rd_webrtc/video.py": "949af6bb0231861b0e26e07faeed6814d36311911c5072a068041999a2a0fd15",
+    "scripts/simulate_control.py": "a714d703781d7b874d3b66b87a81fea1f2125702c9e9e5f291281feb6cef1e25",
+    "scripts/soak_media.py": "85c1b4f9edd8694059409448a7bbc80333010748d3d78e779c9939e6cd8fe0c0"
+  },
+  "workload": {
+    "views": 4,
+    "profile": "production",
+    "cycles": 6,
+    "steady_seconds": 2.0,
+    "warmup_seconds": 2,
+    "fps": 30,
+    "scene": "moving-flat",
+    "seed": 42,
+    "widget_size": [
+      1280,
+      720
+    ],
+    "ui_poll_ms": 16,
+    "max_rss_mib": 2048
+  },
+  "samples": [
+    {
+      "monotonic_s": 126979.048318701,
+      "cpu_s": 3.179924544,
+      "rss_mib": 162.6953125,
+      "file_descriptors": 9,
+      "native_threads": 39,
+      "python_threads": [
+        "MainThread",
+        "asyncio_0",
+        "asyncio_1",
+        "asyncio_2",
+        "capture-back",
+        "capture-front",
+        "capture-left",
+        "capture-right",
+        "soak-backend"
+      ],
+      "gc_collections": [
+        181,
+        16,
+        1
+      ],
+      "asyncio_tasks": 11,
+      "task_kinds": {
+        "MultiCameraManager._camera_push_worker": 4,
+        "MediaSession.start": 2,
+        "MediaSession._run": 2,
+        "main.<locals>.backend.<locals>.bounded": 1,
+        "run.<locals>.monitor": 1,
+        "MultiCameraManager.wait": 1
+      },
+      "retired_peers_alive": 0,
+      "counts": {
+        "received": {},
+        "painted": {}
+      }
+    },
+    {
+      "monotonic_s": 126980.049646535,
+      "cpu_s": 4.326404166,
+      "rss_mib": 326.05078125,
+      "file_descriptors": 19,
+      "native_threads": 93,
+      "python_threads": [
+        "MainThread",
+        "asyncio_0",
+        "asyncio_1",
+        "asyncio_2",
+        "asyncio_3",
+        "capture-back",
+        "capture-front",
+        "capture-left",
+        "capture-right",
+        "soak-backend",
+        "video-decoder",
+        "video-decoder",
+        "video-decoder",
+        "video-decoder"
+      ],
+      "gc_collections": [
+        206,
+        18,
+        1
+      ],
+      "asyncio_tasks": 39,
+      "task_kinds": {
+        "Connection.keepalive": 4,
+        "MultiCameraManager._camera_push_worker": 4,
+        "RTCRtpSender._run_rtcp": 4,
+        "Connection.query_consent": 2,
+        "RTCIceTransport._monitor": 2,
+        "RTCRtpReceiver._run_rtcp": 4,
+        "RTCDtlsTransport.__run": 2,
+        "WebRTCReceiver._recv_track": 4,
+        "RTCRtpSender._run_rtp": 4,
+        "main.<locals>.backend.<locals>.bounded": 1,
+        "MultiCameraManager.wait": 1,
+        "MediaSession.start": 2,
+        "Server.conn_handler": 2,
+        "run.<locals>.monitor": 1,
+        "MediaSession._run": 2
+      },
+      "retired_peers_alive": 0,
+      "counts": {
+        "received": {
+          "back": 28,
+          "left": 28,
+          "right": 28,
+          "front": 28
+        },
+        "painted": {
+          "front": 28,
+          "left": 28,
+          "back": 28,
+          "right": 28
+        }
+      }
+    },
+    {
+      "monotonic_s": 126981.050652247,
+      "cpu_s": 5.303782992,
+      "rss_mib": 341.625,
+      "file_descriptors": 19,
+      "native_threads": 96,
+      "python_threads": [
+        "MainThread",
+        "asyncio_0",
+        "asyncio_1",
+        "asyncio_2",
+        "asyncio_3",
+        "asyncio_4",
+        "asyncio_5",
+        "asyncio_6",
+        "capture-back",
+        "capture-front",
+        "capture-left",
+        "capture-right",
+        "soak-backend",
+        "video-decoder",
+        "video-decoder",
+        "video-decoder",
+        "video-decoder"
+      ],
+      "gc_collections": [
+        211,
+        19,
+        1
+      ],
+      "asyncio_tasks": 39,
+      "task_kinds": {
+        "Connection.keepalive": 4,
+        "MultiCameraManager._camera_push_worker": 4,
+        "RTCRtpSender._run_rtcp": 4,
+        "Connection.query_consent": 2,
+        "RTCIceTransport._monitor": 2,
+        "RTCRtpReceiver._run_rtcp": 4,
+        "RTCDtlsTransport.__run": 2,
+        "WebRTCReceiver._recv_track": 4,
+        "RTCRtpSender._run_rtp": 4,
+        "main.<locals>.backend.<locals>.bounded": 1,
+        "MultiCameraManager.wait": 1,
+        "MediaSession.start": 2,
+        "Server.conn_handler": 2,
+        "run.<locals>.monitor": 1,
+        "MediaSession._run": 2
+      },
+      "retired_peers_alive": 0,
+      "counts": {
+        "received": {
+          "back": 58,
+          "left": 58,
+          "right": 58,
+          "front": 58
+        },
+        "painted": {
+          "front": 57,
+          "left": 57,
+          "back": 57,
+          "right": 57
+        }
+      }
+    },
+    {
+      "monotonic_s": 126982.051231745,
+      "cpu_s": 6.294459021,
+      "rss_mib": 356.18359375,
+      "file_descriptors": 19,
+      "native_threads": 99,
+      "python_threads": [
+        "MainThread",
+        "asyncio_0",
+        "asyncio_1",
+        "asyncio_2",
+        "asyncio_3",
+        "asyncio_4",
+        "asyncio_5",
+        "asyncio_6",
+        "asyncio_7",
+        "asyncio_8",
+        "asyncio_9",
+        "capture-back",
+        "capture-front",
+        "capture-left",
+        "capture-right",
+        "soak-backend",
+        "video-decoder",
+        "video-decoder",
+        "video-decoder",
+        "video-decoder"
+      ],
+      "gc_collections": [
+        217,
+        19,
+        1
+      ],
+      "asyncio_tasks": 39,
+      "task_kinds": {
+        "Connection.keepalive": 4,
+        "MultiCameraManager._camera_push_worker": 4,
+        "RTCRtpSender._run_rtcp": 4,
+        "Connection.query_consent": 2,
+        "RTCIceTransport._monitor": 2,
+        "RTCRtpReceiver._run_rtcp": 4,
+        "RTCDtlsTransport.__run": 2,
+        "WebRTCReceiver._recv_track": 4,
+        "RTCRtpSender._run_rtp": 4,
+        "main.<locals>.backend.<locals>.bounded": 1,
+        "MultiCameraManager.wait": 1,
+        "MediaSession.start": 2,
+        "Server.conn_handler": 2,
+        "run.<locals>.monitor": 1,
+        "MediaSession._run": 2
+      },
+      "retired_peers_alive": 0,
+      "counts": {
+        "received": {
+          "back": 88,
+          "left": 87,
+          "right": 88,
+          "front": 87
+        },
+        "painted": {
+          "front": 87,
+          "left": 87,
+          "back": 87,
+          "right": 87
+        }
+      }
+    },
+    {
+      "monotonic_s": 126983.052138361,
+      "cpu_s": 7.354540994,
+      "rss_mib": 398.52734375,
+      "file_descriptors": 19,
+      "native_threads": 101,
+      "python_threads": [
+        "MainThread",
+        "asyncio_0",
+        "asyncio_1",
+        "asyncio_10",
+        "asyncio_11",
+        "asyncio_2",
+        "asyncio_3",
+        "asyncio_4",
+        "asyncio_5",
+        "asyncio_6",
+        "asyncio_7",
+        "asyncio_8",
+        "asyncio_9",
+        "capture-back",
+        "capture-front",
+        "capture-left",
+        "capture-right",
+        "soak-backend",
+        "video-decoder",
+        "video-decoder",
+        "video-decoder",
+        "video-decoder"
+      ],
+      "gc_collections": [
+        222,
+        20,
+        1
+      ],
+      "asyncio_tasks": 39,
+      "task_kinds": {
+        "Connection.keepalive": 4,
+        "MultiCameraManager._camera_push_worker": 4,
+        "RTCRtpSender._run_rtcp": 4,
+        "Connection.query_consent": 2,
+        "RTCIceTransport._monitor": 2,
+        "RTCRtpReceiver._run_rtcp": 4,
+        "RTCDtlsTransport.__run": 2,
+        "WebRTCReceiver._recv_track": 4,
+        "RTCRtpSender._run_rtp": 4,
+        "main.<locals>.backend.<locals>.bounded": 1,
+        "MultiCameraManager.wait": 1,
+        "MediaSession.start": 2,
+        "Server.conn_handler": 2,
+        "run.<locals>.monitor": 1,
+        "MediaSession._run": 2
+      },
+      "retired_peers_alive": 0,
+      "counts": {
+        "received": {
+          "back": 117,
+          "left": 117,
+          "right": 117,
+          "front": 117
+        },
+        "painted": {
+          "front": 117,
+          "left": 117,
+          "back": 116,
+          "right": 117
+        }
+      }
+    },
+    {
+      "monotonic_s": 126984.053010558,
+      "cpu_s": 8.382559392,
+      "rss_mib": 462.26953125,
+      "file_descriptors": 19,
+      "native_threads": 103,
+      "python_threads": [
+        "MainThread",
+        "asyncio_0",
+        "asyncio_1",
+        "asyncio_10",
+        "asyncio_11",
+        "asyncio_12",
+        "asyncio_13",
+        "asyncio_2",
+        "asyncio_3",
+        "asyncio_4",
+        "asyncio_5",
+        "asyncio_6",
+        "asyncio_7",
+        "asyncio_8",
+        "asyncio_9",
+        "capture-back",
+        "capture-front",
+        "capture-left",
+        "capture-right",
+        "soak-backend",
+        "video-decoder",
+        "video-decoder",
+        "video-decoder",
+        "video-decoder"
+      ],
+      "gc_collections": [
+        243,
+        22,
+        2
+      ],
+      "asyncio_tasks": 39,
+      "task_kinds": {
+        "WebRTCReceiver._recv_track": 4,
+        "RTCRtpSender._run_rtcp": 4,
+        "MultiCameraManager._camera_push_worker": 4,
+        "RTCRtpSender._run_rtp": 4,
+        "Connection.keepalive": 4,
+        "Connection.query_consent": 2,
+        "RTCDtlsTransport.__run": 2,
+        "main.<locals>.backend.<locals>.bounded": 1,
+        "MultiCameraManager.wait": 1,
+        "RTCRtpReceiver._run_rtcp": 4,
+        "MediaSession.start": 2,
+        "Server.conn_handler": 2,
+        "RTCIceTransport._monitor": 2,
+        "run.<locals>.monitor": 1,
+        "MediaSession._run": 2
+      },
+      "retired_peers_alive": 0,
+      "counts": {
+        "received": {
+          "back": 142,
+          "left": 142,
+          "right": 142,
+          "front": 142
+        },
+        "painted": {
+          "front": 140,
+          "left": 140,
+          "back": 140,
+          "right": 141
+        }
+      }
+    },
+    {
+      "monotonic_s": 126985.053596787,
+      "cpu_s": 9.408678403,
+      "rss_mib": 474.62109375,
+      "file_descriptors": 19,
+      "native_threads": 105,
+      "python_threads": [
+        "MainThread",
+        "asyncio_0",
+        "asyncio_1",
+        "asyncio_10",
+        "asyncio_11",
+        "asyncio_12",
+        "asyncio_13",
+        "asyncio_14",
+        "asyncio_15",
+        "asyncio_2",
+        "asyncio_3",
+        "asyncio_4",
+        "asyncio_5",
+        "asyncio_6",
+        "asyncio_7",
+        "asyncio_8",
+        "asyncio_9",
+        "capture-back",
+        "capture-front",
+        "capture-left",
+        "capture-right",
+        "soak-backend",
+        "video-decoder",
+        "video-decoder",
+        "video-decoder",
+        "video-decoder"
+      ],
+      "gc_collections": [
+        249,
+        22,
+        2
+      ],
+      "asyncio_tasks": 39,
+      "task_kinds": {
+        "WebRTCReceiver._recv_track": 4,
+        "RTCRtpSender._run_rtcp": 4,
+        "MultiCameraManager._camera_push_worker": 4,
+        "RTCRtpSender._run_rtp": 4,
+        "Connection.keepalive": 4,
+        "Connection.query_consent": 2,
+        "RTCDtlsTransport.__run": 2,
+        "main.<locals>.backend.<locals>.bounded": 1,
+        "MultiCameraManager.wait": 1,
+        "RTCRtpReceiver._run_rtcp": 4,
+        "MediaSession.start": 2,
+        "Server.conn_handler": 2,
+        "RTCIceTransport._monitor": 2,
+        "run.<locals>.monitor": 1,
+        "MediaSession._run": 2
+      },
+      "retired_peers_alive": 0,
+      "counts": {
+        "received": {
+          "back": 172,
+          "left": 171,
+          "right": 172,
+          "front": 171
+        },
+        "painted": {
+          "front": 170,
+          "left": 170,
+          "back": 169,
+          "right": 170
+        }
+      }
+    },
+    {
+      "monotonic_s": 126986.055235951,
+      "cpu_s": 10.449209889,
+      "rss_mib": 505.70703125,
+      "file_descriptors": 19,
+      "native_threads": 108,
+      "python_threads": [
+        "MainThread",
+        "asyncio_0",
+        "asyncio_1",
+        "asyncio_10",
+        "asyncio_11",
+        "asyncio_12",
+        "asyncio_13",
+        "asyncio_14",
+        "asyncio_15",
+        "asyncio_16",
+        "asyncio_17",
+        "asyncio_18",
+        "asyncio_2",
+        "asyncio_3",
+        "asyncio_4",
+        "asyncio_5",
+        "asyncio_6",
+        "asyncio_7",
+        "asyncio_8",
+        "asyncio_9",
+        "capture-back",
+        "capture-front",
+        "capture-left",
+        "capture-right",
+        "soak-backend",
+        "video-decoder",
+        "video-decoder",
+        "video-decoder",
+        "video-decoder"
+      ],
+      "gc_collections": [
+        271,
+        24,
+        2
+      ],
+      "asyncio_tasks": 41,
+      "task_kinds": {
+        "Server.conn_handler": 2,
+        "RTCRtpSender._run_rtcp": 4,
+        "RTCRtpReceiver._run_rtcp": 4,
+        "MultiCameraManager._camera_push_worker": 4,
+        "RTCIceTransport._monitor": 2,
+        "Connection.query_consent": 2,
+        "WebRTCReceiver._recv_track": 4,
+        "RTCDtlsTransport.__run": 2,
+        "Connection.keepalive": 4,
+        "RTCRtpSender._run_rtp": 4,
+        "main.<locals>.backend.<locals>.bounded": 1,
+        "MultiCameraManager.wait": 1,
+        "MediaSession.start": 2,
+        "Queue.put": 2,
+        "run.<locals>.monitor": 1,
+        "MediaSession._run": 2
+      },
+      "retired_peers_alive": 2,
+      "counts": {
+        "received": {
+          "back": 196,
+          "left": 196,
+          "right": 196,
+          "front": 195
+        },
+        "painted": {
+          "front": 194,
+          "left": 194,
+          "back": 194,
+          "right": 195
+        }
+      }
+    },
+    {
+      "monotonic_s": 126987.056237744,
+      "cpu_s": 11.468291908,
+      "rss_mib": 518.48046875,
+      "file_descriptors": 19,
+      "native_threads": 109,
+      "python_threads": [
+        "MainThread",
+        "asyncio_0",
+        "asyncio_1",
+        "asyncio_10",
+        "asyncio_11",
+        "asyncio_12",
+        "asyncio_13",
+        "asyncio_14",
+        "asyncio_15",
+        "asyncio_16",
+        "asyncio_17",
+        "asyncio_18",
+        "asyncio_19",
+        "asyncio_2",
+        "asyncio_3",
+        "asyncio_4",
+        "asyncio_5",
+        "asyncio_6",
+        "asyncio_7",
+        "asyncio_8",
+        "asyncio_9",
+        "capture-back",
+        "capture-front",
+        "capture-left",
+        "capture-right",
+        "soak-backend",
+        "video-decoder",
+        "video-decoder",
+        "video-decoder",
+        "video-decoder"
+      ],
+      "gc_collections": [
+        276,
+        25,
+        2
+      ],
+      "asyncio_tasks": 39,
+      "task_kinds": {
+        "Server.conn_handler": 2,
+        "RTCRtpSender._run_rtcp": 4,
+        "RTCRtpReceiver._run_rtcp": 4,
+        "MultiCameraManager._camera_push_worker": 4,
+        "RTCIceTransport._monitor": 2,
+        "Connection.query_consent": 2,
+        "WebRTCReceiver._recv_track": 4,
+        "RTCDtlsTransport.__run": 2,
+        "Connection.keepalive": 4,
+        "RTCRtpSender._run_rtp": 4,
+        "main.<locals>.backend.<locals>.bounded": 1,
+        "MultiCameraManager.wait": 1,
+        "MediaSession.start": 2,
+        "run.<locals>.monitor": 1,
+        "MediaSession._run": 2
+      },
+      "retired_peers_alive": 2,
+      "counts": {
+        "received": {
+          "back": 227,
+          "left": 226,
+          "right": 227,
+          "front": 226
+        },
+        "painted": {
+          "front": 224,
+          "left": 225,
+          "back": 225,
+          "right": 226
+        }
+      }
+    },
+    {
+      "monotonic_s": 126988.057763125,
+      "cpu_s": 12.537803483,
+      "rss_mib": 530.46875,
+      "file_descriptors": 19,
+      "native_threads": 109,
+      "python_threads": [
+        "MainThread",
+        "asyncio_0",
+        "asyncio_1",
+        "asyncio_10",
+        "asyncio_11",
+        "asyncio_12",
+        "asyncio_13",
+        "asyncio_14",
+        "asyncio_15",
+        "asyncio_16",
+        "asyncio_17",
+        "asyncio_18",
+        "asyncio_19",
+        "asyncio_2",
+        "asyncio_3",
+        "asyncio_4",
+        "asyncio_5",
+        "asyncio_6",
+        "asyncio_7",
+        "asyncio_8",
+        "asyncio_9",
+        "capture-back",
+        "capture-front",
+        "capture-left",
+        "capture-right",
+        "soak-backend",
+        "video-decoder",
+        "video-decoder",
+        "video-decoder",
+        "video-decoder"
+      ],
+      "gc_collections": [
+        297,
+        27,
+        2
+      ],
+      "asyncio_tasks": 39,
+      "task_kinds": {
+        "Server.conn_handler": 2,
+        "RTCIceTransport._monitor": 2,
+        "RTCRtpSender._run_rtcp": 4,
+        "MultiCameraManager._camera_push_worker": 4,
+        "Connection.keepalive": 4,
+        "WebRTCReceiver._recv_track": 4,
+        "RTCRtpSender._run_rtp": 4,
+        "Connection.query_consent": 2,
+        "main.<locals>.backend.<locals>.bounded": 1,
+        "MultiCameraManager.wait": 1,
+        "RTCRtpReceiver._run_rtcp": 4,
+        "RTCDtlsTransport.__run": 2,
+        "MediaSession.start": 2,
+        "run.<locals>.monitor": 1,
+        "MediaSession._run": 2
+      },
+      "retired_peers_alive": 4,
+      "counts": {
+        "received": {
+          "back": 251,
+          "left": 250,
+          "right": 251,
+          "front": 250
+        },
+        "painted": {
+          "front": 249,
+          "left": 248,
+          "back": 249,
+          "right": 249
+        }
+      }
+    },
+    {
+      "monotonic_s": 126989.058530373,
+      "cpu_s": 13.518350312,
+      "rss_mib": 533.828125,
+      "file_descriptors": 19,
+      "native_threads": 109,
+      "python_threads": [
+        "MainThread",
+        "asyncio_0",
+        "asyncio_1",
+        "asyncio_10",
+        "asyncio_11",
+        "asyncio_12",
+        "asyncio_13",
+        "asyncio_14",
+        "asyncio_15",
+        "asyncio_16",
+        "asyncio_17",
+        "asyncio_18",
+        "asyncio_19",
+        "asyncio_2",
+        "asyncio_3",
+        "asyncio_4",
+        "asyncio_5",
+        "asyncio_6",
+        "asyncio_7",
+        "asyncio_8",
+        "asyncio_9",
+        "capture-back",
+        "capture-front",
+        "capture-left",
+        "capture-right",
+        "soak-backend",
+        "video-decoder",
+        "video-decoder",
+        "video-decoder",
+        "video-decoder"
+      ],
+      "gc_collections": [
+        303,
+        27,
+        2
+      ],
+      "asyncio_tasks": 39,
+      "task_kinds": {
+        "Server.conn_handler": 2,
+        "RTCIceTransport._monitor": 2,
+        "RTCRtpSender._run_rtcp": 4,
+        "MultiCameraManager._camera_push_worker": 4,
+        "Connection.keepalive": 4,
+        "WebRTCReceiver._recv_track": 4,
+        "RTCRtpSender._run_rtp": 4,
+        "Connection.query_consent": 2,
+        "main.<locals>.backend.<locals>.bounded": 1,
+        "MultiCameraManager.wait": 1,
+        "RTCRtpReceiver._run_rtcp": 4,
+        "RTCDtlsTransport.__run": 2,
+        "MediaSession.start": 2,
+        "run.<locals>.monitor": 1,
+        "MediaSession._run": 2
+      },
+      "retired_peers_alive": 4,
+      "counts": {
+        "received": {
+          "back": 281,
+          "left": 280,
+          "right": 281,
+          "front": 280
+        },
+        "painted": {
+          "front": 279,
+          "left": 278,
+          "back": 279,
+          "right": 279
+        }
+      }
+    },
+    {
+      "monotonic_s": 126990.060079001,
+      "cpu_s": 14.421291511,
+      "rss_mib": 504.71484375,
+      "file_descriptors": 19,
+      "native_threads": 75,
+      "python_threads": [
+        "MainThread",
+        "asyncio_0",
+        "asyncio_1",
+        "asyncio_10",
+        "asyncio_11",
+        "asyncio_12",
+        "asyncio_13",
+        "asyncio_14",
+        "asyncio_15",
+        "asyncio_16",
+        "asyncio_17",
+        "asyncio_18",
+        "asyncio_19",
+        "asyncio_2",
+        "asyncio_3",
+        "asyncio_4",
+        "asyncio_5",
+        "asyncio_6",
+        "asyncio_7",
+        "asyncio_8",
+        "asyncio_9",
+        "capture-back",
+        "capture-front",
+        "capture-left",
+        "capture-right",
+        "soak-backend"
+      ],
+      "gc_collections": [
+        321,
+        29,
+        2
+      ],
+      "asyncio_tasks": 26,
+      "task_kinds": {
+        "MultiCameraManager._camera_push_worker": 4,
+        "Connection.keepalive": 4,
+        "RTCPeerConnection.__connect": 2,
+        "Server.conn_handler": 2,
+        "WebRTCReceiver._recv_track": 4,
+        "main.<locals>.backend.<locals>.bounded": 1,
+        "MultiCameraManager.wait": 1,
+        "RTCIceTransport._monitor": 2,
+        "MediaSession.start": 2,
+        "Connection.query_consent": 1,
+        "run.<locals>.monitor": 1,
+        "MediaSession._run": 2
+      },
+      "retired_peers_alive": 6,
+      "counts": {
+        "received": {
+          "back": 307,
+          "left": 306,
+          "right": 307,
+          "front": 306
+        },
+        "painted": {
+          "front": 304,
+          "left": 303,
+          "back": 304,
+          "right": 305
+        }
+      }
+    },
+    {
+      "monotonic_s": 126991.060943668,
+      "cpu_s": 15.486633887,
+      "rss_mib": 570.671875,
+      "file_descriptors": 19,
+      "native_threads": 109,
+      "python_threads": [
+        "MainThread",
+        "asyncio_0",
+        "asyncio_1",
+        "asyncio_10",
+        "asyncio_11",
+        "asyncio_12",
+        "asyncio_13",
+        "asyncio_14",
+        "asyncio_15",
+        "asyncio_16",
+        "asyncio_17",
+        "asyncio_18",
+        "asyncio_19",
+        "asyncio_2",
+        "asyncio_3",
+        "asyncio_4",
+        "asyncio_5",
+        "asyncio_6",
+        "asyncio_7",
+        "asyncio_8",
+        "asyncio_9",
+        "capture-back",
+        "capture-front",
+        "capture-left",
+        "capture-right",
+        "soak-backend",
+        "video-decoder",
+        "video-decoder",
+        "video-decoder",
+        "video-decoder"
+      ],
+      "gc_collections": [
+        330,
+        30,
+        2
+      ],
+      "asyncio_tasks": 39,
+      "task_kinds": {
+        "RTCRtpSender._run_rtp": 4,
+        "MultiCameraManager._camera_push_worker": 4,
+        "Connection.keepalive": 4,
+        "Server.conn_handler": 2,
+        "WebRTCReceiver._recv_track": 4,
+        "RTCRtpSender._run_rtcp": 4,
+        "RTCDtlsTransport.__run": 2,
+        "RTCRtpReceiver._run_rtcp": 4,
+        "main.<locals>.backend.<locals>.bounded": 1,
+        "MultiCameraManager.wait": 1,
+        "RTCIceTransport._monitor": 2,
+        "MediaSession.start": 2,
+        "Connection.query_consent": 2,
+        "run.<locals>.monitor": 1,
+        "MediaSession._run": 2
+      },
+      "retired_peers_alive": 6,
+      "counts": {
+        "received": {
+          "back": 336,
+          "left": 335,
+          "right": 336,
+          "front": 335
+        },
+        "painted": {
+          "front": 333,
+          "left": 332,
+          "back": 333,
+          "right": 334
+        }
+      }
+    },
+    {
+      "monotonic_s": 126992.062539492,
+      "cpu_s": 16.47022713,
+      "rss_mib": 573.203125,
+      "file_descriptors": 19,
+      "native_threads": 109,
+      "python_threads": [
+        "MainThread",
+        "asyncio_0",
+        "asyncio_1",
+        "asyncio_10",
+        "asyncio_11",
+        "asyncio_12",
+        "asyncio_13",
+        "asyncio_14",
+        "asyncio_15",
+        "asyncio_16",
+        "asyncio_17",
+        "asyncio_18",
+        "asyncio_19",
+        "asyncio_2",
+        "asyncio_3",
+        "asyncio_4",
+        "asyncio_5",
+        "asyncio_6",
+        "asyncio_7",
+        "asyncio_8",
+        "asyncio_9",
+        "capture-back",
+        "capture-front",
+        "capture-left",
+        "capture-right",
+        "soak-backend",
+        "video-decoder",
+        "video-decoder",
+        "video-decoder",
+        "video-decoder"
+      ],
+      "gc_collections": [
+        336,
+        30,
+        2
+      ],
+      "asyncio_tasks": 39,
+      "task_kinds": {
+        "RTCRtpSender._run_rtp": 4,
+        "MultiCameraManager._camera_push_worker": 4,
+        "Connection.keepalive": 4,
+        "Server.conn_handler": 2,
+        "WebRTCReceiver._recv_track": 4,
+        "RTCRtpSender._run_rtcp": 4,
+        "RTCDtlsTransport.__run": 2,
+        "RTCRtpReceiver._run_rtcp": 4,
+        "main.<locals>.backend.<locals>.bounded": 1,
+        "MultiCameraManager.wait": 1,
+        "RTCIceTransport._monitor": 2,
+        "MediaSession.start": 2,
+        "Connection.query_consent": 2,
+        "run.<locals>.monitor": 1,
+        "MediaSession._run": 2
+      },
+      "retired_peers_alive": 6,
+      "counts": {
+        "received": {
+          "back": 366,
+          "left": 365,
+          "right": 366,
+          "front": 365
+        },
+        "painted": {
+          "front": 363,
+          "left": 362,
+          "back": 363,
+          "right": 364
+        }
+      }
+    },
+    {
+      "monotonic_s": 126993.063985095,
+      "cpu_s": 17.441860805,
+      "rss_mib": 566.6171875,
+      "file_descriptors": 19,
+      "native_threads": 109,
+      "python_threads": [
+        "MainThread",
+        "asyncio_0",
+        "asyncio_1",
+        "asyncio_10",
+        "asyncio_11",
+        "asyncio_12",
+        "asyncio_13",
+        "asyncio_14",
+        "asyncio_15",
+        "asyncio_16",
+        "asyncio_17",
+        "asyncio_18",
+        "asyncio_19",
+        "asyncio_2",
+        "asyncio_3",
+        "asyncio_4",
+        "asyncio_5",
+        "asyncio_6",
+        "asyncio_7",
+        "asyncio_8",
+        "asyncio_9",
+        "capture-back",
+        "capture-front",
+        "capture-left",
+        "capture-right",
+        "soak-backend",
+        "video-decoder",
+        "video-decoder",
+        "video-decoder",
+        "video-decoder"
+      ],
+      "gc_collections": [
+        357,
+        32,
+        2
+      ],
+      "asyncio_tasks": 39,
+      "task_kinds": {
+        "RTCRtpReceiver._run_rtcp": 4,
+        "MultiCameraManager._camera_push_worker": 4,
+        "Connection.query_consent": 2,
+        "Connection.keepalive": 4,
+        "RTCDtlsTransport.__run": 2,
+        "WebRTCReceiver._recv_track": 4,
+        "RTCRtpSender._run_rtp": 4,
+        "Server.conn_handler": 2,
+        "RTCIceTransport._monitor": 2,
+        "main.<locals>.backend.<locals>.bounded": 1,
+        "MultiCameraManager.wait": 1,
+        "RTCRtpSender._run_rtcp": 4,
+        "MediaSession.start": 2,
+        "run.<locals>.monitor": 1,
+        "MediaSession._run": 2
+      },
+      "retired_peers_alive": 8,
+      "counts": {
+        "received": {
+          "back": 391,
+          "left": 390,
+          "right": 391,
+          "front": 390
+        },
+        "painted": {
+          "front": 388,
+          "left": 387,
+          "back": 387,
+          "right": 387
+        }
+      }
+    },
+    {
+      "monotonic_s": 126994.065387077,
+      "cpu_s": 18.403452526,
+      "rss_mib": 567.21484375,
+      "file_descriptors": 19,
+      "native_threads": 109,
+      "python_threads": [
+        "MainThread",
+        "asyncio_0",
+        "asyncio_1",
+        "asyncio_10",
+        "asyncio_11",
+        "asyncio_12",
+        "asyncio_13",
+        "asyncio_14",
+        "asyncio_15",
+        "asyncio_16",
+        "asyncio_17",
+        "asyncio_18",
+        "asyncio_19",
+        "asyncio_2",
+        "asyncio_3",
+        "asyncio_4",
+        "asyncio_5",
+        "asyncio_6",
+        "asyncio_7",
+        "asyncio_8",
+        "asyncio_9",
+        "capture-back",
+        "capture-front",
+        "capture-left",
+        "capture-right",
+        "soak-backend",
+        "video-decoder",
+        "video-decoder",
+        "video-decoder",
+        "video-decoder"
+      ],
+      "gc_collections": [
+        363,
+        32,
+        2
+      ],
+      "asyncio_tasks": 39,
+      "task_kinds": {
+        "RTCRtpReceiver._run_rtcp": 4,
+        "MultiCameraManager._camera_push_worker": 4,
+        "Connection.query_consent": 2,
+        "Connection.keepalive": 4,
+        "RTCDtlsTransport.__run": 2,
+        "WebRTCReceiver._recv_track": 4,
+        "RTCRtpSender._run_rtp": 4,
+        "Server.conn_handler": 2,
+        "RTCIceTransport._monitor": 2,
+        "main.<locals>.backend.<locals>.bounded": 1,
+        "MultiCameraManager.wait": 1,
+        "RTCRtpSender._run_rtcp": 4,
+        "MediaSession.start": 2,
+        "run.<locals>.monitor": 1,
+        "MediaSession._run": 2
+      },
+      "retired_peers_alive": 8,
+      "counts": {
+        "received": {
+          "back": 421,
+          "left": 420,
+          "right": 421,
+          "front": 420
+        },
+        "painted": {
+          "front": 418,
+          "left": 417,
+          "back": 417,
+          "right": 418
+        }
+      }
+    }
+  ],
+  "cycles": [
+    {
+      "cycle": 0,
+      "begin": {
+        "monotonic_s": 126981.177776795,
+        "cpu_s": 5.423577266,
+        "rss_mib": 346.54296875,
+        "file_descriptors": 19,
+        "native_threads": 97,
+        "python_threads": [
+          "MainThread",
+          "asyncio_0",
+          "asyncio_1",
+          "asyncio_2",
+          "asyncio_3",
+          "asyncio_4",
+          "asyncio_5",
+          "asyncio_6",
+          "asyncio_7",
+          "capture-back",
+          "capture-front",
+          "capture-left",
+          "capture-right",
+          "soak-backend",
+          "video-decoder",
+          "video-decoder",
+          "video-decoder",
+          "video-decoder"
+        ],
+        "gc_collections": [
+          212,
+          19,
+          1
+        ],
+        "asyncio_tasks": 39,
+        "task_kinds": {
+          "Connection.keepalive": 4,
+          "MultiCameraManager._camera_push_worker": 4,
+          "RTCRtpSender._run_rtcp": 4,
+          "Connection.query_consent": 2,
+          "RTCIceTransport._monitor": 2,
+          "RTCRtpReceiver._run_rtcp": 4,
+          "RTCDtlsTransport.__run": 2,
+          "WebRTCReceiver._recv_track": 4,
+          "RTCRtpSender._run_rtp": 4,
+          "main.<locals>.backend.<locals>.bounded": 1,
+          "MultiCameraManager.wait": 1,
+          "MediaSession.start": 2,
+          "Server.conn_handler": 2,
+          "run.<locals>.monitor": 1,
+          "MediaSession._run": 2
+        },
+        "retired_peers_alive": 0,
+        "counts": {
+          "received": {
+            "back": 62,
+            "left": 61,
+            "right": 61,
+            "front": 61
+          },
+          "painted": {
+            "front": 61,
+            "left": 61,
+            "back": 61,
+            "right": 61
+          }
+        }
+      },
+      "end": {
+        "monotonic_s": 126983.182583353,
+        "cpu_s": 7.485560549,
+        "rss_mib": 401.8046875,
+        "file_descriptors": 19,
+        "native_threads": 103,
+        "python_threads": [
+          "MainThread",
+          "asyncio_0",
+          "asyncio_1",
+          "asyncio_10",
+          "asyncio_11",
+          "asyncio_12",
+          "asyncio_13",
+          "asyncio_2",
+          "asyncio_3",
+          "asyncio_4",
+          "asyncio_5",
+          "asyncio_6",
+          "asyncio_7",
+          "asyncio_8",
+          "asyncio_9",
+          "capture-back",
+          "capture-front",
+          "capture-left",
+          "capture-right",
+          "soak-backend",
+          "video-decoder",
+          "video-decoder",
+          "video-decoder",
+          "video-decoder"
+        ],
+        "gc_collections": [
+          223,
+          20,
+          1
+        ],
+        "asyncio_tasks": 39,
+        "task_kinds": {
+          "Connection.keepalive": 4,
+          "MultiCameraManager._camera_push_worker": 4,
+          "RTCRtpSender._run_rtcp": 4,
+          "Connection.query_consent": 2,
+          "RTCIceTransport._monitor": 2,
+          "RTCRtpReceiver._run_rtcp": 4,
+          "RTCDtlsTransport.__run": 2,
+          "WebRTCReceiver._recv_track": 4,
+          "RTCRtpSender._run_rtp": 4,
+          "main.<locals>.backend.<locals>.bounded": 1,
+          "MultiCameraManager.wait": 1,
+          "MediaSession.start": 2,
+          "Server.conn_handler": 2,
+          "run.<locals>.monitor": 1,
+          "MediaSession._run": 2
+        },
+        "retired_peers_alive": 0,
+        "counts": {
+          "received": {
+            "back": 121,
+            "left": 121,
+            "right": 121,
+            "front": 121
+          },
+          "painted": {
+            "front": 121,
+            "left": 121,
+            "back": 120,
+            "right": 121
+          }
+        }
+      },
+      "fps": {
+        "received": {
+          "front": 29.928074487001187,
+          "back": 29.429273245551165,
+          "left": 29.928074487001187,
+          "right": 29.928074487001187
+        },
+        "painted": {
+          "front": 29.928074487001187,
+          "back": 29.429273245551165,
+          "left": 29.928074487001187,
+          "right": 29.928074487001187
+        }
+      },
+      "cpu_percent_one_core": 102.85198214095874,
+      "paths": [
+        [
+          "127.0.0.1",
+          "127.0.0.1",
+          "host",
+          "host"
+        ],
+        [
+          "127.0.0.1",
+          "127.0.0.1",
+          "host",
+          "host"
+        ],
+        [
+          "127.0.0.1",
+          "127.0.0.1",
+          "host",
+          "host"
+        ],
+        [
+          "127.0.0.1",
+          "127.0.0.1",
+          "host",
+          "host"
+        ],
+        [
+          "127.0.0.1",
+          "127.0.0.1",
+          "host",
+          "host"
+        ],
+        [
+          "127.0.0.1",
+          "127.0.0.1",
+          "host",
+          "host"
+        ],
+        [
+          "127.0.0.1",
+          "127.0.0.1",
+          "host",
+          "host"
+        ],
+        [
+          "127.0.0.1",
+          "127.0.0.1",
+          "host",
+          "host"
+        ]
+      ],
+      "reconnected_endpoint": "publisher",
+      "reconnect_all_views_ms": 228.1814320012927
+    },
+    {
+      "cycle": 1,
+      "begin": {
+        "monotonic_s": 126983.412206048,
+        "cpu_s": 7.688574306,
+        "rss_mib": 449.36328125,
+        "file_descriptors": 19,
+        "native_threads": 103,
+        "python_threads": [
+          "MainThread",
+          "asyncio_0",
+          "asyncio_1",
+          "asyncio_10",
+          "asyncio_11",
+          "asyncio_12",
+          "asyncio_13",
+          "asyncio_2",
+          "asyncio_3",
+          "asyncio_4",
+          "asyncio_5",
+          "asyncio_6",
+          "asyncio_7",
+          "asyncio_8",
+          "asyncio_9",
+          "capture-back",
+          "capture-front",
+          "capture-left",
+          "capture-right",
+          "soak-backend",
+          "video-decoder",
+          "video-decoder",
+          "video-decoder",
+          "video-decoder"
+        ],
+        "gc_collections": [
+          241,
+          21,
+          1
+        ],
+        "asyncio_tasks": 39,
+        "task_kinds": {
+          "WebRTCReceiver._recv_track": 4,
+          "RTCRtpSender._run_rtcp": 4,
+          "MultiCameraManager._camera_push_worker": 4,
+          "RTCRtpSender._run_rtp": 4,
+          "Connection.keepalive": 4,
+          "Connection.query_consent": 2,
+          "RTCDtlsTransport.__run": 2,
+          "main.<locals>.backend.<locals>.bounded": 1,
+          "MultiCameraManager.wait": 1,
+          "RTCRtpReceiver._run_rtcp": 4,
+          "MediaSession.start": 2,
+          "Server.conn_handler": 2,
+          "RTCIceTransport._monitor": 2,
+          "run.<locals>.monitor": 1,
+          "MediaSession._run": 2
+        },
+        "retired_peers_alive": 2,
+        "counts": {
+          "received": {
+            "back": 122,
+            "left": 123,
+            "right": 123,
+            "front": 122
+          },
+          "painted": {
+            "front": 122,
+            "left": 122,
+            "back": 121,
+            "right": 122
+          }
+        }
+      },
+      "end": {
+        "monotonic_s": 126985.420663702,
+        "cpu_s": 9.795730126,
+        "rss_mib": 474.640625,
+        "file_descriptors": 19,
+        "native_threads": 106,
+        "python_threads": [
+          "MainThread",
+          "asyncio_0",
+          "asyncio_1",
+          "asyncio_10",
+          "asyncio_11",
+          "asyncio_12",
+          "asyncio_13",
+          "asyncio_14",
+          "asyncio_15",
+          "asyncio_16",
+          "asyncio_2",
+          "asyncio_3",
+          "asyncio_4",
+          "asyncio_5",
+          "asyncio_6",
+          "asyncio_7",
+          "asyncio_8",
+          "asyncio_9",
+          "capture-back",
+          "capture-front",
+          "capture-left",
+          "capture-right",
+          "soak-backend",
+          "video-decoder",
+          "video-decoder",
+          "video-decoder",
+          "video-decoder"
+        ],
+        "gc_collections": [
+          251,
+          22,
+          2
+        ],
+        "asyncio_tasks": 39,
+        "task_kinds": {
+          "WebRTCReceiver._recv_track": 4,
+          "RTCRtpSender._run_rtcp": 4,
+          "MultiCameraManager._camera_push_worker": 4,
+          "RTCRtpSender._run_rtp": 4,
+          "Connection.keepalive": 4,
+          "Connection.query_consent": 2,
+          "RTCDtlsTransport.__run": 2,
+          "main.<locals>.backend.<locals>.bounded": 1,
+          "MultiCameraManager.wait": 1,
+          "RTCRtpReceiver._run_rtcp": 4,
+          "MediaSession.start": 2,
+          "Server.conn_handler": 2,
+          "RTCIceTransport._monitor": 2,
+          "run.<locals>.monitor": 1,
+          "MediaSession._run": 2
+        },
+        "retired_peers_alive": 0,
+        "counts": {
+          "received": {
+            "back": 183,
+            "left": 182,
+            "right": 183,
+            "front": 182
+          },
+          "painted": {
+            "front": 181,
+            "left": 181,
+            "back": 180,
+            "right": 181
+          }
+        }
+      },
+      "fps": {
+        "received": {
+          "front": 29.873669420230588,
+          "back": 30.371563910567765,
+          "left": 29.37577492989341,
+          "right": 29.873669420230588
+        },
+        "painted": {
+          "front": 29.37577492989341,
+          "back": 29.37577492989341,
+          "left": 29.37577492989341,
+          "right": 29.37577492989341
+        }
+      },
+      "cpu_percent_one_core": 104.91412730599157,
+      "paths": [
+        [
+          "127.0.0.1",
+          "127.0.0.1",
+          "host",
+          "host"
+        ],
+        [
+          "127.0.0.1",
+          "127.0.0.1",
+          "host",
+          "host"
+        ],
+        [
+          "127.0.0.1",
+          "127.0.0.1",
+          "host",
+          "host"
+        ],
+        [
+          "127.0.0.1",
+          "127.0.0.1",
+          "host",
+          "host"
+        ],
+        [
+          "127.0.0.1",
+          "127.0.0.1",
+          "host",
+          "host"
+        ],
+        [
+          "127.0.0.1",
+          "127.0.0.1",
+          "host",
+          "host"
+        ],
+        [
+          "127.0.0.1",
+          "127.0.0.1",
+          "host",
+          "host"
+        ],
+        [
+          "127.0.0.1",
+          "127.0.0.1",
+          "host",
+          "host"
+        ]
+      ],
+      "reconnected_endpoint": "receiver",
+      "reconnect_all_views_ms": 221.71965899178758
+    },
+    {
+      "cycle": 2,
+      "begin": {
+        "monotonic_s": 126985.643792402,
+        "cpu_s": 9.972250084,
+        "rss_mib": 493.3125,
+        "file_descriptors": 19,
+        "native_threads": 108,
+        "python_threads": [
+          "MainThread",
+          "asyncio_0",
+          "asyncio_1",
+          "asyncio_10",
+          "asyncio_11",
+          "asyncio_12",
+          "asyncio_13",
+          "asyncio_14",
+          "asyncio_15",
+          "asyncio_16",
+          "asyncio_17",
+          "asyncio_18",
+          "asyncio_2",
+          "asyncio_3",
+          "asyncio_4",
+          "asyncio_5",
+          "asyncio_6",
+          "asyncio_7",
+          "asyncio_8",
+          "asyncio_9",
+          "capture-back",
+          "capture-front",
+          "capture-left",
+          "capture-right",
+          "soak-backend",
+          "video-decoder",
+          "video-decoder",
+          "video-decoder",
+          "video-decoder"
+        ],
+        "gc_collections": [
+          268,
+          24,
+          2
+        ],
+        "asyncio_tasks": 39,
+        "task_kinds": {
+          "Server.conn_handler": 2,
+          "RTCRtpSender._run_rtcp": 4,
+          "RTCRtpReceiver._run_rtcp": 4,
+          "MultiCameraManager._camera_push_worker": 4,
+          "RTCIceTransport._monitor": 2,
+          "Connection.query_consent": 2,
+          "WebRTCReceiver._recv_track": 4,
+          "RTCDtlsTransport.__run": 2,
+          "Connection.keepalive": 4,
+          "RTCRtpSender._run_rtp": 4,
+          "main.<locals>.backend.<locals>.bounded": 1,
+          "MultiCameraManager.wait": 1,
+          "MediaSession.start": 2,
+          "run.<locals>.monitor": 1,
+          "MediaSession._run": 2
+        },
+        "retired_peers_alive": 2,
+        "counts": {
+          "received": {
+            "back": 184,
+            "left": 183,
+            "right": 184,
+            "front": 183
+          },
+          "painted": {
+            "front": 182,
+            "left": 182,
+            "back": 182,
+            "right": 183
+          }
+        }
+      },
+      "end": {
+        "monotonic_s": 126987.658103272,
+        "cpu_s": 12.155083633,
+        "rss_mib": 518.49609375,
+        "file_descriptors": 19,
+        "native_threads": 109,
+        "python_threads": [
+          "MainThread",
+          "asyncio_0",
+          "asyncio_1",
+          "asyncio_10",
+          "asyncio_11",
+          "asyncio_12",
+          "asyncio_13",
+          "asyncio_14",
+          "asyncio_15",
+          "asyncio_16",
+          "asyncio_17",
+          "asyncio_18",
+          "asyncio_19",
+          "asyncio_2",
+          "asyncio_3",
+          "asyncio_4",
+          "asyncio_5",
+          "asyncio_6",
+          "asyncio_7",
+          "asyncio_8",
+          "asyncio_9",
+          "capture-back",
+          "capture-front",
+          "capture-left",
+          "capture-right",
+          "soak-backend",
+          "video-decoder",
+          "video-decoder",
+          "video-decoder",
+          "video-decoder"
+        ],
+        "gc_collections": [
+          279,
+          25,
+          2
+        ],
+        "asyncio_tasks": 39,
+        "task_kinds": {
+          "Server.conn_handler": 2,
+          "RTCRtpSender._run_rtcp": 4,
+          "RTCRtpReceiver._run_rtcp": 4,
+          "MultiCameraManager._camera_push_worker": 4,
+          "RTCIceTransport._monitor": 2,
+          "Connection.query_consent": 2,
+          "WebRTCReceiver._recv_track": 4,
+          "RTCDtlsTransport.__run": 2,
+          "Connection.keepalive": 4,
+          "RTCRtpSender._run_rtp": 4,
+          "main.<locals>.backend.<locals>.bounded": 1,
+          "MultiCameraManager.wait": 1,
+          "MediaSession.start": 2,
+          "run.<locals>.monitor": 1,
+          "MediaSession._run": 2
+        },
+        "retired_peers_alive": 2,
+        "counts": {
+          "received": {
+            "back": 245,
+            "left": 244,
+            "right": 245,
+            "front": 244
+          },
+          "painted": {
+            "front": 242,
+            "left": 242,
+            "back": 242,
+            "right": 243
+          }
+        }
+      },
+      "fps": {
+        "received": {
+          "front": 30.283309745539064,
+          "back": 30.283309745539064,
+          "left": 30.283309745539064,
+          "right": 30.283309745539064
+        },
+        "painted": {
+          "front": 29.78686204479252,
+          "back": 29.78686204479252,
+          "left": 29.78686204479252,
+          "right": 29.78686204479252
+        }
+      },
+      "cpu_percent_one_core": 108.36626965134641,
+      "paths": [
+        [
+          "127.0.0.1",
+          "127.0.0.1",
+          "host",
+          "host"
+        ],
+        [
+          "127.0.0.1",
+          "127.0.0.1",
+          "host",
+          "host"
+        ],
+        [
+          "127.0.0.1",
+          "127.0.0.1",
+          "host",
+          "host"
+        ],
+        [
+          "127.0.0.1",
+          "127.0.0.1",
+          "host",
+          "host"
+        ],
+        [
+          "127.0.0.1",
+          "127.0.0.1",
+          "host",
+          "host"
+        ],
+        [
+          "127.0.0.1",
+          "127.0.0.1",
+          "host",
+          "host"
+        ],
+        [
+          "127.0.0.1",
+          "127.0.0.1",
+          "host",
+          "host"
+        ],
+        [
+          "127.0.0.1",
+          "127.0.0.1",
+          "host",
+          "host"
+        ]
+      ],
+      "reconnected_endpoint": "publisher",
+      "reconnect_all_views_ms": 239.86908799270168
+    },
+    {
+      "cycle": 3,
+      "begin": {
+        "monotonic_s": 126987.90014112,
+        "cpu_s": 12.37947777,
+        "rss_mib": 527.33984375,
+        "file_descriptors": 19,
+        "native_threads": 109,
+        "python_threads": [
+          "MainThread",
+          "asyncio_0",
+          "asyncio_1",
+          "asyncio_10",
+          "asyncio_11",
+          "asyncio_12",
+          "asyncio_13",
+          "asyncio_14",
+          "asyncio_15",
+          "asyncio_16",
+          "asyncio_17",
+          "asyncio_18",
+          "asyncio_19",
+          "asyncio_2",
+          "asyncio_3",
+          "asyncio_4",
+          "asyncio_5",
+          "asyncio_6",
+          "asyncio_7",
+          "asyncio_8",
+          "asyncio_9",
+          "capture-back",
+          "capture-front",
+          "capture-left",
+          "capture-right",
+          "soak-backend",
+          "video-decoder",
+          "video-decoder",
+          "video-decoder",
+          "video-decoder"
+        ],
+        "gc_collections": [
+          297,
+          26,
+          2
+        ],
+        "asyncio_tasks": 39,
+        "task_kinds": {
+          "Server.conn_handler": 2,
+          "RTCIceTransport._monitor": 2,
+          "RTCRtpSender._run_rtcp": 4,
+          "MultiCameraManager._camera_push_worker": 4,
+          "Connection.keepalive": 4,
+          "WebRTCReceiver._recv_track": 4,
+          "RTCRtpSender._run_rtp": 4,
+          "Connection.query_consent": 2,
+          "main.<locals>.backend.<locals>.bounded": 1,
+          "MultiCameraManager.wait": 1,
+          "RTCRtpReceiver._run_rtcp": 4,
+          "RTCDtlsTransport.__run": 2,
+          "MediaSession.start": 2,
+          "run.<locals>.monitor": 1,
+          "MediaSession._run": 2
+        },
+        "retired_peers_alive": 4,
+        "counts": {
+          "received": {
+            "back": 247,
+            "left": 246,
+            "right": 247,
+            "front": 245
+          },
+          "painted": {
+            "front": 244,
+            "left": 243,
+            "back": 244,
+            "right": 244
+          }
+        }
+      },
+      "end": {
+        "monotonic_s": 126989.90996552,
+        "cpu_s": 14.367738306,
+        "rss_mib": 537.7734375,
+        "file_descriptors": 19,
+        "native_threads": 109,
+        "python_threads": [
+          "MainThread",
+          "asyncio_0",
+          "asyncio_1",
+          "asyncio_10",
+          "asyncio_11",
+          "asyncio_12",
+          "asyncio_13",
+          "asyncio_14",
+          "asyncio_15",
+          "asyncio_16",
+          "asyncio_17",
+          "asyncio_18",
+          "asyncio_19",
+          "asyncio_2",
+          "asyncio_3",
+          "asyncio_4",
+          "asyncio_5",
+          "asyncio_6",
+          "asyncio_7",
+          "asyncio_8",
+          "asyncio_9",
+          "capture-back",
+          "capture-front",
+          "capture-left",
+          "capture-right",
+          "soak-backend",
+          "video-decoder",
+          "video-decoder",
+          "video-decoder",
+          "video-decoder"
+        ],
+        "gc_collections": [
+          308,
+          27,
+          2
+        ],
+        "asyncio_tasks": 39,
+        "task_kinds": {
+          "Server.conn_handler": 2,
+          "RTCIceTransport._monitor": 2,
+          "RTCRtpSender._run_rtcp": 4,
+          "MultiCameraManager._camera_push_worker": 4,
+          "Connection.keepalive": 4,
+          "WebRTCReceiver._recv_track": 4,
+          "RTCRtpSender._run_rtp": 4,
+          "Connection.query_consent": 2,
+          "main.<locals>.backend.<locals>.bounded": 1,
+          "MultiCameraManager.wait": 1,
+          "RTCRtpReceiver._run_rtcp": 4,
+          "RTCDtlsTransport.__run": 2,
+          "MediaSession.start": 2,
+          "run.<locals>.monitor": 1,
+          "MediaSession._run": 2
+        },
+        "retired_peers_alive": 4,
+        "counts": {
+          "received": {
+            "back": 307,
+            "left": 305,
+            "right": 307,
+            "front": 306
+          },
+          "painted": {
+            "front": 304,
+            "left": 303,
+            "back": 304,
+            "right": 305
+          }
+        }
+      },
+      "fps": {
+        "received": {
+          "front": 30.350910258681445,
+          "back": 29.85335435280142,
+          "left": 29.355798446921398,
+          "right": 29.85335435280142
+        },
+        "painted": {
+          "front": 29.85335435280142,
+          "back": 29.85335435280142,
+          "left": 29.85335435280142,
+          "right": 30.350910258681445
+        }
+      },
+      "cpu_percent_one_core": 98.92707721149816,
+      "paths": [
+        [
+          "127.0.0.1",
+          "127.0.0.1",
+          "host",
+          "host"
+        ],
+        [
+          "127.0.0.1",
+          "127.0.0.1",
+          "host",
+          "host"
+        ],
+        [
+          "127.0.0.1",
+          "127.0.0.1",
+          "host",
+          "host"
+        ],
+        [
+          "127.0.0.1",
+          "127.0.0.1",
+          "host",
+          "host"
+        ],
+        [
+          "127.0.0.1",
+          "127.0.0.1",
+          "host",
+          "host"
+        ],
+        [
+          "127.0.0.1",
+          "127.0.0.1",
+          "host",
+          "host"
+        ],
+        [
+          "127.0.0.1",
+          "127.0.0.1",
+          "host",
+          "host"
+        ],
+        [
+          "127.0.0.1",
+          "127.0.0.1",
+          "host",
+          "host"
+        ]
+      ],
+      "reconnected_endpoint": "receiver",
+      "reconnect_all_views_ms": 233.64557499007788
+    },
+    {
+      "cycle": 4,
+      "begin": {
+        "monotonic_s": 126990.145443018,
+        "cpu_s": 14.568029882,
+        "rss_mib": 564.07421875,
+        "file_descriptors": 19,
+        "native_threads": 109,
+        "python_threads": [
+          "MainThread",
+          "asyncio_0",
+          "asyncio_1",
+          "asyncio_10",
+          "asyncio_11",
+          "asyncio_12",
+          "asyncio_13",
+          "asyncio_14",
+          "asyncio_15",
+          "asyncio_16",
+          "asyncio_17",
+          "asyncio_18",
+          "asyncio_19",
+          "asyncio_2",
+          "asyncio_3",
+          "asyncio_4",
+          "asyncio_5",
+          "asyncio_6",
+          "asyncio_7",
+          "asyncio_8",
+          "asyncio_9",
+          "capture-back",
+          "capture-front",
+          "capture-left",
+          "capture-right",
+          "soak-backend",
+          "video-decoder",
+          "video-decoder",
+          "video-decoder",
+          "video-decoder"
+        ],
+        "gc_collections": [
+          325,
+          29,
+          2
+        ],
+        "asyncio_tasks": 39,
+        "task_kinds": {
+          "RTCRtpSender._run_rtp": 4,
+          "MultiCameraManager._camera_push_worker": 4,
+          "Connection.keepalive": 4,
+          "Server.conn_handler": 2,
+          "WebRTCReceiver._recv_track": 4,
+          "RTCRtpSender._run_rtcp": 4,
+          "RTCDtlsTransport.__run": 2,
+          "RTCRtpReceiver._run_rtcp": 4,
+          "main.<locals>.backend.<locals>.bounded": 1,
+          "MultiCameraManager.wait": 1,
+          "RTCIceTransport._monitor": 2,
+          "MediaSession.start": 2,
+          "Connection.query_consent": 2,
+          "run.<locals>.monitor": 1,
+          "MediaSession._run": 2
+        },
+        "retired_peers_alive": 6,
+        "counts": {
+          "received": {
+            "back": 309,
+            "left": 308,
+            "right": 309,
+            "front": 308
+          },
+          "painted": {
+            "front": 306,
+            "left": 305,
+            "back": 306,
+            "right": 307
+          }
+        }
+      },
+      "end": {
+        "monotonic_s": 126992.151837267,
+        "cpu_s": 16.554409209,
+        "rss_mib": 573.21875,
+        "file_descriptors": 19,
+        "native_threads": 109,
+        "python_threads": [
+          "MainThread",
+          "asyncio_0",
+          "asyncio_1",
+          "asyncio_10",
+          "asyncio_11",
+          "asyncio_12",
+          "asyncio_13",
+          "asyncio_14",
+          "asyncio_15",
+          "asyncio_16",
+          "asyncio_17",
+          "asyncio_18",
+          "asyncio_19",
+          "asyncio_2",
+          "asyncio_3",
+          "asyncio_4",
+          "asyncio_5",
+          "asyncio_6",
+          "asyncio_7",
+          "asyncio_8",
+          "asyncio_9",
+          "capture-back",
+          "capture-front",
+          "capture-left",
+          "capture-right",
+          "soak-backend",
+          "video-decoder",
+          "video-decoder",
+          "video-decoder",
+          "video-decoder"
+        ],
+        "gc_collections": [
+          336,
+          30,
+          2
+        ],
+        "asyncio_tasks": 39,
+        "task_kinds": {
+          "RTCRtpSender._run_rtp": 4,
+          "MultiCameraManager._camera_push_worker": 4,
+          "Connection.keepalive": 4,
+          "Server.conn_handler": 2,
+          "WebRTCReceiver._recv_track": 4,
+          "RTCRtpSender._run_rtcp": 4,
+          "RTCDtlsTransport.__run": 2,
+          "RTCRtpReceiver._run_rtcp": 4,
+          "main.<locals>.backend.<locals>.bounded": 1,
+          "MultiCameraManager.wait": 1,
+          "RTCIceTransport._monitor": 2,
+          "MediaSession.start": 2,
+          "Connection.query_consent": 2,
+          "run.<locals>.monitor": 1,
+          "MediaSession._run": 2
+        },
+        "retired_peers_alive": 6,
+        "counts": {
+          "received": {
+            "back": 368,
+            "left": 368,
+            "right": 369,
+            "front": 368
+          },
+          "painted": {
+            "front": 366,
+            "left": 365,
+            "back": 365,
+            "right": 366
+          }
+        }
+      },
+      "fps": {
+        "received": {
+          "front": 29.90439193597087,
+          "back": 29.40598540370469,
+          "left": 29.90439193597087,
+          "right": 29.90439193597087
+        },
+        "painted": {
+          "front": 29.90439193597087,
+          "back": 29.40598540370469,
+          "left": 29.90439193597087,
+          "right": 29.40598540370469
+        }
+      },
+      "cpu_percent_one_core": 99.00244321353007,
+      "paths": [
+        [
+          "127.0.0.1",
+          "127.0.0.1",
+          "host",
+          "host"
+        ],
+        [
+          "127.0.0.1",
+          "127.0.0.1",
+          "host",
+          "host"
+        ],
+        [
+          "127.0.0.1",
+          "127.0.0.1",
+          "host",
+          "host"
+        ],
+        [
+          "127.0.0.1",
+          "127.0.0.1",
+          "host",
+          "host"
+        ],
+        [
+          "127.0.0.1",
+          "127.0.0.1",
+          "host",
+          "host"
+        ],
+        [
+          "127.0.0.1",
+          "127.0.0.1",
+          "host",
+          "host"
+        ],
+        [
+          "127.0.0.1",
+          "127.0.0.1",
+          "host",
+          "host"
+        ],
+        [
+          "127.0.0.1",
+          "127.0.0.1",
+          "host",
+          "host"
+        ]
+      ],
+      "reconnected_endpoint": "publisher",
+      "reconnect_all_views_ms": 222.1319780073827
+    },
+    {
+      "cycle": 5,
+      "begin": {
+        "monotonic_s": 126992.376359804,
+        "cpu_s": 16.727810949,
+        "rss_mib": 560.41015625,
+        "file_descriptors": 19,
+        "native_threads": 109,
+        "python_threads": [
+          "MainThread",
+          "asyncio_0",
+          "asyncio_1",
+          "asyncio_10",
+          "asyncio_11",
+          "asyncio_12",
+          "asyncio_13",
+          "asyncio_14",
+          "asyncio_15",
+          "asyncio_16",
+          "asyncio_17",
+          "asyncio_18",
+          "asyncio_19",
+          "asyncio_2",
+          "asyncio_3",
+          "asyncio_4",
+          "asyncio_5",
+          "asyncio_6",
+          "asyncio_7",
+          "asyncio_8",
+          "asyncio_9",
+          "capture-back",
+          "capture-front",
+          "capture-left",
+          "capture-right",
+          "soak-backend",
+          "video-decoder",
+          "video-decoder",
+          "video-decoder",
+          "video-decoder"
+        ],
+        "gc_collections": [
+          353,
+          32,
+          2
+        ],
+        "asyncio_tasks": 39,
+        "task_kinds": {
+          "RTCRtpReceiver._run_rtcp": 4,
+          "MultiCameraManager._camera_push_worker": 4,
+          "Connection.query_consent": 2,
+          "Connection.keepalive": 4,
+          "RTCDtlsTransport.__run": 2,
+          "WebRTCReceiver._recv_track": 4,
+          "RTCRtpSender._run_rtp": 4,
+          "Server.conn_handler": 2,
+          "RTCIceTransport._monitor": 2,
+          "main.<locals>.backend.<locals>.bounded": 1,
+          "MultiCameraManager.wait": 1,
+          "RTCRtpSender._run_rtcp": 4,
+          "MediaSession.start": 2,
+          "run.<locals>.monitor": 1,
+          "MediaSession._run": 2
+        },
+        "retired_peers_alive": 8,
+        "counts": {
+          "received": {
+            "back": 370,
+            "left": 369,
+            "right": 370,
+            "front": 369
+          },
+          "painted": {
+            "front": 367,
+            "left": 366,
+            "back": 366,
+            "right": 367
+          }
+        }
+      },
+      "end": {
+        "monotonic_s": 126994.379419286,
+        "cpu_s": 18.738834661,
+        "rss_mib": 567.23046875,
+        "file_descriptors": 19,
+        "native_threads": 109,
+        "python_threads": [
+          "MainThread",
+          "asyncio_0",
+          "asyncio_1",
+          "asyncio_10",
+          "asyncio_11",
+          "asyncio_12",
+          "asyncio_13",
+          "asyncio_14",
+          "asyncio_15",
+          "asyncio_16",
+          "asyncio_17",
+          "asyncio_18",
+          "asyncio_19",
+          "asyncio_2",
+          "asyncio_3",
+          "asyncio_4",
+          "asyncio_5",
+          "asyncio_6",
+          "asyncio_7",
+          "asyncio_8",
+          "asyncio_9",
+          "capture-back",
+          "capture-front",
+          "capture-left",
+          "capture-right",
+          "soak-backend",
+          "video-decoder",
+          "video-decoder",
+          "video-decoder",
+          "video-decoder"
+        ],
+        "gc_collections": [
+          363,
+          33,
+          3
+        ],
+        "asyncio_tasks": 39,
+        "task_kinds": {
+          "RTCRtpReceiver._run_rtcp": 4,
+          "MultiCameraManager._camera_push_worker": 4,
+          "Connection.query_consent": 2,
+          "Connection.keepalive": 4,
+          "RTCDtlsTransport.__run": 2,
+          "WebRTCReceiver._recv_track": 4,
+          "RTCRtpSender._run_rtp": 4,
+          "Server.conn_handler": 2,
+          "RTCIceTransport._monitor": 2,
+          "main.<locals>.backend.<locals>.bounded": 1,
+          "MultiCameraManager.wait": 1,
+          "RTCRtpSender._run_rtcp": 4,
+          "MediaSession.start": 2,
+          "run.<locals>.monitor": 1,
+          "MediaSession._run": 2
+        },
+        "retired_peers_alive": 0,
+        "counts": {
+          "received": {
+            "back": 430,
+            "left": 429,
+            "right": 429,
+            "front": 429
+          },
+          "painted": {
+            "front": 426,
+            "left": 425,
+            "back": 426,
+            "right": 426
+          }
+        }
+      },
+      "fps": {
+        "received": {
+          "front": 29.954177866023905,
+          "back": 29.954177866023905,
+          "left": 29.954177866023905,
+          "right": 29.45494156825684
+        },
+        "painted": {
+          "front": 29.45494156825684,
+          "back": 29.954177866023905,
+          "left": 29.45494156825684,
+          "right": 29.45494156825684
+        }
+      },
+      "cpu_percent_one_core": 100.39760327006606,
+      "paths": [
+        [
+          "127.0.0.1",
+          "127.0.0.1",
+          "host",
+          "host"
+        ],
+        [
+          "127.0.0.1",
+          "127.0.0.1",
+          "host",
+          "host"
+        ],
+        [
+          "127.0.0.1",
+          "127.0.0.1",
+          "host",
+          "host"
+        ],
+        [
+          "127.0.0.1",
+          "127.0.0.1",
+          "host",
+          "host"
+        ],
+        [
+          "127.0.0.1",
+          "127.0.0.1",
+          "host",
+          "host"
+        ],
+        [
+          "127.0.0.1",
+          "127.0.0.1",
+          "host",
+          "host"
+        ],
+        [
+          "127.0.0.1",
+          "127.0.0.1",
+          "host",
+          "host"
+        ],
+        [
+          "127.0.0.1",
+          "127.0.0.1",
+          "host",
+          "host"
+        ]
+      ]
+    }
+  ],
+  "before_start": {
+    "monotonic_s": 126979.021532346,
+    "cpu_s": 3.16044608,
+    "rss_mib": 148.79296875,
+    "file_descriptors": 8,
+    "native_threads": 32,
+    "python_threads": [
+      "MainThread",
+      "soak-backend"
+    ],
+    "gc_collections": [
+      179,
+      16,
+      1
+    ]
+  },
+  "first_all_views_ms": 117.97950998879969,
+  "cleanup": {
+    "camera_threads_closed": true,
+    "endpoint_maps_empty": true,
+    "server_rooms_empty": true,
+    "unexpected_tasks": []
+  },
+  "closed_before_gc": {
+    "monotonic_s": 126994.392561179,
+    "cpu_s": 18.759117904,
+    "rss_mib": 523.11328125,
+    "file_descriptors": 12,
+    "native_threads": 71,
+    "python_threads": [
+      "MainThread",
+      "asyncio_0",
+      "asyncio_1",
+      "asyncio_10",
+      "asyncio_11",
+      "asyncio_12",
+      "asyncio_13",
+      "asyncio_14",
+      "asyncio_15",
+      "asyncio_16",
+      "asyncio_17",
+      "asyncio_18",
+      "asyncio_19",
+      "asyncio_2",
+      "asyncio_3",
+      "asyncio_4",
+      "asyncio_5",
+      "asyncio_6",
+      "asyncio_7",
+      "asyncio_8",
+      "asyncio_9",
+      "soak-backend"
+    ],
+    "gc_collections": [
+      363,
+      33,
+      3
+    ],
+    "asyncio_tasks": 1,
+    "task_kinds": {
+      "main.<locals>.backend.<locals>.bounded": 1
+    },
+    "retired_peers_alive": 0,
+    "counts": {
+      "received": {
+        "back": 430,
+        "left": 429,
+        "right": 429,
+        "front": 429
+      },
+      "painted": {
+        "front": 426,
+        "left": 425,
+        "back": 426,
+        "right": 426
+      }
+    }
+  },
+  "closed_after_gc": {
+    "monotonic_s": 126994.513482039,
+    "cpu_s": 18.780459736,
+    "rss_mib": 523.11328125,
+    "file_descriptors": 12,
+    "native_threads": 71,
+    "python_threads": [
+      "MainThread",
+      "asyncio_0",
+      "asyncio_1",
+      "asyncio_10",
+      "asyncio_11",
+      "asyncio_12",
+      "asyncio_13",
+      "asyncio_14",
+      "asyncio_15",
+      "asyncio_16",
+      "asyncio_17",
+      "asyncio_18",
+      "asyncio_19",
+      "asyncio_2",
+      "asyncio_3",
+      "asyncio_4",
+      "asyncio_5",
+      "asyncio_6",
+      "asyncio_7",
+      "asyncio_8",
+      "asyncio_9",
+      "soak-backend"
+    ],
+    "gc_collections": [
+      363,
+      33,
+      4
+    ],
+    "asyncio_tasks": 1,
+    "task_kinds": {
+      "main.<locals>.backend.<locals>.bounded": 1
+    },
+    "retired_peers_alive": 0,
+    "counts": {
+      "received": {
+        "back": 430,
+        "left": 429,
+        "right": 429,
+        "front": 429
+      },
+      "painted": {
+        "front": 426,
+        "left": 425,
+        "back": 426,
+        "right": 426
+      }
+    }
+  },
+  "after_worker_exit": {
+    "monotonic_s": 126994.551863998,
+    "cpu_s": 18.782951393,
+    "rss_mib": 522.7578125,
+    "file_descriptors": 9,
+    "native_threads": 50,
+    "python_threads": [
+      "MainThread"
+    ],
+    "gc_collections": [
+      363,
+      33,
+      4
+    ]
+  },
+  "measurement_errors": {},
+  "trend": {
+    "rss_mib": {
+      "first": 401.8046875,
+      "last": 567.23046875,
+      "min": 401.8046875,
+      "max": 573.21875
+    },
+    "file_descriptors": {
+      "first": 19,
+      "last": 19,
+      "min": 19,
+      "max": 19
+    },
+    "native_threads": {
+      "first": 103,
+      "last": 109,
+      "min": 103,
+      "max": 109
+    },
+    "asyncio_tasks": {
+      "first": 39,
+      "last": 39,
+      "min": 39,
+      "max": 39
+    },
+    "last_half_rss_mib_per_minute": 396.03615214982466
+  }
+}
