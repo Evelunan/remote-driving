@@ -143,6 +143,10 @@ uv run python main_window.py --session 1234 --room 1234
 - 如果启用串口底盘控制，`vehicle-unit/config/vehicle.yaml` 中的 `controller`、串口路径和波特率正确。
 - 本地测试自签名证书时，客户端 `quic.options.verify_mode` 可保持 `false`。
 
+## 改造方案
+
+- [项目改造方案](docs/refactoring-plan.zh-CN.md)：代码审查问题、视频性能优化、共享模块与配置设计、分阶段实施和验收标准。
+
 ## 子项目文档
 
 - [driving/README.md](driving/README.md)
