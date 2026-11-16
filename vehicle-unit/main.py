@@ -51,13 +51,10 @@ async def start_control(session_id: int):
         config=quic_config,
         session_id=session_id,
         controller=controller,
+        control_timeout_s=vehicle_config.control_timeout_s,
     )
     logger.info(f"控制服务启动 (session={session_id})")
-    try:
-        await client.start()
-    finally:
-        if controller is not None:
-            await asyncio.to_thread(controller.close)
+    await client.start()
 
 
 async def start_streaming(room: str):

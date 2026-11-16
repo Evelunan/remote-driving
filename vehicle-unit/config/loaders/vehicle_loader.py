@@ -73,6 +73,11 @@ class VehicleConfig:
     controller_type: str  # "serial" or "ros2"
     motion: MotionConfig
     communication: CommunicationConfig
+    control_timeout_s: float = 0.3
+
+    def __post_init__(self):
+        if not math.isfinite(self.control_timeout_s) or self.control_timeout_s <= 0:
+            raise ValueError("control_timeout_s must be finite and positive")
 
 
 _vehicle: Optional[VehicleConfig] = None
@@ -92,6 +97,7 @@ def _load_config(config_path: Path):
         data = yaml.safe_load(f)
     _vehicle = VehicleConfig(
         controller_type=str(data.get("controller", "serial")),
+        control_timeout_s=float(data.get("control_timeout_s", 0.3)),
         motion=MotionConfig(
             max_linear_velocity=float(data["motion"]["max_linear_velocity"]),
             max_angular_velocity=float(data["motion"]["max_angular_velocity"]),

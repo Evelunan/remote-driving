@@ -1,193 +1,117 @@
+"""Legacy wire adapter; device I/O and expiry belong to ControlSupervisor."""
+
 import asyncio
 import time
+import uuid
+
 from aioquic.asyncio.protocol import QuicConnectionProtocol
-from aioquic.quic.events import DatagramFrameReceived, ConnectionTerminated, HandshakeCompleted
+from aioquic.quic.events import ConnectionTerminated, DatagramFrameReceived, HandshakeCompleted
+from rd_core.control import Command, ControlSupervisor
 
-from common.constants import ROOT_PATH
-from interfaces.icontroller import IController
 from logger import get_logger
-
-# from .control_codec import ControlCodec
 from .codec import ControlCodec
 
 logger = get_logger(__name__)
 
 
 class VehicleProtocol(QuicConnectionProtocol):
-
-    def __init__(self, session_id, controller: IController, *args, **kwargs):
+    def __init__(self, session_id, controller, *args, supervisor: ControlSupervisor | None = None, **kwargs):
         super().__init__(*args, **kwargs)
         self.session_id = session_id
         self.controller = controller
+        self.supervisor = supervisor
+        self.epoch = uuid.uuid4().hex
         self._business_connected = False
         self._business_task: asyncio.Task | None = None
 
-        self._last_seq: int | None = None
-        self._last_timestamp = -1
-
-        self._batch_start_seq = -1   # 当前批次第一个包的 seq
-        self._received_count = 0       # 当前批次已收到包数
-
-    # =========================
-    # connection lifecycle
-    # =========================
-
     def connection_made(self, transport):
         super().connection_made(transport)
-        logger.info("[car] UDP transport established, waiting for QUIC handshake...")
+        logger.info("[car] UDP transport established; awaiting TLS")
 
     def connection_lost(self, exc):
-        logger.warning(f"[car] Connection lost: {exc}")
-        self._business_connected = False
-        self._stop_business()
+        self._stop_business("QUIC transport lost")
         super().connection_lost(exc)
 
     def quic_event_received(self, event):
         if isinstance(event, ConnectionTerminated):
-            logger.warning(
-                f"[car] Connection terminated: {event.error_code} {event.reason_phrase}"
-            )
-            self._business_connected = False
-            self._stop_business()
-        elif isinstance(event, DatagramFrameReceived):
-            self._handle_datagram(event.data)
+            self._stop_business("QUIC connection terminated")
         elif isinstance(event, HandshakeCompleted):
             self._business_connected = True
+        elif isinstance(event, DatagramFrameReceived):
+            self._handle_datagram(event.data)
         super().quic_event_received(event)
 
-    # =========================
-    # business lifecycle
-    # =========================
-
     def start(self):
-        """启动业务循环"""
         if not self._business_connected:
             raise RuntimeError("QUIC handshake is not complete")
         if self._business_task is None or self._business_task.done():
+            if self.supervisor is None:
+                raise RuntimeError("control supervisor is required")
+            self.supervisor.begin_session(self.epoch)
             self._business_task = asyncio.create_task(self._business_loop())
 
-    def _stop_business(self):
-        if self._business_task and not self._business_task.done():
+    def _stop_business(self, reason="control session stopped"):
+        self._business_connected = False
+        if self._business_task:
             self._business_task.cancel()
+        if self.supervisor is not None:
+            self.supervisor.stop(reason, epoch=self.epoch)
+
+    async def shutdown(self):
+        self._stop_business()
+        if self._business_task:
+            await asyncio.gather(self._business_task, return_exceptions=True)
+            self._business_task = None
 
     async def _business_loop(self):
         try:
-            await self._send_hello()
-            await self._heartbeat_loop()
+            self._send_datagram(ControlCodec.encode(ControlCodec.MessageType.HELLO_CAR, self.session_id))
+            while self._business_connected:
+                self._send_datagram(ControlCodec.encode(ControlCodec.MessageType.HEARTBEAT, self.session_id))
+                await asyncio.sleep(3)
         except asyncio.CancelledError:
-            logger.info("[car] Business loop cancelled")
+            raise
         except Exception:
-            logger.exception("[car] Business loop error")
-
-    # =========================
-    # datagram
-    # =========================
+            self._stop_business("QUIC sender failed")
+            logger.exception("[car] sender failed")
 
     def _send_datagram(self, payload: bytes):
-        try:
-            self._quic.send_datagram_frame(payload)
-            self.transmit()
-        except Exception:
-            logger.exception("[car] Failed to send datagram")
-            self._business_connected = False
+        self._quic.send_datagram_frame(payload)
+        self.transmit()
 
     def _handle_datagram(self, data: bytes):
         try:
-            msg = ControlCodec.decode(data)
-            msg_type = msg.get("type")
-            if msg_type == ControlCodec.MessageType.CONTROL:
-                self.process_control_message(msg)
-            elif msg_type == ControlCodec.MessageType.HEARTBEAT:
-                logger.debug(msg)
-            else:
-                logger.debug(f"[car] Ignore message type: {msg_type}")
-        except Exception:
-            logger.exception("[car] Failed to parse datagram")
-
-    # =========================
-    # hello
-    # =========================
-
-    async def _send_hello(self):
-        msg = ControlCodec.encode(ControlCodec.MessageType.HELLO_CAR, self.session_id)
-        self._send_datagram(msg)
-        logger.info(f"[car] hello sent (session={self.session_id})")
-
-    # =========================
-    # heartbeat
-    # =========================
-
-    async def _heartbeat_loop(self):
-        logger.info("[car] Heartbeat loop started")
-        while self._business_connected:
-            heartbeat = ControlCodec.encode(
-                ControlCodec.MessageType.HEARTBEAT, self.session_id
-            )
-            self._send_datagram(heartbeat)
-            await asyncio.sleep(3)
-        logger.info("[car] Heartbeat loop stopped")
-
-    # =========================
-    # control message
-    # =========================
+            message = ControlCodec.decode(data)
+        except (ValueError, KeyError):
+            return
+        if message["session"] != self.session_id or not self._business_connected:
+            return
+        if message["type"] == ControlCodec.MessageType.CONTROL:
+            self.process_control_message(message)
 
     def process_control_message(self, message: dict):
-        if message is None:
+        if self.supervisor is None or not self._business_connected:
             return
-        # 接收端
-        seq = message["seq"]
-
-        # 测试使用
-        # # 批次起始：记录第一个包的 seq
-        # if self._batch_start_seq == -1:
-        #     self._batch_start_seq = seq
-
-        # self._received_count += 1
-
-        # if self._received_count == 100:
-        #     # 这批次发送端理论上发了多少个包（seq 跨度）
-        #     expected = (seq - self._batch_start_seq + 1) & 0xFFFF
-        #     loss_rate = max(0.0, (expected - 100) / expected) if expected > 0 else 0.0
-
-        #     logger.info(f"[car] 批次丢包率 - 期望: {expected}, 收到: 100, 丢包率: {loss_rate:.2%}")
-
-        #     try:
-        #         log_file = ROOT_PATH / "logs" / "packet_loss_stats.csv"
-        #         with open(log_file, "a") as f:
-        #             f.write(f"{time.time()},{expected},100,{loss_rate:.4f}\n")
-        #     except Exception as e:
-        #         logger.error(f"记录丢包率失败: {e}")
-
-        #     # 重置批次
-        #     self._batch_start_seq = -1
-        #     self._received_count = 0
-            
-        if not ControlCodec.is_newer(seq, self._last_seq):
+        if message["session"] != self.session_id:
             return
-        self._last_seq = seq
+        # Legacy wall-clock timestamp wraps every 2**32 ms. Require synchronized
+        # clocks and reject future/expired packets; v2 will carry explicit age.
+        now_ms = (time.time_ns() // 1_000_000) & 0xFFFFFFFF
+        age_s = ((now_ms - message["timestamp"]) & 0xFFFFFFFF) / 1000
+        self.supervisor.submit(Command(
+            self.epoch, message["seq"], message["throttle"], message["brake"],
+            message["steering"], message["timestamp"],
+        ), age_s=age_s)
 
-        throttle, brake, steering = (
-            message["throttle"],
-            message["brake"],
-            message["steering"],
-        )
-
-        # 只修改类型，原封不动的发回去，进行时延测试
-        data = ControlCodec.encode(
-            type=ControlCodec.MessageType.STATE,
-            session=self.session_id,
-            throttle=throttle,
-            brake=brake,
-            steering=steering,
-            timestamp=message["timestamp"],
-            seq=seq,
-        )
-        logger.info(message)
-        self._send_datagram(data)
-
-        if self.controller == None:
+    def execution_result(self, command: Command, executed: bool, detail: str):
+        if command.epoch != self.epoch or not self._business_connected:
             return
-        try:
-            self.controller.send_command(throttle, brake, steering)
-        except Exception:
-            logger.exception("[car] control execution failed")
+        if not executed:
+            logger.debug("[car] control not executed: %s", detail)
+            return
+        # Transitional STATE is an execution acknowledgment, never odometry.
+        self._send_datagram(ControlCodec.encode(
+            ControlCodec.MessageType.STATE, self.session_id,
+            throttle=command.throttle, brake=command.brake, steering=command.steering,
+            timestamp=command.source_timestamp, seq=command.seq,
+        ))

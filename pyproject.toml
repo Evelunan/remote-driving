@@ -12,7 +12,11 @@ members = [
     "vehicle-unit",
     "servers/quic",
     "servers/webrtc",
+    "packages/rd-core",
 ]
+
+[tool.uv.sources]
+rd-core = { workspace = true }
 
 [[tool.uv.index]]
 name = "aliyun"

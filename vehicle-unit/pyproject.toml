@@ -3,8 +3,9 @@ name = "vehicle-unit"
 version = "0.1.0"
 description = "Vehicle-side camera streaming and control receiver"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.12"
 dependencies = [
+    "rd-core==0.2.0",
     "aioquic>=1.3.0",
     "aiortc>=1.14.0",
     "numpy>=2.4.3",
