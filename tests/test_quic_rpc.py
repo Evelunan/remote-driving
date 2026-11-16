@@ -264,3 +264,18 @@ async def test_local_encoding_failure_does_not_reset_an_uncreated_stream(local_t
             await client.request("large", {"value": "x" * 20000})
         assert not client._pending
         assert await client.request("small", {}) == {"ok": True}
+
+
+@pytest.mark.asyncio
+async def test_forced_shutdown_releases_connect_context_and_handshake_waiter():
+    protocol = RpcProtocol(
+        QuicConnection(configuration=QuicConfiguration(is_client=True))
+    )
+    protocol.transmit = lambda: None
+    waiter = asyncio.create_task(protocol.wait_connected())
+    await asyncio.sleep(0)
+    waiter.cancel()
+    await asyncio.gather(waiter, return_exceptions=True)
+    await protocol.shutdown(timeout_s=0.01)
+    await asyncio.wait_for(protocol.wait_closed(), 0.1)
+    assert protocol.transport_closed and protocol._connected_waiter is None

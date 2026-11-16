@@ -9,10 +9,12 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
+import yaml
 from cryptography import x509
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.x509.oid import NameOID
+from rd_server.main import create_runtime, parse_args
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -71,3 +73,50 @@ def local_tls(tmp_path):
     )
     key_path.chmod(0o600)
     return cert_path, key_path
+
+
+@pytest.fixture
+def runtime_factory(tmp_path, local_tls, monkeypatch):
+    cert, key = local_tls
+    tokens = {
+        "vehicle": "vehicle-" + "a" * 40,
+        "driver": "driver-" + "b" * 40,
+        "other": "other-" + "c" * 40,
+        "viewer": "viewer-" + "d" * 40,
+    }
+    records = []
+    for name, token in tokens.items():
+        monkeypatch.setenv("TEST_" + name.upper(), token)
+        role = "driving" if name in ("driver", "other") else name
+        records.append(
+            {
+                "id": name,
+                "role": role,
+                "token_env": "TEST_" + name.upper(),
+                "sessions": [42],
+                "rooms": ["video"],
+            }
+        )
+
+    def build(services=("relay",), **relay_options):
+        config = {
+            "environment": "production",
+            "services": list(services),
+            "auth": {"principals": records},
+            "relay": {
+                "host": "127.0.0.1",
+                "port": 0,
+                "tls": {"cert": str(cert), "key": str(key)},
+                **relay_options,
+            },
+            "signaling": {
+                "host": "127.0.0.1",
+                "port": 0,
+                "tls": {"cert": str(cert), "key": str(key)},
+            },
+        }
+        path = tmp_path / "authenticated-server.yaml"
+        path.write_text(yaml.safe_dump(config))
+        return create_runtime(parse_args(["--config", str(path)]))
+
+    return build, tokens

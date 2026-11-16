@@ -1,0 +1,21 @@
+{
+  "scope": "loopback TLS QUIC and in-memory actuator; no hardware",
+  "python": "3.12.16",
+  "platform": "Linux-6.18.58.1-microsoft-standard-WSL2-x86_64-with-glibc2.43",
+  "motion_seconds": 1,
+  "settings": {
+    "send_hz": 50.0,
+    "input_timeout_ms": 200,
+    "command_timeout_ms": 300,
+    "clock_skew_ms": 50,
+    "max_linear_mps": 1.2,
+    "max_angular_radps": 0.4
+  },
+  "execution_acks": 63,
+  "capture_to_ack_ms_median": 8.283417992061004,
+  "capture_to_ack_ms_p95": 120.6036369985668,
+  "input_expiry_to_mock_zero_target_ms": 218.54728399193846,
+  "new_epoch_after_neutral_recovery": true,
+  "physical_stop_verified": false,
+  "device_threads_closed": true
+}

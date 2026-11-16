@@ -242,6 +242,8 @@ class ClientNetworkSettings:
             reconnect_delay_s=self.reconnect_delay_s,
             register_timeout_s=self.register_timeout_s,
         )
+        if self.register_timeout_s > 60:
+            raise ValueError("register_timeout_s must not exceed 60")
 
 
 @dataclass(frozen=True)

@@ -1102,6 +1102,7 @@ dependencies = [
     { name = "pyqt6" },
     { name = "pyyaml" },
     { name = "rd-core" },
+    { name = "rd-quic" },
     { name = "rd-webrtc" },
     { name = "websockets" },
 ]
@@ -1119,6 +1120,7 @@ requires-dist = [
     { name = "pyqt6", specifier = ">=6.10.2" },
     { name = "pyyaml", specifier = ">=6.0.3" },
     { name = "rd-core", editable = "packages/rd-core" },
+    { name = "rd-quic", editable = "packages/rd-quic" },
     { name = "rd-webrtc", editable = "packages/rd-webrtc" },
     { name = "websockets", specifier = ">=16.0" },
 ]
@@ -1171,6 +1173,7 @@ dependencies = [
     { name = "pyserial" },
     { name = "pyyaml" },
     { name = "rd-core" },
+    { name = "rd-quic" },
     { name = "rd-webrtc" },
     { name = "websockets" },
 ]
@@ -1184,6 +1187,7 @@ requires-dist = [
     { name = "pyserial", specifier = ">=3.5" },
     { name = "pyyaml", specifier = ">=6.0.3" },
     { name = "rd-core", editable = "packages/rd-core" },
+    { name = "rd-quic", editable = "packages/rd-quic" },
     { name = "rd-webrtc", editable = "packages/rd-webrtc" },
     { name = "websockets", specifier = ">=16.0" },
 ]

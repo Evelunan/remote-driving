@@ -14,7 +14,12 @@ from aioquic.quic.events import (
 from rd_core.logging import get_logger
 from rd_core.wire import ALPN
 
-from .compat import cancel_pending_io, has_stream_capacity, send_latest_datagram
+from .compat import (
+    cancel_pending_io,
+    finish_abandoned_close,
+    has_stream_capacity,
+    send_latest_datagram,
+)
 from .framing import MessageBuffer, RpcError, encode_message
 
 logger = get_logger(__name__)
@@ -267,6 +272,7 @@ class RpcProtocol(QuicConnectionProtocol):
             await asyncio.wait_for(self.wait_closed(), timeout_s)
         except TimeoutError:
             logger.warning("QUIC close deadline exceeded")
+            finish_abandoned_close(self)
         finally:
             cancel_pending_io(self)
             tasks = [

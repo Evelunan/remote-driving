@@ -21,3 +21,16 @@ def send_latest_datagram(protocol, data):
 def has_stream_capacity(protocol, limit):
     # Include streams waiting for transport ACKs, not just application futures.
     return len(protocol._quic._streams) < limit
+
+
+def finish_abandoned_close(protocol):
+    """Release aioquic context-manager waiters after a forced local deadline."""
+    waiter = protocol._connected_waiter
+    protocol._connected_waiter = None
+    if waiter is not None and not waiter.done():
+        waiter.cancel()
+    for waiter in protocol._ping_waiters.values():
+        if not waiter.done():
+            waiter.cancel()
+    protocol._ping_waiters.clear()
+    protocol._closed.set()

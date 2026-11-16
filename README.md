@@ -8,7 +8,7 @@ Python 3.12 工作区，包含三个可独立安装的应用：
 | [车辆端](apps/vehicle/README.md) | rd-vehicle / rd-vehicle | 相机、WebRTC 推流、控制监护及 ROS2/串口适配 |
 | [统一服务端](apps/server/README.md) | rd-server / rd-server | 可共同或分别启动的信令与 QUIC 中继模块 |
 
-改造仍在实施中。统一配置已接入服务端，信令已支持身份与房间授权，中继已实现认证注册与独占租约；客户端配置/新版协议迁移、视频性能、进程隔离和部署验收尚未完成。具体状态见[实施记录](docs/refactoring-progress.zh-CN.md)，设计依据见[改造方案](docs/refactoring-plan.zh-CN.md)，配置规则见[配置说明](docs/configuration.zh-CN.md)。
+改造仍在实施中。统一配置已接入服务端，信令已支持身份与房间授权，中继已实现认证注册与独占租约；新版两端控制客户端已通过无硬件完整链路验证；正式入口/媒体配置迁移、视频性能、进程隔离和部署验收尚未完成。具体状态见[实施记录](docs/refactoring-progress.zh-CN.md)，设计依据见[改造方案](docs/refactoring-plan.zh-CN.md)，配置规则见[配置说明](docs/configuration.zh-CN.md)。
 
 ## 目录
 
@@ -38,6 +38,8 @@ uv run --no-sync rd-driving --help
 uv run --no-sync rd-vehicle --help
 uv run --no-sync rd-server --help
 ```
+
+完整 v2 控制模拟及报告说明见[无硬件验证](docs/control-simulation.zh-CN.md)。
 
 测试包含模拟输入/底盘、Qt offscreen、临时证书和仅绑定回环地址的监听器。运行环境需要允许本机 socketpair 和回环 socket；这些测试不连接实车或外部服务。
 

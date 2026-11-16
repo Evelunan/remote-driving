@@ -1,8 +1,16 @@
-from .serial_controller import SerialController
+"""Device dependencies are imported only when the selected adapter is requested."""
 
-try:
-    from .ros2_cmd_vel_controller import RCLpyCmdVelController
-except ImportError:
-    RCLpyCmdVelController = None  # rclpy 未安装时不可用
+from importlib import import_module
 
-__all__ = ["SerialController", "RCLpyCmdVelController"]
+__all__ = ["MockController", "RCLpyCmdVelController", "SerialController"]
+
+
+def __getattr__(name):
+    modules = {
+        "SerialController": ".serial_controller",
+        "RCLpyCmdVelController": ".ros2_cmd_vel_controller",
+        "MockController": ".mock_controller",
+    }
+    if name not in modules:
+        raise AttributeError(name)
+    return getattr(import_module(modules[name], __name__), name)

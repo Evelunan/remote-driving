@@ -1,2 +1,15 @@
-from .vehicle_datagram import VehicleDatagram
-from .multi_camera_manager import MultiCameraManager
+"""Role components load independently; control imports no media engine."""
+
+from importlib import import_module
+
+__all__ = ["MultiCameraManager", "VehicleDatagram"]
+
+
+def __getattr__(name):
+    modules = {
+        "VehicleDatagram": ".vehicle_datagram",
+        "MultiCameraManager": ".multi_camera_manager",
+    }
+    if name not in modules:
+        raise AttributeError(name)
+    return getattr(import_module(modules[name], __name__), name)

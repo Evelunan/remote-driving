@@ -1,0 +1,270 @@
+"""Authenticated latest-sample sender; recovery always needs fresh neutral input."""
+
+import asyncio
+import math
+import time
+from collections import OrderedDict
+from uuid import UUID
+
+from rd_core.control import is_newer
+from rd_core.logging import get_logger
+from rd_core.samples import ControlInput
+from rd_core.settings import DrivingSettings
+from rd_core.wire import (
+    Control,
+    Execution,
+    ExecutionStatus,
+    Packet,
+    Telemetry,
+    conservative_age_ms,
+)
+from rd_quic.client import registered_connection
+from rd_quic.framing import RpcError
+
+logger = get_logger(__name__)
+
+
+class DrivingControlClient:
+    def __init__(
+        self,
+        settings: DrivingSettings,
+        samples,
+        *,
+        on_status=None,
+        on_execution=None,
+        on_telemetry=None,
+    ):
+        self.settings, self.samples = settings, samples
+        self.on_status, self.on_execution, self.on_telemetry = (
+            on_status,
+            on_execution,
+            on_telemetry,
+        )
+        self.latest = None
+        self.connection = None
+        self.epoch = None
+        self.armed = False
+        self._generation = None
+        self._revoked = OrderedDict()
+        self._sent = OrderedDict()
+        self._last_ack = None
+        self._last_telemetry = None
+        self._last_execution = 0
+        self._seq = 0
+        self.state = "disconnected"
+
+    def _status(self, state, detail=""):
+        self.state = state
+        if self.on_status is not None:
+            self.on_status(state, detail)
+
+    async def _collect(self):
+        while True:
+            self.latest = await self.samples.get()
+
+    def _fresh(self):
+        return isinstance(self.latest, ControlInput) and self.latest.fresh(
+            self.settings.control.input_timeout_ms / 1000
+        )
+
+    def _neutral(self):
+        return self._fresh() and self.latest.throttle == 0 and self.latest.steering == 0
+
+    def _disconnected(self, generation, protocol):
+        if generation is self._generation:
+            self.epoch = None
+            self.armed = False
+            self._status("disconnected")
+
+    def _event(self, generation, method, params):
+        if generation is not self._generation:
+            return
+        if method != "lease_revoked" or set(params) != {"epoch", "reason"}:
+            raise RpcError("unexpected_lease_event")
+        try:
+            epoch = UUID(params["epoch"])
+        except (ValueError, TypeError, AttributeError):
+            raise RpcError("invalid_epoch") from None
+        self._revoked[epoch] = None
+        while len(self._revoked) > 64:
+            self._revoked.popitem(last=False)
+        if epoch == self.epoch:
+            self.epoch = None
+            self.armed = False
+            self._status("revoked", str(params["reason"])[:64])
+
+    def _datagram(self, generation, data):
+        if (
+            generation is not self._generation
+            or self.connection is None
+            or self.epoch is None
+        ):
+            return
+        try:
+            packet = Packet.decode(data)
+            self.connection.clock.check()
+            conservative_age_ms(
+                packet.source_time_ms,
+                time.time_ns() // 1_000_000,
+                max_age_ms=self.connection.max_control_age_ms,
+                clock_skew_ms=self.connection.max_clock_skew_ms,
+            )
+        except (ValueError, ConnectionError):
+            return
+        if packet.session != self.settings.session or packet.epoch != self.epoch:
+            return
+        if isinstance(packet.payload, Execution):
+            sample = self._sent.get(packet.seq)
+            if (
+                sample is None
+                or sample.timestamp_ms != packet.source_time_ms
+                or not is_newer(packet.seq, self._last_ack)
+            ):
+                return
+            if packet.payload.status != ExecutionStatus.EXECUTED:
+                self.connection.protocol.close(
+                    error_code=0x105, reason_phrase="execution_failed"
+                )
+                return
+            self._last_ack = packet.seq
+            self._last_execution = time.monotonic()
+            if not self.armed and sample.throttle == 0 and sample.steering == 0:
+                self.armed = True
+                self._status("active")
+            if self.on_execution is not None:
+                self.on_execution(
+                    sample,
+                    packet.payload,
+                    (time.monotonic() - sample.sampled_at) * 1000,
+                )
+        elif (
+            isinstance(packet.payload, Telemetry)
+            and self.on_telemetry is not None
+            and is_newer(packet.seq, self._last_telemetry)
+        ):
+            self._last_telemetry = packet.seq
+            self.on_telemetry(packet)
+
+    async def _release(self):
+        epoch, self.epoch = self.epoch, None
+        self.armed = False
+        if (
+            epoch is not None
+            and self.connection is not None
+            and self.connection.protocol.rpc_ready
+        ):
+            try:
+                await self.connection.protocol.request(
+                    "release",
+                    {"epoch": str(epoch)},
+                    timeout_s=min(0.3, self.settings.network.register_timeout_s),
+                )
+            except (ConnectionError, TimeoutError, RpcError):
+                pass  # Closing the connection and vehicle watchdog also revoke control.
+
+    async def _send_session(self):
+        protocol = self.connection.protocol
+        self._status("waiting_neutral")
+        while protocol.rpc_ready and not self._neutral():
+            self.connection.clock.check()
+            await asyncio.sleep(0.02)
+        if not protocol.rpc_ready:
+            return
+        grant = await protocol.request("acquire", {})
+        try:
+            epoch = UUID(grant["epoch"])
+        except (KeyError, ValueError, TypeError, AttributeError):
+            raise RpcError("invalid_lease") from None
+        if (
+            grant.get("session") != self.settings.session
+            or grant.get("neutral_required") is not True
+            or epoch.int == 0
+            or epoch in self._revoked
+        ):
+            raise RpcError("invalid_lease")
+        self.epoch, self.armed = epoch, False
+        self._sent.clear()
+        self._seq, self._last_ack, self._last_telemetry = 0, None, None
+        self._last_execution = time.monotonic()
+        period = 1 / self.settings.control.send_hz
+        next_tick = time.monotonic()
+        self._status("waiting_execution")
+        while protocol.rpc_ready and self.epoch == epoch:
+            self.connection.clock.check()
+            now = time.monotonic()
+            if not self._fresh():
+                raise RpcError("input_expired")
+            if not self.armed and not self._neutral():
+                raise RpcError("neutral_required")
+            if (
+                now - self._last_execution
+                >= self.settings.control.command_timeout_ms / 1000
+            ):
+                raise RpcError("execution_confirmation_expired")
+            if now >= next_tick:
+                sample = self.latest
+                packet = Packet(
+                    self.settings.session,
+                    epoch,
+                    self._seq,
+                    sample.timestamp_ms,
+                    Control(sample.throttle, sample.brake, sample.steering),
+                )
+                self._sent[self._seq] = sample
+                while len(self._sent) > 64:
+                    self._sent.popitem(last=False)
+                protocol.send_datagram(packet.encode())
+                self._seq = (self._seq + 1) & 0xFFFFFFFF
+                next_tick += (math.floor((now - next_tick) / period) + 1) * period
+            await asyncio.sleep(max(0, next_tick - time.monotonic()))
+
+    async def run(self):
+        collector = asyncio.create_task(self._collect(), name="driving-input")
+        try:
+            while True:
+                generation = self._generation = object()
+                try:
+                    self._status("connecting")
+                    async with registered_connection(
+                        self.settings.network,
+                        self.settings.credentials,
+                        self.settings.control,
+                        session=self.settings.session,
+                        role="driving",
+                        event_handler=lambda method, params, g=generation: self._event(
+                            g, method, params
+                        ),
+                        datagram_handler=lambda data, g=generation: self._datagram(
+                            g, data
+                        ),
+                        on_disconnect=lambda protocol, g=generation: self._disconnected(
+                            g, protocol
+                        ),
+                    ) as connection:
+                        self.connection = connection
+                        try:
+                            self._status("registered")
+                            await self._send_session()
+                        finally:
+                            await self._release()
+                except (ConnectionError, OSError, TimeoutError, RpcError) as error:
+                    self._status(
+                        "error",
+                        error.code
+                        if isinstance(error, RpcError)
+                        else type(error).__name__,
+                    )
+                    logger.warning(
+                        "Driving connection ended (%s)", type(error).__name__
+                    )
+                finally:
+                    self.connection = None
+                    self.epoch = None
+                    self.armed = False
+                await asyncio.sleep(self.settings.network.reconnect_delay_s)
+        finally:
+            self._generation = None
+            collector.cancel()
+            await asyncio.gather(collector, return_exceptions=True)
+            self.latest = None
+            self._status("disconnected")
