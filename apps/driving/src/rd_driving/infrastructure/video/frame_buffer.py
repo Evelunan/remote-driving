@@ -1,63 +1,95 @@
+"""Owned immutable frame snapshots; polling never copies image data."""
+
+import math
+import threading
+import time
 from dataclasses import dataclass
-import threading
+
 import numpy as np
-from rd_core.logging import get_logger
-
-logger = get_logger(__name__)
 
 
-import threading
-import numpy as np
-from rd_core.logging import get_logger
-
-logger = get_logger(__name__)
-
-@dataclass
+@dataclass(frozen=True)
 class Frame:
     id: int = 0
-    frame: np.ndarray = None
+    frame: np.ndarray | None = None
+    received_at: float = 0
+    generation: int = 0
 
-    def copy(self):
-        return Frame(
-            id=self.id, frame=self.frame.copy() if self.frame is not None else None
-        )
+    def fresh(self, max_age_s: float, *, now: float | None = None) -> bool:
+        age = (time.monotonic() if now is None else now) - self.received_at
+        return self.frame is not None and 0 <= age < max_age_s
 
 
 class FrameBuffer:
-    """固定4路摄像头缓存（线程安全版）"""
+    """One latest frame per view, copied once on publication.
 
-    def __init__(self):
-        self.positions = ["front", "back", "left", "right"]
-        self.frames = {p: Frame() for p in self.positions}
+    The producer retains ownership of its input. Readers retain a readonly
+    snapshot and must make an explicit copy if they need to change its pixels.
+    Generation tokens prevent late callbacks from reviving a closed session.
+    """
 
-        # ✅ 全局锁（简单可靠）
+    def __init__(self, positions=("front", "back", "left", "right")):
+        self.positions = tuple(positions)
+        if not self.positions or len(set(self.positions)) != len(self.positions):
+            raise ValueError("positions must be nonempty and unique")
+        self._frames = {name: Frame() for name in self.positions}
+        self._generation = 0
         self._lock = threading.Lock()
 
-    def put(self, track_id: str, frame: np.ndarray):
-        """存入帧（track_id 必须是固定四个之一）"""
-        if track_id not in self.frames:
-            raise ValueError(
-                f"Invalid track_id: '{track_id}'. Must be one of {self.positions}"
+    def begin_session(self):
+        with self._lock:
+            self._generation += 1
+            self._frames = {
+                name: Frame(id=frame.id + 1, generation=self._generation)
+                for name, frame in self._frames.items()
+            }
+            return self._generation
+
+    def clear(self):
+        self.begin_session()
+
+    def put(self, track_id, frame, *, generation=None, received_at=None):
+        if track_id not in self.positions:
+            raise ValueError("unknown camera view")
+        with self._lock:
+            generation = self._generation if generation is None else generation
+            if generation != self._generation:
+                return False
+        if (
+            not isinstance(frame, np.ndarray)
+            or frame.dtype != np.uint8
+            or frame.ndim != 3
+            or frame.shape[2] != 3
+            or not all(frame.shape)
+        ):
+            raise ValueError("expected a nonempty uint8 BGR image")
+        received_at = time.monotonic() if received_at is None else received_at
+        if not math.isfinite(received_at):
+            raise ValueError("invalid receive timestamp")
+        # The expensive operation happens outside the metadata lock.
+        owned = frame.copy(order="C")
+        owned.flags.writeable = False
+        readonly = owned.view()
+        readonly.flags.writeable = False
+        with self._lock:
+            if generation != self._generation:
+                return False
+            previous = self._frames[track_id]
+            self._frames[track_id] = Frame(
+                previous.id + 1, readonly, received_at, generation
             )
+            return True
 
-        # ✅ 写锁
+    def get(self, position):
         with self._lock:
-            self.frames[track_id].frame = frame
-            self.frames[track_id].id += 1
+            return self._frames.get(position)
 
-    def get(self, position: str):
-        """获取帧"""
-        # ✅ 读锁
+    def get_if_new(self, position, after_id):
         with self._lock:
-            frame = self.frames.get(position)
-
-            return frame.copy() if frame is not None else None
+            frame = self._frames.get(position)
+            return frame if frame is not None and frame.id != after_id else None
 
     @property
     def all_frames(self):
-        """一次性获取所有帧（保证一致性）"""
         with self._lock:
-            return tuple(
-                self.frames[p].copy() if self.frames[p] is not None else None
-                for p in self.positions
-            )
+            return tuple(self._frames[name] for name in self.positions)

@@ -1,55 +1,56 @@
 import time
-import datetime
-import numpy as np
 
+from OpenGL import GL
+from PyQt6.QtGui import QColor, QPainter, QPen
 from PyQt6.QtOpenGLWidgets import QOpenGLWidget
-from PyQt6.QtGui import QPainter, QColor, QPen
-
-from OpenGL.GL import *
-
 
 CAMERA_NAMES = ["front", "back", "left", "right"]
 
 
 class GLMultiVideoWidget(QOpenGLWidget):
-    def __init__(self, framebuffer, parent=None):
+    def __init__(self, framebuffer, parent=None, *, stale_frame_ms=500):
         super().__init__(parent)
 
         self.fb = framebuffer
+        if stale_frame_ms <= 0:
+            raise ValueError("stale_frame_ms must be positive")
+        self._stale_after_s = stale_frame_ms / 1000
 
         # ===== 渲染配置 =====
         self.layout_mode = "triple"  # grid / horizontal / vertical / triple
         self.scale_mode = "fit"  # fit / fill
-        
+
         # ===== UI配置=====
-        self.padding = 6              # 🔥 视频间距
+        self.padding = 6  # 🔥 视频间距
         self.border_color = QColor(80, 80, 80)
         self.text_bg = QColor(0, 0, 0, 120)
 
         # ===== OpenGL =====
         self.textures = {}
-        self._tex_initialized = set()
+        self._texture_sizes = {}
+        self._frame_ids = {}
 
         # ===== 数据统计 =====
         self.meta = {name: {"size": None, "fps": 0} for name in CAMERA_NAMES}
 
         self._fps_counter = {
-            name: {"last": time.time(), "count": 0, "fps": 0} for name in CAMERA_NAMES
+            name: {"last": time.monotonic(), "count": 0, "fps": 0}
+            for name in CAMERA_NAMES
         }
 
     # ---------------------------
     # 初始化 OpenGL
     # ---------------------------
     def initializeGL(self):
-        glEnable(GL_TEXTURE_2D)
-        glClearColor(0.08, 0.08, 0.1, 1.0) 
+        GL.glEnable(GL.GL_TEXTURE_2D)
+        GL.glClearColor(0.08, 0.08, 0.1, 1.0)
         for name in CAMERA_NAMES:
-            tex = glGenTextures(1)
+            tex = GL.glGenTextures(1)
             self.textures[name] = tex
 
-            glBindTexture(GL_TEXTURE_2D, tex)
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
+            GL.glBindTexture(GL.GL_TEXTURE_2D, tex)
+            GL.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_MIN_FILTER, GL.GL_LINEAR)
+            GL.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_MAG_FILTER, GL.GL_LINEAR)
 
     # ---------------------------
     # FPS统计
@@ -58,9 +59,9 @@ class GLMultiVideoWidget(QOpenGLWidget):
         c = self._fps_counter[name]
         c["count"] += 1
 
-        now = time.time()
+        now = time.monotonic()
         if now - c["last"] >= 1.0:
-            c["fps"] = c["count"]
+            c["fps"] = c["count"] / (now - c["last"])
             c["count"] = 0
             c["last"] = now
 
@@ -75,18 +76,27 @@ class GLMultiVideoWidget(QOpenGLWidget):
 
         h, w, _ = frame.shape
 
-        glBindTexture(GL_TEXTURE_2D, self.textures[name])
+        GL.glBindTexture(GL.GL_TEXTURE_2D, self.textures[name])
 
-        frame = frame[..., ::-1]  # BGR -> RGB
+        # BGR rows can have any byte width; avoid a reversed-stride RGB copy.
+        GL.glPixelStorei(GL.GL_UNPACK_ALIGNMENT, 1)
 
-        if name not in self._tex_initialized:
-            glTexImage2D(
-                GL_TEXTURE_2D, 0, GL_RGB, w, h, 0, GL_RGB, GL_UNSIGNED_BYTE, frame
+        if self._texture_sizes.get(name) != (w, h):
+            GL.glTexImage2D(
+                GL.GL_TEXTURE_2D,
+                0,
+                GL.GL_RGB,
+                w,
+                h,
+                0,
+                GL.GL_BGR,
+                GL.GL_UNSIGNED_BYTE,
+                frame,
             )
-            self._tex_initialized.add(name)
+            self._texture_sizes[name] = (w, h)
         else:
-            glTexSubImage2D(
-                GL_TEXTURE_2D, 0, 0, 0, w, h, GL_RGB, GL_UNSIGNED_BYTE, frame
+            GL.glTexSubImage2D(
+                GL.GL_TEXTURE_2D, 0, 0, 0, w, h, GL.GL_BGR, GL.GL_UNSIGNED_BYTE, frame
             )
 
     # ---------------------------
@@ -119,23 +129,23 @@ class GLMultiVideoWidget(QOpenGLWidget):
     # 绘制矩形
     # ---------------------------
     def _draw(self, tex, x, y, w, h):
-        glBindTexture(GL_TEXTURE_2D, tex)
+        GL.glBindTexture(GL.GL_TEXTURE_2D, tex)
 
-        glBegin(GL_QUADS)
+        GL.glBegin(GL.GL_QUADS)
 
-        glTexCoord2f(0, 1)
-        glVertex2f(x, y)
+        GL.glTexCoord2f(0, 1)
+        GL.glVertex2f(x, y)
 
-        glTexCoord2f(1, 1)
-        glVertex2f(x + w, y)
+        GL.glTexCoord2f(1, 1)
+        GL.glVertex2f(x + w, y)
 
-        glTexCoord2f(1, 0)
-        glVertex2f(x + w, y + h)
+        GL.glTexCoord2f(1, 0)
+        GL.glVertex2f(x + w, y + h)
 
-        glTexCoord2f(0, 0)
-        glVertex2f(x, y + h)
+        GL.glTexCoord2f(0, 0)
+        GL.glVertex2f(x, y + h)
 
-        glEnd()
+        GL.glEnd()
 
     # ---------------------------
     # 布局计算
@@ -176,25 +186,33 @@ class GLMultiVideoWidget(QOpenGLWidget):
     # 主渲染
     # ---------------------------
     def paintGL(self):
-        glClearColor(0.08, 0.08, 0.1, 1.0)
-        glClear(GL_COLOR_BUFFER_BIT)
+        GL.glClearColor(0.08, 0.08, 0.1, 1.0)
+        GL.glClear(GL.GL_COLOR_BUFFER_BIT)
 
         W = self.width()
         H = self.height()
 
-        frames = dict(zip(CAMERA_NAMES, self.fb.all_frames))
+        if W <= 0 or H <= 0:
+            return
+        now = time.monotonic()
+        frames = dict(zip(self.fb.positions, self.fb.all_frames))
         rects = self._get_layout_rects(W, H)
 
         for name in CAMERA_NAMES:
-            frame = frames[name]
-            if frame is None:
+            snapshot = frames.get(name)
+            if snapshot is None or not snapshot.fresh(self._stale_after_s, now=now):
+                self.meta[name] = {"size": None, "fps": 0}
+                self._fps_counter[name] = {"last": now, "count": 0, "fps": 0}
+                self._frame_ids.pop(name, None)
                 continue
-
+            frame = snapshot.frame
             h, w, _ = frame.shape
             self.meta[name]["size"] = (w, h)
 
-            self._update_fps(name)
-            self._update_texture(name, frame)
+            if self._frame_ids.get(name) != snapshot.id:
+                self._update_texture(name, frame)
+                self._update_fps(name)
+                self._frame_ids[name] = snapshot.id
 
             vx, vy, vw, vh = rects[name]
             x, y, rw, rh = self._calc_rect(vw, vh, w, h)

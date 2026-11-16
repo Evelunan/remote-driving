@@ -6,21 +6,20 @@
 - grid: 2×2 等分网格
 """
 
-from typing import Optional
+import time
 
 from PyQt6.QtWidgets import (
     QFrame,
-    QWidget,
     QGridLayout,
-    QVBoxLayout,
     QHBoxLayout,
     QSizePolicy,
+    QVBoxLayout,
+    QWidget,
 )
-from PyQt6.QtCore import QTimer
+from rd_core.logging import get_logger
+from rd_driving.infrastructure.video import FrameBuffer
 
 from ..components import VideoDisplay
-from rd_driving.infrastructure.video import FrameBuffer
-from rd_core.logging import get_logger
 
 logger = get_logger(__name__)
 
@@ -51,17 +50,29 @@ _CONTAINER_STYLE = f"""
 
 
 class MultiVideoWidget(QWidget):
-
-    def __init__(self, fb: FrameBuffer, parent: Optional[QWidget] = None):
+    def __init__(
+        self,
+        fb: FrameBuffer,
+        parent: QWidget | None = None,
+        *,
+        stale_frame_ms=500,
+        debug_overlay=False,
+    ):
         super().__init__(parent)
 
         self._fb = fb
-        self._layout_mode: Optional[str] = None
+        if stale_frame_ms <= 0:
+            raise ValueError("stale_frame_ms must be positive")
+        self._stale_after_s = stale_frame_ms / 1000
+        self._availability = {name: "waiting" for name in CAMERA_NAMES}
+        self._layout_mode: str | None = None
 
         # 四路 VideoDisplay
         self._displays: dict[str, VideoDisplay] = {}
         for cam in CAMERA_NAMES:
-            d = VideoDisplay(scaling_mode="ultra_low_latency")
+            d = VideoDisplay(
+                scaling_mode="ultra_low_latency", debug_overlay=debug_overlay
+            )
             d.show_message(f"{DEFAULT_LABELS[cam]} - 等待视频流...")
             self._displays[cam] = d
 
@@ -170,10 +181,22 @@ class MultiVideoWidget(QWidget):
 
     def update(self) -> None:
         """从 FrameBuffer 拉取最新帧并更新各 VideoDisplay"""
+        now = time.monotonic()
         for cam in CAMERA_NAMES:
             frame = self._fb.get(cam)
-            if frame is not None:
+            state = (
+                "waiting"
+                if frame is None or frame.frame is None
+                else "fresh"
+                if frame.fresh(self._stale_after_s, now=now)
+                else "stale"
+            )
+            if state == "fresh":
                 self._displays[cam].update_frame(frame.frame, frame.id)
+            elif self._availability[cam] != state:
+                message = "接收画面已过期" if state == "stale" else "等待视频流..."
+                self._displays[cam].show_message(DEFAULT_LABELS[cam] + " - " + message)
+            self._availability[cam] = state
 
     def apply_theme(self, theme) -> None:
         """为所有 VideoDisplay 应用主题"""

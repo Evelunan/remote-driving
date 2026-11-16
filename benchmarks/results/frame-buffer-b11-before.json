@@ -1,0 +1,81 @@
+{
+  "scope": "frame cache only; no decoder, network, Qt or GPU",
+  "baseline_revision": "9ec4447",
+  "python": "3.12.16",
+  "numpy": "2.4.4",
+  "platform": "Linux-6.18.58.1-microsoft-standard-WSL2-x86_64-with-glibc2.43",
+  "logical_seconds": 3,
+  "capture_fps": 30,
+  "poll_hz": 200,
+  "shapes": {
+    "front": [
+      720,
+      1080,
+      3
+    ],
+    "back": [
+      480,
+      640,
+      3
+    ],
+    "left": [
+      480,
+      640,
+      3
+    ],
+    "right": [
+      480,
+      640,
+      3
+    ]
+  },
+  "results": {
+    "baseline": {
+      "source_sha256": "09f7448fd1e3cfd13eeada61bdf7a2c8a1a5e2131f9d488b71cd1353c5eedf01",
+      "runs": [
+        {
+          "wall_s": 0.12989033700432628,
+          "cpu_s": 0.129907,
+          "copies": 2400,
+          "copied_bytes": 3058560000,
+          "published_frames": 360,
+          "displayed_unique_frames": 360
+        },
+        {
+          "wall_s": 0.12883843199233525,
+          "cpu_s": 0.1288454400000001,
+          "copies": 2400,
+          "copied_bytes": 3058560000,
+          "published_frames": 360,
+          "displayed_unique_frames": 360
+        },
+        {
+          "wall_s": 0.12975426300545223,
+          "cpu_s": 0.12976093199999994,
+          "copies": 2400,
+          "copied_bytes": 3058560000,
+          "published_frames": 360,
+          "displayed_unique_frames": 360
+        },
+        {
+          "wall_s": 0.1318247210001573,
+          "cpu_s": 0.1318336630000001,
+          "copies": 2400,
+          "copied_bytes": 3058560000,
+          "published_frames": 360,
+          "displayed_unique_frames": 360
+        },
+        {
+          "wall_s": 0.13127172700478695,
+          "cpu_s": 0.13126630500000003,
+          "copies": 2400,
+          "copied_bytes": 3058560000,
+          "published_frames": 360,
+          "displayed_unique_frames": 360
+        }
+      ],
+      "median_wall_s": 0.12989033700432628,
+      "median_cpu_s": 0.129907
+    }
+  }
+}

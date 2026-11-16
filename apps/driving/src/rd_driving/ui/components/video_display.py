@@ -9,18 +9,18 @@
 """
 
 import time
-from typing import Optional, Tuple, Dict, Any
-import numpy as np
-import cv2
-from PyQt6.QtWidgets import QLabel, QSizePolicy, QWidget
-from PyQt6.QtGui import QImage, QPixmap, QColor
-from PyQt6.QtCore import Qt, QSize, QEvent
+from typing import Any
 
+import cv2
+import numpy as np
+from PyQt6.QtCore import QEvent, QSize, Qt
+from PyQt6.QtGui import QColor, QImage, QPainter, QPixmap
+from PyQt6.QtWidgets import QLabel, QSizePolicy, QWidget
 from rd_driving.interfaces.ui import ITheme
 
 # 缩放模式配置
 # 注意：cv2.INTER_* 是整数常量，在 PyQt6 中无需特殊处理
-SCALING_MODES: Dict[str, Any] = {
+SCALING_MODES: dict[str, Any] = {
     "quality": {
         "shrink": cv2.INTER_AREA,
         "enlarge": cv2.INTER_LANCZOS4,
@@ -52,7 +52,11 @@ class VideoDisplay(QLabel):
     """优化的视频显示组件"""
 
     def __init__(
-        self, scaling_mode: str = "ultra_low_latency", parent: Optional[QWidget] = None
+        self,
+        scaling_mode: str = "ultra_low_latency",
+        parent: QWidget | None = None,
+        *,
+        debug_overlay=False,
     ):
         super().__init__(parent)
 
@@ -62,9 +66,11 @@ class VideoDisplay(QLabel):
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
 
         # 状态变量
-        self._theme: Optional[ITheme] = None
+        self._theme: ITheme | None = None
         self._scaling_mode = scaling_mode
-        self._current_frame: Optional[np.ndarray] = None
+        self._current_frame: np.ndarray | None = None
+        self._debug_overlay = debug_overlay
+        self._display_time = ""
         self._resolution = (0, 0)
 
         # 缓存系统
@@ -72,13 +78,13 @@ class VideoDisplay(QLabel):
         self._cached_frame_size = (0, 0)
         self._cached_target_size = (0, 0)
         self._cached_interpolation = cv2.INTER_NEAREST
-        self._scaled_buffer: Optional[np.ndarray] = None
+        self._scaled_buffer: np.ndarray | None = None
 
         # 性能统计
         self._fps = 0
         self._last_frame_id = -1
         self._frame_count = 0
-        self._last_fps_time = time.time()
+        self._last_fps_time = time.monotonic()
         # 应用默认样式
         self._apply_default_style()
 
@@ -87,11 +93,11 @@ class VideoDisplay(QLabel):
         self.setStyleSheet(
             f"""
             QLabel {{
-                background-color: {DEFAULT_STYLES['bg_color']};
+                background-color: {DEFAULT_STYLES["bg_color"]};
                 border: none;
-                border-radius: {DEFAULT_STYLES['radius']}px;
-                color: {DEFAULT_STYLES['text_color']};
-                font-size: {DEFAULT_STYLES['font_size']}px;
+                border-radius: {DEFAULT_STYLES["radius"]}px;
+                color: {DEFAULT_STYLES["text_color"]};
+                font-size: {DEFAULT_STYLES["font_size"]}px;
             }}
         """
         )
@@ -112,9 +118,9 @@ class VideoDisplay(QLabel):
                 QLabel {{
                     background-color: {theme.bg_primary};
                     border: none;
-                    border-radius: {DEFAULT_STYLES['radius']}px;
+                    border-radius: {DEFAULT_STYLES["radius"]}px;
                     color: {theme.text_muted};
-                    font-size: {DEFAULT_STYLES['font_size']}px;
+                    font-size: {DEFAULT_STYLES["font_size"]}px;
                     {font_rule}
                 }}
             """
@@ -124,7 +130,7 @@ class VideoDisplay(QLabel):
             self._apply_default_style()
 
     def _get_interpolation(
-        self, src_size: Tuple[int, int], dst_size: Tuple[int, int]
+        self, src_size: tuple[int, int], dst_size: tuple[int, int]
     ) -> int:
         """根据缩放方向和性能表现选择最佳插值算法"""
         src_w, src_h = src_size
@@ -164,8 +170,8 @@ class VideoDisplay(QLabel):
             return True
 
         scale = min(tw / frame_w, th / frame_h)
-        target_w = int(frame_w * scale)
-        target_h = int(frame_h * scale)
+        target_w = max(1, int(frame_w * scale))
+        target_h = max(1, int(frame_h * scale))
 
         # 更新缓存状态
         self._cached_widget_size = widget_size
@@ -198,7 +204,7 @@ class VideoDisplay(QLabel):
 
         target_w, target_h = self._cached_target_size
 
-        display_frame: Optional[np.ndarray] = None
+        display_frame: np.ndarray | None = None
 
         # 执行缩放
         if needs_resize or (target_w != w or target_h != h):
@@ -212,7 +218,7 @@ class VideoDisplay(QLabel):
                         interpolation=self._cached_interpolation,
                     )
                     display_frame = self._scaled_buffer
-                except Exception:
+                except cv2.error:
                     # 极端情况下 resize 失败，回退到创建新数组
                     display_frame = cv2.resize(
                         frame,
@@ -259,22 +265,9 @@ class VideoDisplay(QLabel):
             # 重复帧，不渲染
             return
         self._last_frame_id = frame_id
-        
-        ts = time.time()  # 用真实时间用于显示
-        local_time = time.localtime(ts)
-        time_str = time.strftime("%H:%M:%S", local_time)
-        ms = int((ts % 1) * 1000)
-        text = f"display : {time_str}.{ms:03d}"
-        cv2.putText(
-            frame,
-            text,
-            (20, 80),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            1,
-            (0, 255, 0),
-            2,
-            cv2.LINE_AA,
-        )
+
+        if self._debug_overlay:
+            self._display_time = time.strftime("%H:%M:%S")
         self._current_frame = frame
         h, w = frame.shape[:2]
         self._resolution = (w, h)
@@ -283,17 +276,30 @@ class VideoDisplay(QLabel):
 
         # FPS 计算
         self._frame_count += 1
-        now = time.time()
+        now = time.monotonic()
         elapsed = now - self._last_fps_time
         if elapsed >= 1.0:
             self._fps = int(self._frame_count / elapsed)
             self._frame_count = 0
             self._last_fps_time = now
 
+    def paintEvent(self, event):
+        super().paintEvent(event)
+        if self._debug_overlay and self._current_frame is not None:
+            painter = QPainter(self)
+            painter.setPen(QColor(0, 255, 0))
+            painter.drawText(12, 24, "display: " + self._display_time)
+            painter.end()
+
     def show_message(self, text: str) -> None:
         """显示文本消息（无视频流时）"""
         self._current_frame = None
-        self._scaled_buffer = None  # 释放缓冲区引用
+        self._scaled_buffer = None
+        self._cached_widget_size = QSize(0, 0)
+        self._last_frame_id = -1
+        self._fps = self._frame_count = 0
+        self._resolution = (0, 0)
+        self._last_fps_time = time.monotonic()
         self.clear()
         self.setText(text)
 
@@ -306,9 +312,9 @@ class VideoDisplay(QLabel):
                         background-color: {self._theme.bg_primary};
                         border: none;
                         color: {self._theme.text_muted};
-                        font-size: {DEFAULT_STYLES['font_size']}px;
-                        font-family: {self._theme.get_font_family() or ''};
-                        border-radius: {DEFAULT_STYLES['radius']}px;
+                        font-size: {DEFAULT_STYLES["font_size"]}px;
+                        font-family: {self._theme.get_font_family() or ""};
+                        border-radius: {DEFAULT_STYLES["radius"]}px;
                     }}
                 """
                 )
@@ -328,7 +334,7 @@ class VideoDisplay(QLabel):
     def get_fps(self) -> int:
         return self._fps
 
-    def get_resolution(self) -> Tuple[int, int]:
+    def get_resolution(self) -> tuple[int, int]:
         return self._resolution
 
     # --- 事件处理 ---

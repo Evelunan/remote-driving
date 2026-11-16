@@ -274,7 +274,10 @@ class MainWindow(QMainWindow):
     def _start_video(self):
         config = get_webrtc_config()
         receiver = WebRTCReceiver(self._room, config)
-        receiver.on_frame(self.fb.put)
+        generation = self.fb.begin_session()
+        receiver.on_frame(
+            lambda track_id, frame: self.fb.put(track_id, frame, generation=generation)
+        )
 
         self._receiver_thread = WebRTCReceiverThread(receiver)
 
@@ -376,6 +379,7 @@ class MainWindow(QMainWindow):
         """停止所有后台服务和定时器"""
         # 首先标记服务已停止，防止定时器回调访问已销毁的组件
         self._services_running = False
+        self.fb.clear()
 
         # 停止所有定时器
         try:
