@@ -13,6 +13,7 @@ import socket
 import struct
 import time
 from dataclasses import dataclass, replace
+from pathlib import Path
 
 from rd_core.logging import configure_logging, get_logger
 
@@ -22,6 +23,39 @@ _HEARTBEAT = struct.Struct("!d")
 
 class ProcessFailure(RuntimeError):
     pass
+
+
+def _log_component_failure(component, exception):
+    """Expose grouped/chained failure locations without device or token payloads."""
+    seen = set()
+
+    def visit(exc):
+        if id(exc) in seen:
+            return
+        seen.add(id(exc))
+        locations = []
+        trace = exc.__traceback__
+        while trace is not None:
+            code = trace.tb_frame.f_code
+            locations.append(
+                f"{Path(code.co_filename).name}:{trace.tb_lineno} ({code.co_name})"
+            )
+            trace = trace.tb_next
+        logger.error(
+            "Vehicle %s failure detail: %s at %s",
+            component,
+            type(exc).__name__,
+            " -> ".join(locations) or "unknown",
+        )
+        if isinstance(exc, BaseExceptionGroup):
+            for child in exc.exceptions:
+                visit(child)
+        if exc.__cause__ is not None:
+            visit(exc.__cause__)
+        elif exc.__context__ is not None and not exc.__suppress_context__:
+            visit(exc.__context__)
+
+    visit(exception)
 
 
 async def _component_lifetime(settings, channel, runner):
@@ -102,6 +136,7 @@ def _component_process(settings, channel, runner):
         logger.error(
             "Vehicle %s failed (%s)", settings.components[0], type(exc).__name__
         )
+        _log_component_failure(settings.components[0], exc)
         raise SystemExit(1) from None
     finally:
         channel.close()

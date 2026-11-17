@@ -23,6 +23,11 @@ class USBCamera(ThreadCamera):
     def _open(self):
         # Opening occurs at start, after the full configuration is validated.
         backend = cv2.CAP_V4L2 if platform.system() == "Linux" else cv2.CAP_ANY
+        # CAP_ANY may select MSMF, whose device initialization can exceed the
+        # bounded open deadline on Windows. DirectShow supports numeric devices;
+        # keep file/URL sources on automatic backend selection.
+        if platform.system() == "Windows" and isinstance(self.camera_id, int):
+            backend = cv2.CAP_DSHOW
         self.cap = cv2.VideoCapture(self.camera_id, backend)
         if not self.cap.isOpened():
             raise RuntimeError("cannot open configured camera")

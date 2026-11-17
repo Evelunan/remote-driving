@@ -1,4 +1,6 @@
 import asyncio
+import gc
+import socket
 import struct
 from contextlib import asynccontextmanager
 
@@ -279,3 +281,73 @@ async def test_forced_shutdown_releases_connect_context_and_handshake_waiter():
     await protocol.shutdown(timeout_s=0.01)
     await asyncio.wait_for(protocol.wait_closed(), 0.1)
     assert protocol.transport_closed and protocol._connected_waiter is None
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("cancel", [False, True])
+async def test_registration_abandoned_during_handshake_observes_close_failure(
+    local_tls, monkeypatch, cancel
+):
+    from rd_core.settings import (
+        ClientNetworkSettings,
+        ControlSettings,
+        CredentialSettings,
+    )
+    from rd_core.wire import CONTROL_REVISION
+    from rd_quic import client
+
+    monkeypatch.setenv("HANDSHAKE_TEST_TOKEN", "x" * 40)
+    protocols = []
+    original = client.RpcProtocol
+
+    def factory(*args, **kwargs):
+        protocol = original(*args, **kwargs)
+        protocols.append(protocol)
+        return protocol
+
+    monkeypatch.setattr(client, "RpcProtocol", factory)
+    loop = asyncio.get_running_loop()
+    errors = []
+    previous_handler = loop.get_exception_handler()
+    loop.set_exception_handler(lambda loop, context: errors.append(context))
+    task = None
+    try:
+        # A bound UDP socket consumes no packets and never completes a handshake.
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as blackhole:
+            blackhole.bind(("127.0.0.1", 0))
+            network = ClientNetworkSettings(
+                quic_host="127.0.0.1",
+                quic_port=blackhole.getsockname()[1],
+                quic_server_name="localhost",
+                quic_ca_file=local_tls[0],
+                register_timeout_s=1 if cancel else 0.1,
+            )
+
+            async def register():
+                async with client.registered_connection(
+                    network,
+                    CredentialSettings("HANDSHAKE_TEST_TOKEN"),
+                    ControlSettings(),
+                    session=42,
+                    role="vehicle",
+                    revision=CONTROL_REVISION,
+                ):
+                    pytest.fail("blackhole completed registration")
+
+            task = asyncio.create_task(register())
+            if cancel:
+                async with asyncio.timeout(1):
+                    while not protocols or protocols[0]._connected_waiter is None:
+                        await asyncio.sleep(0.001)
+                task.cancel()
+            with pytest.raises(asyncio.CancelledError if cancel else TimeoutError):
+                await asyncio.wait_for(task, 5)
+            assert protocols[0].transport_closed
+            gc.collect()
+            await asyncio.sleep(0)
+            assert not errors
+    finally:
+        if task is not None:
+            task.cancel()
+            await asyncio.gather(task, return_exceptions=True)
+        loop.set_exception_handler(previous_handler)

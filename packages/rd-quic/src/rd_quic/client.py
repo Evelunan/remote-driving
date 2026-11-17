@@ -145,12 +145,16 @@ async def registered_connection(
     )
     entered = False
     monitor = None
+    handshake = None
     try:
         async with asyncio.timeout(network.register_timeout_s):
             await manager.__aenter__()
             entered = True
             protocol.transmit()
-            await protocol.wait_connected()
+            # aioquic shields its internal Future. Keep its awaiting task owned
+            # until shutdown, even if registration times out or is cancelled.
+            handshake = asyncio.create_task(protocol.wait_connected())
+            await asyncio.shield(handshake)
             result = await protocol.request(
                 "register",
                 {
@@ -185,7 +189,13 @@ async def registered_connection(
         if monitor is not None:
             monitor.cancel()
             await asyncio.gather(monitor, return_exceptions=True)
-        if protocol is not None:
-            await protocol.shutdown()
+        try:
+            if protocol is not None:
+                await protocol.shutdown()
+        finally:
+            if handshake is not None:
+                if not handshake.done():
+                    handshake.cancel()
+                await asyncio.gather(handshake, return_exceptions=True)
         if entered:
             await manager.__aexit__(None, None, None)

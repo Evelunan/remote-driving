@@ -17,6 +17,33 @@ from rd_core.video_safety import VideoGate
 from rd_vehicle.processes import ProcessFailure, VehicleProcesses
 
 
+def test_component_failure_logs_nested_locations_without_payloads(caplog):
+    from rd_vehicle.processes import _log_component_failure
+
+    try:
+        try:
+            raise TimeoutError("sensitive-device-payload")
+        except TimeoutError as cause:
+            raise RuntimeError("secret-token-value") from cause
+    except RuntimeError as failure:
+        grouped = ExceptionGroup("private-group-message", [failure, failure])
+    _log_component_failure("media", grouped)
+    assert "ExceptionGroup" in caplog.text
+    assert "RuntimeError" in caplog.text
+    assert "TimeoutError" in caplog.text
+    assert "test_vehicle_processes.py:" in caplog.text
+    assert (
+        "test_component_failure_logs_nested_locations_without_payloads" in caplog.text
+    )
+    assert caplog.text.count("failure detail: RuntimeError") == 1
+    for secret in (
+        "sensitive-device-payload",
+        "secret-token-value",
+        "private-group-message",
+    ):
+        assert secret not in caplog.text
+
+
 async def recorded_runner(settings, stop):
     """Importable spawn target: use the real component and record exit imports."""
     import sys

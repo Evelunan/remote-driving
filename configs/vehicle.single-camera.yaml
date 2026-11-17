@@ -18,7 +18,7 @@ network:
   quic_ca_file: tls/ca.pem
 cameras:
   - name: front
-    source: /dev/video0
+    source: 0
     width: 640
     height: 480
     fps: 30

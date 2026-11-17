@@ -93,7 +93,7 @@ cameras:
     # 未写 source，复用 front；right 整项省略，也复用 front。
 ```
 
-仅有一只摄像头时，只保留上述 front 条目即可。完整的本机测试配置见 [vehicle.single-camera.yaml](../configs/vehicle.single-camera.yaml)，使用模拟底盘和真实前摄像头。先确认 WSL 已出现可读取的视频设备，再按实际情况修改 `/dev/video0`，启动命令：
+仅有一只摄像头时，只保留上述 front 条目即可。完整的本机测试配置见 [vehicle.single-camera.yaml](../configs/vehicle.single-camera.yaml)，使用模拟底盘和真实前摄像头。Windows 原生 Python 使用数字设备索引（如 `source: 0`），通过 DirectShow 采集，避免默认后端初始化过慢触发 5 秒打开超时。Linux / WSL 使用 V4L2；先确认存在可读取的视频设备，再按实际情况设置 `/dev/video0`。启动命令：
 
 ```bash
 direnv exec . uv run --no-sync rd-vehicle --config configs/vehicle.single-camera.yaml

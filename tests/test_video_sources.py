@@ -303,7 +303,19 @@ def test_notifications_coalesce_without_retaining_images():
     assert not queued
 
 
-def test_usb_handle_opens_at_start_and_closes_on_owner_thread(monkeypatch):
+@pytest.mark.parametrize(
+    "system, source, backend",
+    [
+        ("Windows", 0, "CAP_DSHOW"),
+        ("Windows", "video.mp4", "CAP_ANY"),
+        ("Linux", "/dev/v4l/by-id/example", "CAP_V4L2"),
+        ("Linux", 0, "CAP_V4L2"),
+        ("Darwin", 0, "CAP_ANY"),
+    ],
+)
+def test_usb_handle_opens_at_start_and_closes_on_owner_thread(
+    monkeypatch, system, source, backend
+):
     import threading
 
     from rd_vehicle.infrastructure.cameras import usb_camera
@@ -312,7 +324,7 @@ def test_usb_handle_opens_at_start_and_closes_on_owner_thread(monkeypatch):
 
     class Capture:
         def __init__(self, source, backend):
-            calls.append(("open", threading.get_ident(), source))
+            calls.append(("open", threading.get_ident(), source, backend))
 
         def set(self, key, value):
             pass
@@ -336,7 +348,8 @@ def test_usb_handle_opens_at_start_and_closes_on_owner_thread(monkeypatch):
             calls.append(("close", threading.get_ident(), None))
 
     monkeypatch.setattr(usb_camera.cv2, "VideoCapture", Capture)
-    camera = USBCamera("/dev/v4l/by-id/example", "front", width=64, height=48, fps=60)
+    monkeypatch.setattr(usb_camera.platform, "system", lambda: system)
+    camera = USBCamera(source, "front", width=64, height=48, fps=60)
     assert not calls
     camera.start_capture()
     deadline = time.monotonic() + 1
@@ -348,7 +361,8 @@ def test_usb_handle_opens_at_start_and_closes_on_owner_thread(monkeypatch):
     camera.stop_capture()
     assert [call[0] for call in calls] == ["open", "close"]
     assert calls[0][1] == calls[1][1] != threading.get_ident()
-    assert calls[0][2] == "/dev/v4l/by-id/example"
+    assert calls[0][2] == source
+    assert calls[0][3] == getattr(usb_camera.cv2, backend)
     assert camera.get_snapshot() is None
 
 
