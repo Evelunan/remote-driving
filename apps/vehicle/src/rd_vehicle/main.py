@@ -83,7 +83,7 @@ def _create_controller(settings):
 def _create_camera(settings):
     from rd_vehicle.infrastructure.cameras import TestCamera, USBCamera
 
-    if settings.source == "synthetic":
+    if settings.source is None or settings.source == "synthetic":
         return TestCamera(
             width=settings.width,
             height=settings.height,
@@ -109,6 +109,28 @@ async def start_control(settings, *, controller_factory=None):
     await client.run()
 
 
+def _configure_cameras(manager, settings, camera_factory):
+    if settings.camera_fallback_source is None:
+        for camera in settings.cameras:
+            manager.add_camera(camera_factory(camera), encoding=camera.encoding)
+        return
+
+    cameras = {camera.name: camera for camera in settings.cameras}
+    source = cameras[settings.camera_fallback_source]
+    for camera in settings.cameras:
+        if camera.source is not None:
+            manager.add_camera(camera_factory(camera), encoding=camera.encoding)
+    copies = []
+    for name in ("front", "back", "left", "right"):
+        if name not in cameras or cameras[name].source is None:
+            manager.add_camera_copy(
+                name, source.name, encoding=cameras.get(name, source).encoding
+            )
+            copies.append(name)
+    if copies:
+        logger.info("Camera test fallback: %s supplies views %s", source.name, copies)
+
+
 async def start_streaming(settings, *, camera_factory=None, on_fault=None):
     from rd_vehicle.application.multi_camera_manager import MultiCameraManager
     from rd_vehicle.infrastructure.streams.webrtc_streamer import WebRTCStreamer
@@ -124,11 +146,7 @@ async def start_streaming(settings, *, camera_factory=None, on_fault=None):
         streamer, video_policy=settings.video, on_fault=on_fault
     )
     try:
-        for camera_settings in settings.cameras:
-            manager.add_camera(
-                (camera_factory or _create_camera)(camera_settings),
-                encoding=camera_settings.encoding,
-            )
+        _configure_cameras(manager, settings, camera_factory or _create_camera)
         await manager.start()
         async with asyncio.TaskGroup() as tasks:
             tasks.create_task(streamer.start())

@@ -319,7 +319,7 @@ class CameraEncodingSettings:
 @dataclass(frozen=True)
 class CameraSettings:
     name: str = "front"
-    source: str | int = "synthetic"
+    source: str | int | None = None
     width: int = 640
     height: int = 480
     fps: float = 30.0
@@ -413,8 +413,9 @@ class VehicleSettings:
     motion: MotionSettings = field(default_factory=MotionSettings)
     serial: SerialSettings = field(default_factory=SerialSettings)
     cameras: tuple[CameraSettings, ...] = field(
-        default_factory=lambda: (CameraSettings(),)
+        default_factory=lambda: (CameraSettings(source="synthetic"),)
     )
+    camera_fallback_source: Literal["front", "back", "left", "right"] | None = None
 
     def validate(self):
         validate_client(self)
@@ -435,9 +436,17 @@ class VehicleSettings:
             self.cameras
         ):
             raise ValueError("camera names must be nonempty and unique")
-        if "media" in self.components and self.video.primary_view not in {
-            camera.name for camera in self.cameras
-        }:
+        camera_names = {camera.name for camera in self.cameras}
+        if self.camera_fallback_source is not None and not any(
+            camera.name == self.camera_fallback_source and camera.source is not None
+            for camera in self.cameras
+        ):
+            raise ValueError("camera_fallback_source must name a camera with a source")
+        if (
+            "media" in self.components
+            and self.camera_fallback_source is None
+            and self.video.primary_view not in camera_names
+        ):
             raise ValueError("primary video view must have a configured camera")
 
 

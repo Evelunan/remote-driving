@@ -4,6 +4,9 @@ session: 1234
 room: "1234"
 components: [control, media]
 controller: mock
+# 可选测试配置：改为 front 后，未配置 source 的视角复用 front。
+# 显式 source（包括 synthetic）仍独立采集；要复用请删掉该视角的 source。
+camera_fallback_source: null
 # 可选：同一媒体进程所有视角和订阅者共享的编码工作线程上限。
 # 默认 null 使用 aiortc 原路径；启用每路 encoding 时必须同时设为 1..32。
 encoder_workers: null

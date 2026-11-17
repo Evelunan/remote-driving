@@ -43,21 +43,38 @@ class MultiCameraManager:
         self._stop_task = None
         self._video_policy = video_policy
         self._on_fault = on_fault
+        self._camera_by_view = {}
+        self._views_by_camera = {}
 
     def add_camera(self, camera, *, encoding=None):
+        self._register_view(camera.camera_name, camera, encoding)
+        self.cameras.append(camera)
+
+    def add_camera_copy(self, name, source, *, encoding=None):
+        """Publish an existing capture as another view without opening a device."""
+        if source not in self._camera_by_view:
+            raise ValueError("copy source camera is missing")
+        self._register_view(name, self._camera_by_view[source], encoding)
+
+    def _register_view(self, name, camera, encoding):
         if self._running or self._stop_task is not None:
             raise RuntimeError("cannot add camera after start")
-        if any(cam.camera_name == camera.camera_name for cam in self.cameras):
+        if name in self._camera_by_view:
             raise ValueError("duplicate camera name")
         self.streamer.register_video_track(
-            camera.camera_name,
+            name,
             fps=camera.fps,
             max_age_s=self._video_policy.stale_frame_ms / 1000
             if self._video_policy
             else 0.5,
             **({"encoding": encoding} if encoding is not None else {}),
         )
-        self.cameras.append(camera)
+        self._camera_by_view[name] = camera
+        self._views_by_camera.setdefault(camera.camera_name, []).append(name)
+
+    def _invalidate_camera(self, camera):
+        for name in self._views_by_camera[camera.camera_name]:
+            self.streamer.invalidate_frame(name)
 
     async def start(self):
         if self._running or self._stop_task is not None:
@@ -105,14 +122,7 @@ class MultiCameraManager:
             raise
 
     async def _watch_primary(self):
-        camera = next(
-            (
-                cam
-                for cam in self.cameras
-                if cam.camera_name == self._video_policy.primary_view
-            ),
-            None,
-        )
+        camera = self._camera_by_view.get(self._video_policy.primary_view)
         if camera is None:
             raise RuntimeError("primary camera is missing")
         last_sequence, captured_at = 0, time.monotonic()
@@ -129,7 +139,7 @@ class MultiCameraManager:
                     raise RuntimeError("invalid primary capture timestamp")
                 last_sequence, captured_at = image.sequence, image.captured_at
             if now - captured_at >= timeout:
-                self.streamer.invalidate_frame(camera.camera_name)
+                self._invalidate_camera(camera)
                 raise RuntimeError("primary capture expired")
             await asyncio.sleep(min(timeout / 4, 0.05))
 
@@ -140,13 +150,14 @@ class MultiCameraManager:
             notification.event.clear()
             image = camera.get_snapshot()
             if image is None:
-                self.streamer.invalidate_frame(camera.camera_name)
+                self._invalidate_camera(camera)
                 if camera.failure is not None:
                     raise RuntimeError(
                         "capture worker failed: " + camera.camera_name
                     ) from camera.failure
             elif image.sequence != last_sequence:
-                await self.streamer.push_frame(image, camera.camera_name)
+                for name in self._views_by_camera[camera.camera_name]:
+                    await self.streamer.push_frame(image, name)
                 last_sequence = image.sequence
 
     async def wait(self):
@@ -182,7 +193,7 @@ class MultiCameraManager:
             return_exceptions=True,
         )
         for cam in self.cameras:
-            self.streamer.invalidate_frame(cam.camera_name)
+            self._invalidate_camera(cam)
         errors = [result for result in results if isinstance(result, Exception)]
         if errors:
             raise ExceptionGroup("camera cleanup failed", errors)

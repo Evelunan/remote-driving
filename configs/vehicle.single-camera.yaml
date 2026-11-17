@@ -1,0 +1,34 @@
+# 单摄像头测试：模拟底盘；缺少输入的视角复用 front 的原始帧。
+# /dev/video0 是示例，请先在 WSL 中确认真实视频采集节点。
+environment: development
+session: 1234
+room: "1234"
+components: [control, media]
+controller: mock
+camera_fallback_source: front
+encoder_workers: null
+credentials:
+  token_env: RD_VEHICLE_TOKEN
+network:
+  signaling_url: wss://localhost:8765
+  signaling_ca_file: tls/ca.pem
+  quic_host: localhost
+  quic_port: 4433
+  quic_server_name: localhost
+  quic_ca_file: tls/ca.pem
+cameras:
+  - name: front
+    source: /dev/video0
+    width: 640
+    height: 480
+    fps: 30
+  # 新增真实摄像头时，添加对应视角及 source 即可独立采集：
+  # - name: back
+  #   source: /dev/video2
+  #   width: 640
+  #   height: 480
+  #   fps: 30
+video:
+  primary_view: front
+  stale_frame_ms: 500
+  recovery_ms: 500

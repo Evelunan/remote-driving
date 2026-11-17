@@ -20,4 +20,6 @@ uv run --package rd-vehicle rd-vehicle --config configs/vehicle.mock.yaml --comp
 
 相机按 front/back/left/right 命名，可配置合成源、设备索引或稳定路径，各路尺寸和 FPS 独立；实际设备协商参数会记录，不能把请求值当作实测值。旧包内配置已删除，规则见[配置说明](../../docs/configuration.zh-CN.md)，安装见[根 README](../../README.md)，状态见[实施记录](../../docs/refactoring-progress.zh-CN.md)。
 
+摄像头不足时，可设置 `camera_fallback_source: front`：有显式 source 的视角照常采集，缺少 source 或未列出的视角复用 front，补齐四路测试画面。源设备只打开一次，复制帧保留原始采集时间；真实设备故障仍报错。[单摄像头示例](../../configs/vehicle.single-camera.yaml) 使用模拟底盘，需按实际设备修改前摄像头路径。
+
 媒体发布携带配置中的 session 并接受服务端授权校验；主相机超时会在设备清理前报告故障，使父进程先停止控制。`video` 配置与驾驶端策略见 [画面与控制](../../docs/video-safety.zh-CN.md)。

@@ -72,6 +72,41 @@ rd-server --config /path/server.yaml --services signaling --set signaling.port=8
 
 相机 name 仅接受当前四视角 front/back/left/right，不允许重复；source 可为 synthetic、非负设备索引或设备路径。推荐 Linux `/dev/v4l/by-id/…` 稳定路径。尺寸必须为正偶数，FPS 为 (0, 240]；各路实际硬件参数需检查协商日志。数组整体替换，未配置的视角显示无信号。
 
+### 摄像头不足时复用画面
+
+车辆端可设置 `camera_fallback_source: front`，将未配置输入的视角补齐为四路，适合单摄像头或双摄像头测试：
+
+```yaml
+camera_fallback_source: front
+cameras:
+  - name: front
+    source: /dev/video0
+    width: 640
+    height: 480
+    fps: 30
+  - name: back
+    source: /dev/video2
+    width: 640
+    height: 480
+    fps: 30
+  - name: left
+    # 未写 source，复用 front；right 整项省略，也复用 front。
+```
+
+仅有一只摄像头时，只保留上述 front 条目即可。完整的本机测试配置见 [vehicle.single-camera.yaml](../configs/vehicle.single-camera.yaml)，使用模拟底盘和真实前摄像头。先确认 WSL 已出现可读取的视频设备，再按实际情况修改 `/dev/video0`，启动命令：
+
+```bash
+direnv exec . uv run --no-sync rd-vehicle --config configs/vehicle.single-camera.yaml
+```
+
+- 显式 `source` 优先，包括设备索引 `0` 和 `synthetic`；该视角独立采集。设备路径不存在、无权限或读取故障会按原流程报错，不会被替换为 front。
+- 缺少 `source`、`source: null` 或整个视角未列出时，复用所选源。源视角本身必须存在且显式配置 `source`；可选择 front/back/left/right。
+- 复用视角不重复打开设备、不新增采集线程，沿用源帧的分辨率、采集序号、时间和帧率。该视角的 width/height/fps 不单独生效；原采集帧失效时，复用视角一并失效。
+- 每个视角仍使用独立 WebRTC 轨道并单独编码，并非只发送一路视频。列出视角时使用其 `encoding`，省略整个视角时继承源视角的 `encoding`。
+- 默认 `camera_fallback_source: null` 关闭该功能；未列出的视角保持无信号，已列出但未写 source 的条目保留原有合成视频默认行为。修改配置后重启车辆端。旧版本不识别新字段，升级或回退需配套配置文件。
+
+复制的辅助视角展示的是同一摄像头画面，仅用于测试多视角界面和传输，不提供车辆其他方向的真实视野。
+
 串口默认读写超时均为 0.02 s，13 字节模板显式可配，速度编码上限由 uint16 表示范围限制；这部分只保留兼容适配，用户当前选择 ROS2。运动限值和超时均需实车验收，停车接口尚未接入物理确认。
 
 主视角和控制授权使用统一 `video.primary_view` / `stale_frame_ms` / `recovery_ms`；不再接受 `ui.stale_frame_ms`。媒体发布身份/session 必须匹配控制租约的车辆，恢复须持续新帧与新的中立输入，详见 [画面与控制](video-safety.zh-CN.md)。三个应用须协同升级信令来源与 acquire 字段，缺少新字段时不会降级授权。

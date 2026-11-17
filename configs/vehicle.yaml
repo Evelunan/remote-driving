@@ -4,6 +4,8 @@ session: 1234
 room: "1234"
 components: [control, media]
 controller: ros2
+# 摄像头不足时可设 front；只补齐未配置 source 的视角，设备故障不会触发替代。
+camera_fallback_source: null
 # null 保留 aiortc 原路径；按目标设备测量后可设 1..32，见配置说明。
 encoder_workers: null
 credentials:
