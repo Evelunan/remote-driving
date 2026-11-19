@@ -287,6 +287,75 @@ async def test_camera_start_failure_and_cancellation_roll_back_threads():
     publisher.tracks.close()
 
 
+@pytest.mark.asyncio
+async def test_usb_startup_logs_each_failed_device(monkeypatch, caplog):
+    from rd_vehicle.infrastructure.cameras import usb_camera
+
+    class Capture:
+        def __init__(self, source, backend):
+            self.source = source
+
+        def isOpened(self):
+            return self.source < 2
+
+        def getBackendName(self):
+            return "DSHOW"
+
+        def set(self, key, value):
+            return True
+
+        def get(self, key):
+            return 30
+
+        def grab(self):
+            return False
+
+        def release(self):
+            pass
+
+    monkeypatch.setattr(usb_camera.cv2, "VideoCapture", Capture)
+    monkeypatch.setattr(usb_camera.platform, "system", lambda: "Windows")
+    caplog.set_level("INFO")
+    publisher = LocalPublisher()
+    manager = MultiCameraManager(publisher)
+    for source, name in enumerate(("front", "back", "left", "right")):
+        manager.add_camera(USBCamera(source, name))
+    with pytest.raises(ExceptionGroup, match="startup failed"):
+        await manager.start()
+    publisher.tracks.close()
+    for source, name in enumerate(("front", "back", "left", "right")):
+        assert f"Camera {name} opening: source={source} backend=DSHOW" in caplog.text
+        if source < 2:
+            assert f"Camera {name} opened: source={source}" in caplog.text
+        else:
+            assert (
+                f"Camera {name} open failed: source={source} backend=DSHOW isOpened=False"
+                in caplog.text
+            )
+
+
+def test_empty_reads_warn_once_until_frames_arrive(caplog):
+    class DelayedFrames(TestCamera):
+        reads = 0
+
+        def _read(self):
+            self.reads += 1
+            return None if self.reads <= 3 else super()._read()
+
+    caplog.set_level("INFO")
+    camera = DelayedFrames(width=32, height=24, fps=120, name="back")
+    camera.start_capture()
+    try:
+        deadline = time.monotonic() + 1
+        while camera.get_frame_count() < 2 and time.monotonic() < deadline:
+            time.sleep(0.005)
+        assert camera.get_frame_count() >= 2
+    finally:
+        camera.stop_capture()
+    assert caplog.messages.count("Camera back returned no frame") == 1
+    assert caplog.messages.count("Camera back receiving frames") == 1
+
+
 def test_notifications_coalesce_without_retaining_images():
     queued = []
     loop = SimpleNamespace(call_soon_threadsafe=queued.append)
@@ -325,12 +394,19 @@ def test_usb_handle_opens_at_start_and_closes_on_owner_thread(
 
     class Capture:
         def __init__(self, source, backend):
+            self.format = 0
             calls.append(("open", threading.get_ident(), source, backend))
 
         def set(self, key, value):
-            pass
+            if key == usb_camera.cv2.CAP_PROP_FOURCC:
+                self.format = value
+            elif backend == "CAP_DSHOW":
+                self.format = usb_camera.cv2.VideoWriter.fourcc(*"YUY2")
+            return True
 
         def get(self, key):
+            if key == usb_camera.cv2.CAP_PROP_FOURCC:
+                return self.format
             return 60
 
         def getBackendName(self):
@@ -364,6 +440,7 @@ def test_usb_handle_opens_at_start_and_closes_on_owner_thread(
     assert calls[0][1] == calls[1][1] != threading.get_ident()
     assert calls[0][2] == source
     assert calls[0][3] == getattr(usb_camera.cv2, backend)
+    assert camera.diagnostics["format"] == "MJPG"
     assert camera.get_snapshot() is None
 
 

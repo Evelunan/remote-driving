@@ -1,6 +1,9 @@
 # 单摄像头测试：模拟底盘；缺少输入的视角复用 front 的原始帧。
 # /dev/video0 是示例，请先在 WSL 中确认真实视频采集节点。
 environment: development
+logging:
+  level: INFO
+  directory: ../logs/vehicle-single-camera
 session: 1234
 room: "1234"
 components: [control, media]

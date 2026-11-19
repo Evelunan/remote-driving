@@ -1,5 +1,6 @@
 """Capture thread ownership shared by synthetic and OpenCV cameras."""
 
+import logging
 import math
 import threading
 import time
@@ -7,6 +8,8 @@ import time
 from rd_vehicle.interfaces import ICamera
 
 from .buffer import CaptureBuffer
+
+logger = logging.getLogger(__name__)
 
 
 class ThreadCamera(ICamera):
@@ -37,6 +40,7 @@ class ThreadCamera(ICamera):
         self._thread.start()
         if not self._ready.wait(5):
             self._stop.set()
+            logger.error("Camera %s open timed out after 5 seconds", self.camera_name)
             raise TimeoutError("camera open did not finish within 5 seconds")
         if self._failure is not None:
             self._thread.join(2)
@@ -81,8 +85,11 @@ class ThreadCamera(ICamera):
         raise NotImplementedError
 
     def _run(self):
+        stage = "open"
+        receiving = None
         try:
             self._open()
+            stage = "capture"
             self._ready.set()
             while not self._stop.is_set():
                 started = time.monotonic()
@@ -91,13 +98,22 @@ class ThreadCamera(ICamera):
                 if self._stop.is_set():
                     break
                 if frame is None:
+                    if receiving is not False:
+                        logger.warning("Camera %s returned no frame", self.camera_name)
+                        receiving = False
                     self.buffer.invalidate()
                 else:
+                    if receiving is not True:
+                        logger.info("Camera %s receiving frames", self.camera_name)
+                        receiving = True
                     self.buffer.publish_owned(frame, captured_at=captured_at)
                 # Interruptible pacing, without busy waiting or catch-up bursts.
                 self._stop.wait(max(0, started + 1 / self.fps - time.monotonic()))
         except Exception as exc:  # noqa: BLE001 - capture failure crosses thread boundary
             self._failure = exc
+            logger.error(
+                "Camera %s %s failed (%s)", self.camera_name, stage, type(exc).__name__
+            )
         finally:
             try:
                 # Only the owner thread closes a capture handle; never race read.

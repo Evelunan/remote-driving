@@ -1,5 +1,8 @@
 # ROS2 实车接入模板。需现场校验设备路径、网络、限值和底盘安全接口后使用。
 environment: production
+logging:
+  level: INFO
+  directory: ../logs/vehicle
 session: 1234
 room: "1234"
 components: [control, media]
