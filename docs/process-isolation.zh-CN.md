@@ -35,7 +35,7 @@ processes:
   kill_timeout_s: 1.0
 ```
 
-这些是本机模拟默认值，尚未作为目标硬件的性能验收值。首次心跳受 startup_timeout_s 限定，此后的心跳间隔立即按 heartbeat_timeout_s 检查，不继续享受启动宽限。退出最多依次等待 shutdown_timeout_s、两次 kill_timeout_s，加上有限轮询开销；实际停车不能以这一软件时间推断。独立控制超时仍使用 `control.command_timeout_ms`，不依赖父进程心跳。
+首次心跳受 `startup_timeout_s` 限定。媒体子进程加载媒体库、打开配置的摄像头并启动采集任务后才发送首次心跳，此后的心跳间隔按 `heartbeat_timeout_s` 检查。首次心跳只表示采集任务已启动，主视角的新帧仍由视频监护单独检查。这些默认值来自本机模拟，目标硬件仍需验证。退出最多依次等待 shutdown_timeout_s、两次 kill_timeout_s，加上有限轮询开销；实际停车不能以这一软件时间推断。独立控制超时仍使用 `control.command_timeout_ms`，不依赖父进程心跳。
 
 ```bash
 rd-vehicle --config /path/vehicle.mock.yaml --check-config

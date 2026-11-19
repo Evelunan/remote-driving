@@ -1,6 +1,8 @@
 import asyncio
 import json
 import os
+import socket
+import threading
 import time
 from dataclasses import replace
 
@@ -15,7 +17,7 @@ from rd_core.settings import (
     VehicleSettings,
 )
 from rd_core.video_safety import VideoGate
-from rd_vehicle.processes import ProcessFailure, VehicleProcesses
+from rd_vehicle.processes import ProcessFailure, VehicleProcesses, _component_lifetime
 
 
 def test_component_failure_logs_nested_locations_without_payloads(caplog):
@@ -132,6 +134,45 @@ async def until(predicate, task, timeout=6):
                 task.result()
                 raise AssertionError("process group ended before expected state")
             await asyncio.sleep(0.02)
+
+
+@pytest.mark.asyncio
+async def test_media_first_heartbeat_waits_for_camera_start(
+    tmp_path, local_tls, monkeypatch
+):
+    from rd_vehicle.infrastructure.cameras import TestCamera
+
+    settings = replace(
+        configuration(tmp_path, local_tls, monkeypatch),
+        components=("media",),
+        cameras=(CameraSettings("front", "synthetic", 96, 64, 20),),
+        camera_fallback_source="front",
+    )
+    opening, release = threading.Event(), threading.Event()
+
+    def slow_open(self):
+        opening.set()
+        assert release.wait(5)
+
+    monkeypatch.setattr(TestCamera, "_open", slow_open)
+    parent, child = socket.socketpair()
+    with parent, child:
+        parent.setblocking(False)
+        child.setblocking(False)
+        task = asyncio.create_task(_component_lifetime(settings, child, runner=None))
+        try:
+            await until(opening.is_set, task)
+            loop = asyncio.get_running_loop()
+            with pytest.raises(asyncio.TimeoutError):
+                await asyncio.wait_for(
+                    loop.sock_recv(parent, 8), settings.processes.heartbeat_timeout_s
+                )
+            release.set()
+            assert await asyncio.wait_for(loop.sock_recv(parent, 8), 1)
+        finally:
+            release.set()
+            parent.shutdown(socket.SHUT_WR)
+            await asyncio.wait_for(task, 5)
 
 
 @pytest.mark.asyncio
@@ -333,7 +374,10 @@ async def test_partial_spawn_failure_reaps_started_child_and_prestart_stop_opens
 ):
     from multiprocessing.process import BaseProcess
 
-    settings = configuration(tmp_path, local_tls, monkeypatch)
+    # The first spawned interpreter may still be importing when the second spawn fails.
+    settings = replace(
+        configuration(tmp_path, local_tls, monkeypatch), processes=ProcessSettings()
+    )
     original = BaseProcess.start
 
     def start(process):

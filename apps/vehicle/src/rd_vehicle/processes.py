@@ -83,7 +83,12 @@ async def _component_lifetime(settings, channel, runner):
         finally:
             stop.set()
 
+    heartbeat_ready = asyncio.Event()
+    if settings.components != ("media",) or runner is not None:
+        heartbeat_ready.set()
+
     async def heartbeat():
+        await heartbeat_ready.wait()
         pending = b""
         while not stop.is_set():
             if not pending:
@@ -112,7 +117,9 @@ async def _component_lifetime(settings, channel, runner):
                 except OSError:
                     pass
 
-            await run(settings, stop, on_fault=fault)
+            await run(
+                settings, stop, on_fault=fault, on_media_started=heartbeat_ready.set
+            )
         else:
             await runner(settings, stop)
     finally:
@@ -289,23 +296,25 @@ class VehicleProcesses:
                         raise ProcessFailure(f"{child.component} exited unexpectedly")
                     previous = child.heartbeat_at
                     child.read_health()
+                    now = time.monotonic()
                     if not previous and child.heartbeat_at:
                         logger.info(
                             "Vehicle %s event loop responding (pid=%s)",
                             child.component,
                             child.process.pid,
                         )
-                    now = time.monotonic()
-                    # Only the first heartbeat gets a startup grace period.
+                    if not child.heartbeat_at:
+                        if (
+                            now - child.started_at
+                            > self.settings.processes.startup_timeout_s
+                        ):
+                            raise ProcessFailure(f"{child.component} startup timed out")
+                        continue
                     # Queued heartbeats retain their original monotonic time.
-                    expired = (
+                    if (
                         now - child.heartbeat_at
                         > self.settings.processes.heartbeat_timeout_s
-                        if child.heartbeat_at
-                        else now - child.started_at
-                        > self.settings.processes.startup_timeout_s
-                    )
-                    if expired:
+                    ):
                         raise ProcessFailure(
                             f"{child.component} event-loop heartbeat expired"
                         )

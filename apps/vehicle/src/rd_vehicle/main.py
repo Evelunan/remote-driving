@@ -134,7 +134,9 @@ def _configure_cameras(manager, settings, camera_factory):
         logger.info("Camera test fallback: %s supplies views %s", source.name, copies)
 
 
-async def start_streaming(settings, *, camera_factory=None, on_fault=None):
+async def start_streaming(
+    settings, *, camera_factory=None, on_fault=None, on_started=None
+):
     from rd_vehicle.application.multi_camera_manager import MultiCameraManager
     from rd_vehicle.infrastructure.streams.webrtc_streamer import WebRTCStreamer
 
@@ -151,6 +153,8 @@ async def start_streaming(settings, *, camera_factory=None, on_fault=None):
     try:
         _configure_cameras(manager, settings, camera_factory or _create_camera)
         await manager.start()
+        if on_started is not None:
+            on_started()
         async with TaskGroup() as tasks:
             tasks.create_task(streamer.start())
             tasks.create_task(manager.wait())
@@ -169,6 +173,7 @@ async def run(
     camera_factory=None,
     install_signals=False,
     on_fault=None,
+    on_media_started=None,
 ):
     """In-process component host; the production CLI owns separate spawned hosts."""
     check_config(settings)
@@ -197,7 +202,10 @@ async def run(
             tasks.append(
                 asyncio.create_task(
                     start_streaming(
-                        settings, camera_factory=camera_factory, on_fault=on_fault
+                        settings,
+                        camera_factory=camera_factory,
+                        on_fault=on_fault,
+                        on_started=on_media_started,
                     ),
                     name="vehicle-media",
                 )
