@@ -6,6 +6,7 @@ from aiortc import RTCSessionDescription
 from aiortc.mediastreams import MediaStreamError
 from rd_core.video_safety import VideoSource
 from rd_webrtc.session import MediaSession
+from rd_webrtc.video_timing import ReceiverTiming
 
 
 class VideoStatus:
@@ -27,6 +28,7 @@ class WebRTCReceiver(MediaSession):
     ):
         super().__init__(room, network, credentials)
         self._on_frame = None
+        self._include_capture_time = False
         self._on_invalidate = None
         self._views = frozenset(views)
         self._publishers = {}
@@ -34,8 +36,9 @@ class WebRTCReceiver(MediaSession):
         self.signaling.on("offer", self._on_offer)
         self.signaling.on("new_peer", self._on_new_peer)
 
-    def on_frame(self, callback):
+    def on_frame(self, callback, *, include_capture_time=False):
         self._on_frame = callback
+        self._include_capture_time = include_capture_time
 
     def on_invalidate(self, callback):
         self._on_invalidate = callback
@@ -61,6 +64,8 @@ class WebRTCReceiver(MediaSession):
     async def _create_peer(self, peer_id):
         peer = await super()._create_peer(peer_id)
         self._track_ids[peer] = set()
+        timing = ReceiverTiming()
+        peer.pc.on("datachannel", timing.attach)
 
         @peer.pc.on("track")
         def on_track(track):
@@ -76,13 +81,20 @@ class WebRTCReceiver(MediaSession):
                 self._schedule_cleanup(peer_id, peer)
                 return
             self._track_ids[peer].add(track.id)
-            self._spawn_peer_task(peer_id, peer, self._recv_track(peer_id, peer, track))
+            self._spawn_peer_task(
+                peer_id, peer, self._recv_track(peer_id, peer, track, timing)
+            )
 
         return peer
 
-    async def _recv_track(self, peer_id, peer, track):
+    async def _recv_track(self, peer_id, peer, track, timing=None):
         first = True
         last_pts = None
+        receiver = (
+            next((r for r in peer.pc.getReceivers() if r.track is track), None)
+            if timing is not None
+            else None
+        )
         try:
             while self._current(peer_id, peer):
                 frame = await track.recv()
@@ -98,7 +110,15 @@ class WebRTCReceiver(MediaSession):
                 if source is None:
                     raise PermissionError("video source identity is missing")
                 if self._on_frame is not None:
-                    self._on_frame(track.id, pixels, source)
+                    if self._include_capture_time:
+                        captured_at = (
+                            timing.capture_time(receiver, frame.pts)
+                            if receiver is not None
+                            else None
+                        )
+                        self._on_frame(track.id, pixels, source, captured_at)
+                    else:
+                        self._on_frame(track.id, pixels, source)
                 if first:
                     self._emit_status("receiving", "首帧已到达")
                     first = False

@@ -1,4 +1,5 @@
 import asyncio
+import time
 
 import pytest
 from rd_core.settings import ClientNetworkSettings, CredentialSettings
@@ -103,9 +104,15 @@ async def test_actual_authenticated_media_clients_reconnect_and_own_all_tasks(
     camera = TestCamera(width=96, height=64, fps=30, name="front")
     manager.add_camera(camera)
     frames, statuses = {"driver": [], "viewer": []}, []
-    driver.on_frame(
-        lambda name, frame, source: frames["driver"].append((name, frame.shape))
-    )
+    timed_sources = set()
+
+    def received(name, frame, source, captured_at):
+        frames["driver"].append((name, frame.shape))
+        if captured_at is not None:
+            assert 0 <= time.monotonic() - captured_at < 1
+            timed_sources.add(source.peer_id)
+
+    driver.on_frame(received, include_capture_time=True)
     viewer.on_frame(
         lambda name, frame, source: frames["viewer"].append((name, frame.shape))
     )
@@ -125,10 +132,12 @@ async def test_actual_authenticated_media_clients_reconnect_and_own_all_tasks(
             < statuses.index("receiving")
         )
         old_id = publisher.my_id
+        await until(lambda: old_id in timed_sources)
         old_peers = tuple(publisher.peers.values())
         before = {name: len(value) for name, value in frames.items()}
         await service.manager.peers[old_id].websocket.close(1012, "test disconnect")
         await until(lambda: publisher.my_id is not None and publisher.my_id != old_id)
+        await until(lambda: publisher.my_id in timed_sources)
         await until(
             lambda: all(len(frames[name]) > count + 2 for name, count in before.items())
         )

@@ -3,6 +3,7 @@
 import asyncio
 
 from rd_webrtc.session import MediaSession
+from rd_webrtc.video_timing import PublisherTiming
 
 from .track_manager import TrackManager
 
@@ -24,12 +25,14 @@ class WebRTCStreamer(MediaSession):
 
     async def _create_peer(self, peer_id):
         peer = await super()._create_peer(peer_id)
+        timing = PublisherTiming(peer.pc)
         for track in self.track_manager.create_tracks(peer_id).values():
-            peer.add_track(
+            sender = peer.add_track(
                 track,
                 encoding_pool=self.encoding_pool,
                 encoding=self.encoding.get(track.id),
             )
+            timing.bind(sender, track)
         return peer
 
     async def _close_owned(self):

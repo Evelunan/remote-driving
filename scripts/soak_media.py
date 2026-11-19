@@ -80,7 +80,13 @@ class Observations(FrameBuffer):
             original = display.update_frame
 
             def update(
-                pixels, frame_id, *, on_presented=None, name=name, original=original
+                pixels,
+                frame_id,
+                *,
+                on_presented=None,
+                captured_at=None,
+                name=name,
+                original=original,
             ):
                 with self.lock:
                     source = self.associations.get((name, frame_id))
@@ -94,7 +100,9 @@ class Observations(FrameBuffer):
                     if on_presented is not None:
                         on_presented()
 
-                original(pixels, frame_id, on_presented=painted)
+                original(
+                    pixels, frame_id, on_presented=painted, captured_at=captured_at
+                )
 
             display.update_frame = update
 

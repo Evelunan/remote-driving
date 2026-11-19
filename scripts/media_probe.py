@@ -363,12 +363,15 @@ def observe_display(widget, cache, probe):
             frame_id,
             *,
             on_presented=None,
+            captured_at=None,
             name=name,
             display=display,
             original=original,
         ):
             if frame_id == display._last_frame_id:
-                return original(frame, frame_id, on_presented=on_presented)
+                return original(
+                    frame, frame_id, on_presented=on_presented, captured_at=captured_at
+                )
             with cache.probe_lock:
                 key = cache.associations.get((name, frame_id))
             if key is None:
@@ -380,7 +383,7 @@ def observe_display(widget, cache, probe):
                 if on_presented is not None:
                     on_presented()
 
-            original(frame, frame_id, on_presented=presented)
+            original(frame, frame_id, on_presented=presented, captured_at=captured_at)
             probe.mark(key, "render_end")
 
         display.update_frame = update

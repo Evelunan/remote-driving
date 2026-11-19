@@ -16,6 +16,7 @@ class Frame:
     received_at: float = 0
     generation: int = 0
     source: VideoSource | None = None
+    captured_at: float | None = None  # estimated in the receiver's monotonic clock
 
     def fresh(self, max_age_s: float, *, now: float | None = None) -> bool:
         age = (time.monotonic() if now is None else now) - self.received_at
@@ -50,7 +51,16 @@ class FrameBuffer:
     def clear(self):
         self.begin_session()
 
-    def put(self, track_id, frame, *, generation=None, received_at=None, source=None):
+    def put(
+        self,
+        track_id,
+        frame,
+        *,
+        generation=None,
+        received_at=None,
+        source=None,
+        captured_at=None,
+    ):
         if track_id not in self.positions:
             raise ValueError("unknown camera view")
         with self._lock:
@@ -78,7 +88,7 @@ class FrameBuffer:
                 return False
             previous = self._frames[track_id]
             self._frames[track_id] = Frame(
-                previous.id + 1, readonly, received_at, generation, source
+                previous.id + 1, readonly, received_at, generation, source, captured_at
             )
             return True
 

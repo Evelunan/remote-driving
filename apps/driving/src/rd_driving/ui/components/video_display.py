@@ -82,6 +82,7 @@ class VideoDisplay(QLabel):
 
         # 性能统计
         self._fps = 0
+        self._pending_capture = self._painted_capture = None
         self._last_frame_id = -1
         self._pixmap_frame_id = self._presented_id = -1
         self._on_presented = None
@@ -261,7 +262,7 @@ class VideoDisplay(QLabel):
         self._pixmap_frame_id = self._last_frame_id
 
     def update_frame(
-        self, frame: np.ndarray, frame_id: int, *, on_presented=None
+        self, frame: np.ndarray, frame_id: int, *, on_presented=None, captured_at=None
     ) -> None:
         """外部调用的帧更新接口"""
         if frame is None:
@@ -270,6 +271,7 @@ class VideoDisplay(QLabel):
             # 重复帧，不渲染
             return
         self._last_frame_id = frame_id
+        self._pending_capture = captured_at
         self._on_presented = on_presented
 
         if self._debug_overlay:
@@ -302,12 +304,14 @@ class VideoDisplay(QLabel):
             and self._presented_id != self._last_frame_id
         ):
             self._presented_id = self._last_frame_id
+            self._painted_capture = self._pending_capture
             if self._on_presented is not None:
                 self._on_presented()
 
     def show_message(self, text: str) -> None:
         """显示文本消息（无视频流时）"""
         self._current_frame = None
+        self._pending_capture = self._painted_capture = None
         self._pixmap_frame_id = self._presented_id = -1
         self._on_presented = None
         self._scaled_buffer = None
@@ -349,6 +353,11 @@ class VideoDisplay(QLabel):
     # --- 统计信息获取 ---
     def get_fps(self) -> int:
         return self._fps
+
+    def get_latency_ms(self) -> int | None:
+        if self._painted_capture is None:
+            return None
+        return round((time.monotonic() - self._painted_capture) * 1000)
 
     def get_resolution(self) -> tuple[int, int]:
         return self._resolution

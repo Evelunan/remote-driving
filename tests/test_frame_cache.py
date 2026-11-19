@@ -89,9 +89,18 @@ def test_qt_readonly_frames_expire_and_recover(legacy_python):
         cache = FrameBuffer()
         widget = MultiVideoWidget(cache, stale_frame_ms=100, debug_overlay=True)
         display = widget.get_display("front")
+        widget.show()
+        app.processEvents()
+        assert display.get_latency_ms() is None
         source = np.full((180, 320, 3), 53, dtype=np.uint8)
-        cache.put("front", source)
+        cache.put("front", source, captured_at=time.monotonic() - 0.12)
         widget.update()
+        app.processEvents()
+        latency = display.get_latency_ms()
+        assert latency is not None and latency >= 119
+        assert widget.get_display("back").get_latency_ms() is None
+        time.sleep(0.01)
+        assert display.get_latency_ms() > latency
         assert display.get_resolution() == (320, 180)
         assert not display.pixmap().isNull()
         assert np.all(cache.get("front").frame == 53)
@@ -104,6 +113,7 @@ def test_qt_readonly_frames_expire_and_recover(legacy_python):
         widget.update()
         assert "已过期" in display.text()
         assert display.get_fps() == 0 and display.get_resolution() == (0, 0)
+        assert display.get_latency_ms() is None
         assert display.pixmap().isNull()
         cache.put("front", source)
         widget.update()

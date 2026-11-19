@@ -147,9 +147,12 @@ class ControlPanel(QFrame):
         data: dict[str, StatItem] = {
             "fps": StatItem("帧率", "FPS"),
             "resolution": StatItem("分辨率", ""),
+            "latency": StatItem("画面延迟", "ms"),
         }
         grid.addWidget(data["fps"], 0, 0)
         grid.addWidget(data["resolution"], 0, 1)
+        grid.addWidget(data["latency"], 1, 0, 1, 2)
+        data["latency"].setToolTip("当前已绘制帧距车端采集的估算时间，两端通过 WebRTC 校时。")
         camera_card.add_layout(grid)
 
         return camera_card, data
@@ -268,7 +271,8 @@ class ControlPanel(QFrame):
         for item in self._command_stats.values():
             item.set_value("--")
 
-    def set_camera_grid(self, key, fps, w, h):
+    def set_camera_grid(self, key, fps, w, h, latency_ms=None):
         data = self.camera_data[key]
         data["fps"].set_value(fps)
         data["resolution"].set_value(f"{w}×{h}")
+        data["latency"].set_value(latency_ms)

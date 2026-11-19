@@ -201,7 +201,10 @@ class MultiVideoWidget(QWidget):
                         f.id, f.received_at, f.source
                     )
                 self._displays[cam].update_frame(
-                    frame.frame, frame.id, on_presented=callback
+                    frame.frame,
+                    frame.id,
+                    on_presented=callback,
+                    captured_at=frame.captured_at,
                 )
             elif self._availability[cam] != state:
                 if cam == self._primary_view and self._video_gate is not None:

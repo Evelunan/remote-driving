@@ -332,7 +332,9 @@ class MainWindow(QMainWindow):
                 continue
             fps = display.get_fps()
             w, h = display.get_resolution()
-            self._control_panel.set_camera_grid(key, fps, w, h)
+            self._control_panel.set_camera_grid(
+                key, fps, w, h, display.get_latency_ms()
+            )
 
         if self._webrtc_connected:
             front = self.fb.get(self.settings.video.primary_view)
@@ -373,9 +375,14 @@ class MainWindow(QMainWindow):
         )
         generation = self.fb.begin_session()
         receiver.on_frame(
-            lambda track_id, frame, source: self.fb.put(
-                track_id, frame, source=source, generation=generation
-            )
+            lambda track_id, frame, source, captured_at=None: self.fb.put(
+                track_id,
+                frame,
+                source=source,
+                generation=generation,
+                captured_at=captured_at,
+            ),
+            include_capture_time=True,
         )
 
         def invalidate(source):

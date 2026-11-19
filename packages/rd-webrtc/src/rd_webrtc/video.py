@@ -97,7 +97,7 @@ class VideoFrameTrack(VideoStreamTrack):
         self._changed = asyncio.Event()
         self._last_sequence = 0
         self._next_send = 0.0
-        self._capture_origin = None
+        self.capture_origin = None
         self._last_pts = -1
 
     def _fresh_image(self, now):
@@ -144,11 +144,11 @@ class VideoFrameTrack(VideoStreamTrack):
         completed = time.monotonic()
         if completed - image.captured_at >= self.source.max_age_s:
             return None
-        if self._capture_origin is None:
-            self._capture_origin = image.captured_at
+        if self.capture_origin is None:
+            self.capture_origin = image.captured_at
         pts = max(
             self._last_pts + 1,
-            round((image.captured_at - self._capture_origin) * 90000),
+            round((image.captured_at - self.capture_origin) * 90000),
         )
         frame.pts, frame.time_base = pts, Fraction(1, 90000)
         self._last_pts, self._last_sequence = pts, image.sequence

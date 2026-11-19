@@ -269,6 +269,7 @@ async def test_fallback_four_views_arrive_over_real_webrtc(monkeypatch):
     import aioice.ice
     from aiortc import RTCConfiguration, RTCPeerConnection
     from aiortc.mediastreams import MediaStreamError
+    from rd_webrtc.video_timing import ReceiverTiming
 
     monkeypatch.setattr(
         aioice.ice, "get_host_addresses", lambda **kwargs: ["127.0.0.1"]
@@ -283,13 +284,20 @@ async def test_fallback_four_views_arrive_over_real_webrtc(monkeypatch):
     manager = MultiCameraManager(streamer)
     _configure_cameras(manager, settings, _create_camera)
     receiver = RTCPeerConnection(RTCConfiguration(iceServers=[]))
+    clock = ReceiverTiming()
+    receiver.on("datachannel", clock.attach)
     tasks, received = [], {}
+    timed = set()
 
     async def consume(track):
+        rtp = next(r for r in receiver.getReceivers() if r.track is track)
         try:
             while True:
                 frame = await track.recv()
                 received[track.id] = (frame.width, frame.height)
+                captured_at = clock.capture_time(rtp, frame.pts)
+                if captured_at is not None and 0 <= time.monotonic() - captured_at < 1:
+                    timed.add(track.id)
         except MediaStreamError:
             pass
 
@@ -305,7 +313,7 @@ async def test_fallback_four_views_arrive_over_real_webrtc(monkeypatch):
             await receiver.setLocalDescription(await receiver.createAnswer())
             answer = receiver.localDescription
             await peer.set_answer(answer.sdp, answer.type)
-            while len(received) < 4:
+            while len(timed) < 4:
                 await asyncio.sleep(0.01)
         assert received == {
             name: (96, 64) for name in ("front", "back", "left", "right")
