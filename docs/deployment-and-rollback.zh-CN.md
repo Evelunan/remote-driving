@@ -37,16 +37,16 @@
 
 | 角色 | 系统条件 | 运行账号和边界 |
 | --- | --- | --- |
-| 统一服务端 | Python 3.12；服务端 wheel 及共享 core/quic；可达 WSS/TCP 和 QUIC/UDP 监听端口 | 独立 `rd-server` 账号；不安装 Qt、OpenCV、aiortc，不需要设备权限 |
-| 车辆端 | Python 3.12；相机使用的 V4L2/OpenCV 库；ROS2 的 rclpy 与该 Python 匹配，或对应串口驱动 | 独立 `rd-vehicle` 账号；按实际设备授予 video/dialout 等组权限，使用 `/dev/v4l/by-id/...`、`/dev/serial/by-id/...` |
-| 驾驶端 | Python 3.12；Qt 桌面会话、USB 库、显示驱动 | 已登录的桌面用户；USB 设备通过针对 VID/PID 的 udev 规则授权，勿用 root 运行 GUI |
+| 统一服务端 | Python 3.10.12；服务端 wheel 及共享 core/quic；可达 WSS/TCP 和 QUIC/UDP 监听端口 | 独立 `rd-server` 账号；不安装 Qt、OpenCV、aiortc，不需要设备权限 |
+| 车辆端 | Python 3.10.12；相机使用的 V4L2/OpenCV 库；ROS2 的 rclpy 与该 Python 匹配，或对应串口驱动 | 独立 `rd-vehicle` 账号；按实际设备授予 video/dialout 等组权限，使用 `/dev/v4l/by-id/...`、`/dev/serial/by-id/...` |
+| 驾驶端 | Python 3.10.12；Qt 桌面会话、USB 库、显示驱动 | 已登录的桌面用户；USB 设备通过针对 VID/PID 的 udev 规则授权，勿用 root 运行 GUI |
 
-本地验证使用 Python 3.12.16、uv 0.13.8。Ubuntu 24.04 CI 的基础原生库清单为 `libgl1 libegl1 libopengl0 libglib2.0-0t64 libusb-1.0-0`；真实桌面还需平台插件的原生依赖，摄像头和 ROS2 需对应系统包。先在目标机运行配置检查及适用的设备检查，再认定该环境可部署。其他系统/CPU、真实 GPU 与 USB 尚无此批验收证据。
+本地验证使用 Python 3.10.12、uv 0.13.8。Ubuntu 24.04 CI 的基础原生库清单为 `libgl1 libegl1 libopengl0 libglib2.0-0t64 libusb-1.0-0`；真实桌面还需平台插件的原生依赖，摄像头和 ROS2 需对应系统包。先在目标机运行配置检查及适用的设备检查，再认定该环境可部署。其他系统/CPU、真实 GPU 与 USB 尚无此批验收证据。
 
-ROS2 发行版尚未由用户确认，不预设发行版名称。使用与 ROS2 安装匹配的 Python 3.12 准备车辆环境；不要通过 pip 安装一个同名包来替代系统 rclpy。按目标环境加载 `setup.bash` 后，检查：
+ROS2 发行版尚未由用户确认，不预设发行版名称。使用与 ROS2 安装匹配的 Python 3.10.12 准备车辆环境；不要通过 pip 安装一个同名包来替代系统 rclpy。按目标环境加载 `setup.bash` 后，检查：
 
 ```bash
-python3.12 -c 'import sys,rclpy; print(sys.version); print(rclpy.__file__)'
+python3 -c 'import sys,rclpy; print(sys.version); print(rclpy.__file__)'
 ```
 
 车辆服务的[启动包装器](../deploy/run_vehicle.sh)在配置了绝对路径 `RD_ROS_SETUP` 时加载该可信脚本，再启动版本管理工具。`PYTHONPATH`、`LD_LIBRARY_PATH` 等 ROS 环境属于主机契约，不打包进 wheel；更换 ROS 环境后需要重新验收。`ProtectHome=yes`要求服务解释器、ROS 安装和设备配置不要放在用户 home 下；可部署到 `/opt` 或使用系统 Python。避免依赖临时 `/tmp` 的解释器。
@@ -62,19 +62,22 @@ python3.12 -c 'import sys,rclpy; print(sys.version); print(rclpy.__file__)'
 以下以服务端 `server-main` 为例，命令由具有目标目录写权限的部署账号执行。先按实例配置提供凭据变量，并确认配置引用的外部证书路径有效。`RD_CONFIG`及 `RD_SERVER__...` 等覆盖变量须清除，实例参数全部写入此次配置；工具拒绝这些隐式覆盖。
 
 ```bash
-python3.12 scripts/manage_release.py prepare \
+release_id=20261119-py310
+source_dir="$PWD"
+artifacts_dir="$source_dir/artifacts"
+uv run --locked python scripts/manage_release.py prepare \
   --root /opt/remote-driving/server-main \
-  --release 20261116-b21 --role server \
-  --source /srv/rd-source/04c6f49 \
-  --wheels /srv/rd-artifacts/b21/wheels \
-  --acceptance /srv/rd-artifacts/b21/wheel-acceptance.json \
+  --release "$release_id" --role server \
+  --source "$source_dir" \
+  --wheels "$artifacts_dir/wheels" \
+  --acceptance "$artifacts_dir/wheel-acceptance.json" \
   --config /etc/remote-driving/instances/server-main.yaml \
-  --python /usr/bin/python3.12
+  --python /usr/bin/python3
 
-python3.12 scripts/manage_release.py check \
-  --root /opt/remote-driving/server-main --release 20261116-b21
-python3.12 scripts/manage_release.py activate \
-  --root /opt/remote-driving/server-main --release 20261116-b21 \
+python3 scripts/manage_release.py check \
+  --root /opt/remote-driving/server-main --release "$release_id"
+python3 scripts/manage_release.py activate \
+  --root /opt/remote-driving/server-main --release "$release_id" \
   --expect-current none
 ```
 
@@ -90,7 +93,7 @@ python3.12 scripts/manage_release.py activate \
 - [rd-vehicle@.service](../deploy/systemd/rd-vehicle@.service)：应用内部管理 control/media 进程及重连；进程监护失败后保持退出，检查设备和停车接口后重新启动。`KillMode=mixed`先通知父进程，让父进程关闭并回收子进程；最终超时由 systemd 处理整个进程组。默认 20 秒停止预算大于当前 5+1+1 秒进程退出预算；修改这些配置需同步校核。
 - [rd-driving@.service](../deploy/systemd/rd-driving@.service)：桌面用户服务，发布根目录为 `%h/.local/share/remote-driving/%i`。由图形会话启动并提供 DISPLAY/WAYLAND_DISPLAY、XDG_RUNTIME_DIR 等会话环境；不在系统服务中硬编码其他用户的显示权限。关闭窗口走已验证的异步清理路径；B23 起 `SIGINT`/`SIGTERM`请求同一个异步关闭流程，等待控制/媒体工作线程结束后退出；此前的历史版本直接按信号退出，回退记录会保留该差异。
 
-部署时将 `manage_release.py`、车辆包装器放入 `/usr/local/lib/remote-driving/`，模板放入相应 systemd system/user unit 目录。模板中的 `/usr/bin/python3.12`需对应目标机器的长期保留解释器；修改路径后执行 `systemd-analyze verify`。服务数据写到独立 StateDirectory；如另设 `logging.directory`，须确保服务账号可写且在版本目录以外。
+部署时将 `manage_release.py`、车辆包装器放入 `/usr/local/lib/remote-driving/`，模板放入相应 systemd system/user unit 目录。模板中的 `/usr/bin/python3`需对应目标机器的长期保留解释器；修改路径后执行 `systemd-analyze verify`。服务数据写到独立 StateDirectory；如另设 `logging.directory`，须确保服务账号可写且在版本目录以外。
 
 模板使用 `Type=exec`，它不代表身份认证、两模块启动和设备就绪已经通过。启动后检查日志、端口及认证连接，车辆检查两子进程心跳和相机帧，驾驶端检查可信主视角、输入与控制状态。systemd 选项依据官方 [service](https://www.freedesktop.org/software/systemd/man/latest/systemd.service.html)、[exec](https://www.freedesktop.org/software/systemd/man/latest/systemd.exec.html) 文档；固定依赖安装依据 [uv CLI](https://docs.astral.sh/uv/reference/cli/#uv-pip-sync)。
 
@@ -119,7 +122,7 @@ python3.12 scripts/manage_release.py activate \
 4. 对每个需要回退的角色选择其旧发布。下面服务端例子要求当前确实是 B21：
 
 ```bash
-python3.12 /usr/local/lib/remote-driving/manage_release.py activate \
+python3 /usr/local/lib/remote-driving/manage_release.py activate \
   --root /opt/remote-driving/server-main \
   --release 20261116-b19 --expect-current 20261116-b21
 ```
@@ -131,14 +134,16 @@ python3.12 /usr/local/lib/remote-driving/manage_release.py activate \
 
 [演练工具](../scripts/smoke_release_rollback.py)在临时目录为三个角色各准备旧/新两个发布，依次启动 A → B → A。使用真实 wheel、锁定依赖、临时证书和随机令牌；服务端验证真实 WSS 加入与 QUIC 认证，车辆验证 mock/synthetic 双进程心跳和 SIGTERM 回收，驾驶端验证 offscreen 窗口事件循环及启动器互斥。每步核对配套配置，并验证运行中切换和重复启动被拒绝。
 
+将 `OLD_SOURCE`、`NEW_SOURCE` 设为两个发布的源码目录，将 `OLD_ARTIFACTS`、`NEW_ARTIFACTS` 设为各自在 Python 3.10.12 下通过验收的制品目录。
+
 ```bash
-python3.12 scripts/smoke_release_rollback.py \
-  --old-source /srv/rd-source/e55e4dc \
-  --old-wheels /srv/rd-artifacts/b19/wheels \
-  --old-acceptance /srv/rd-artifacts/b19/wheel-acceptance.json \
-  --new-source /srv/rd-source/04c6f49 \
-  --new-wheels /srv/rd-artifacts/b21/wheels \
-  --new-acceptance /srv/rd-artifacts/b21/wheel-acceptance.json \
+uv run --all-packages --locked python scripts/smoke_release_rollback.py \
+  --old-source "$OLD_SOURCE" \
+  --old-wheels "$OLD_ARTIFACTS/wheels" \
+  --old-acceptance "$OLD_ARTIFACTS/wheel-acceptance.json" \
+  --new-source "$NEW_SOURCE" \
+  --new-wheels "$NEW_ARTIFACTS/wheels" \
+  --new-acceptance "$NEW_ARTIFACTS/wheel-acceptance.json" \
   --offline --output /tmp/rd-rollback.json
 ```
 

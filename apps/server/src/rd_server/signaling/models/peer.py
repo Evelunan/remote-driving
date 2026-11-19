@@ -1,10 +1,10 @@
 """A connection with a server-owned identity and optional authenticated principal."""
 
-import asyncio
 import json
 from dataclasses import dataclass
 from typing import Any
 
+from rd_core.async_compat import async_timeout
 from rd_core.auth import AuthorizationError, Principal
 from rd_core.logging import get_logger
 from websockets.exceptions import ConnectionClosed
@@ -35,7 +35,7 @@ class Peer:
         try:
             if self.principal is not None:
                 self.principal.check_active()
-            async with asyncio.timeout(self.send_timeout_s):
+            async with async_timeout(self.send_timeout_s):
                 await self.websocket.send(json.dumps(message))
             return True
         except AuthorizationError:

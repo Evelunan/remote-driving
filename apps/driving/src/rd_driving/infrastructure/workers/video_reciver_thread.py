@@ -63,9 +63,6 @@ class WebRTCReceiverThread(QThread):
                 pass  # event loop already completed and closed
 
     def _cancel(self):
-        if (
-            self._main_task is not None
-            and not self._main_task.done()
-            and not self._main_task.cancelling()
-        ):
-            self._main_task.cancel()
+        task, self._main_task = self._main_task, None
+        if task is not None and not task.done():
+            task.cancel()

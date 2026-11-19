@@ -11,6 +11,8 @@ from contextlib import ExitStack
 from pathlib import Path
 from unittest.mock import patch
 
+from rd_core.async_compat import async_timeout
+
 
 class LocalTurn:
     def __init__(self, directory, executable, library_directory=None):
@@ -96,30 +98,26 @@ class LocalTurn:
         loop = asyncio.get_running_loop()
         with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as probe:
             probe.bind(("127.0.0.1", 0))
+            probe.connect(("127.0.0.1", self.port))
             probe.setblocking(False)
-            async with asyncio.timeout(5):
+            async with async_timeout(5):
                 while True:
                     if self.process.poll() is not None:
                         raise RuntimeError(
                             f"coturn startup exited ({self.process.returncode})"
                         )
                     request = stun.Message(stun.Method.BINDING, stun.Class.REQUEST)
-                    await loop.sock_sendto(
-                        probe, bytes(request), ("127.0.0.1", self.port)
-                    )
                     try:
-                        data, source = await asyncio.wait_for(
-                            loop.sock_recvfrom(probe, 4096), 0.1
-                        )
+                        await loop.sock_sendall(probe, bytes(request))
+                        data = await asyncio.wait_for(loop.sock_recv(probe, 4096), 0.1)
                         response = stun.parse_message(data)
                         if (
-                            source == ("127.0.0.1", self.port)
-                            and response.transaction_id == request.transaction_id
+                            response.transaction_id == request.transaction_id
                             and response.message_class == stun.Class.RESPONSE
                         ):
                             return
-                    except (TimeoutError, ValueError):
-                        pass
+                    except (asyncio.TimeoutError, ConnectionRefusedError, ValueError):
+                        await asyncio.sleep(0.01)
 
     async def stop(self, *, crash=False):
         process = self.process
@@ -129,7 +127,7 @@ class LocalTurn:
         if process.poll() is None:
             (process.kill if crash else process.terminate)()
         try:
-            async with asyncio.timeout(3):
+            async with async_timeout(3):
                 while process.poll() is None:
                     await asyncio.sleep(0.02)
         except TimeoutError:

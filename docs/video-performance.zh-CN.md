@@ -10,7 +10,7 @@
 
 ### 复现
 
-在已安装工作区依赖的 Python 3.12 环境执行：
+在已安装工作区依赖的 Python 3.10.12 环境执行：
 
 ```bash
 .venv/bin/python scripts/benchmark_frame_buffer.py --output /tmp/frame-buffer-comparison.json

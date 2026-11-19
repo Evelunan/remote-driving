@@ -5,6 +5,7 @@ from types import SimpleNamespace
 from uuid import uuid4
 
 import pytest
+from rd_core.async_compat import async_timeout
 from rd_core.samples import ControlInput
 from rd_core.settings import VideoSafetySettings
 from rd_core.video_safety import VideoGate, VideoSource
@@ -312,7 +313,7 @@ async def test_real_control_requires_matching_live_video_and_neutral_after_recov
     ]
 
     async def until(predicate):
-        async with asyncio.timeout(4):
+        async with async_timeout(4):
             while not predicate():
                 await asyncio.sleep(0.01)
 

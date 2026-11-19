@@ -9,6 +9,8 @@ import sys
 from collections import deque
 from pathlib import Path
 
+from rd_core.async_compat import async_timeout
+
 
 async def check(config, number):
     environment = {**os.environ, "QT_QPA_PLATFORM": "offscreen"}
@@ -34,7 +36,7 @@ async def check(config, number):
     reader = asyncio.create_task(read())
     waiter = asyncio.create_task(ready.wait())
     try:
-        async with asyncio.timeout(15):
+        async with async_timeout(15):
             done, _ = await asyncio.wait(
                 (reader, waiter), return_when=asyncio.FIRST_COMPLETED
             )

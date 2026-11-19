@@ -5,6 +5,7 @@ import time
 from dataclasses import replace
 
 import pytest
+from rd_core.async_compat import ExceptionGroup, async_timeout
 from rd_core.settings import (
     CameraSettings,
     ClientNetworkSettings,
@@ -125,7 +126,7 @@ def configuration(tmp_path, local_tls, monkeypatch):
 
 
 async def until(predicate, task, timeout=6):
-    async with asyncio.timeout(timeout):
+    async with async_timeout(timeout):
         while not predicate():
             if task.done():
                 task.result()

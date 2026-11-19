@@ -16,6 +16,7 @@ from contextlib import ExitStack
 from dataclasses import dataclass, replace
 from pathlib import Path
 
+from rd_core.async_compat import BaseExceptionGroup
 from rd_core.logging import configure_logging, get_logger
 
 from rd_vehicle.shutdown import stop_on_signals

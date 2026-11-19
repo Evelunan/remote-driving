@@ -2,6 +2,7 @@ import asyncio
 import time
 
 import pytest
+from rd_core.async_compat import async_timeout
 from rd_core.settings import ClientNetworkSettings, CredentialSettings
 from rd_driving.infrastructure.video.webrtc_reciver import WebRTCReceiver
 from rd_vehicle.application.multi_camera_manager import MultiCameraManager
@@ -10,7 +11,7 @@ from rd_vehicle.infrastructure.streams.webrtc_streamer import WebRTCStreamer
 
 
 async def until(predicate, timeout=4):
-    async with asyncio.timeout(timeout):
+    async with async_timeout(timeout):
         while not predicate():
             await asyncio.sleep(0.01)
 

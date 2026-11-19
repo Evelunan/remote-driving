@@ -30,6 +30,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from media_probe import VIEWS, Probe, measured_cache, observe_display, stamp
 from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtWidgets import QApplication
+from rd_core.async_compat import ExceptionGroup, async_timeout
 from rd_core.auth import AuthProvider
 from rd_core.samples import ControlInput
 from rd_core.settings import (
@@ -198,7 +199,7 @@ async def run_case(args, probe, cache, gate, stop):
             super()._post_result(command, executed, detail)
 
     async def until(predicate, timeout=15):
-        async with asyncio.timeout(timeout):
+        async with async_timeout(timeout):
             while not predicate():
                 if stop.is_set():
                     raise RuntimeError("benchmark interrupted")
@@ -551,7 +552,7 @@ def main():
             with probe.hooks():
 
                 async def bounded_run():
-                    async with asyncio.timeout(2 * (args.seconds + args.warmup) + 45):
+                    async with async_timeout(2 * (args.seconds + args.warmup) + 45):
                         return await run_case(args, probe, cache, gate, stop)
 
                 result = asyncio.run(bounded_run())

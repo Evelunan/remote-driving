@@ -6,10 +6,10 @@ B10 使用真实 DrivingControlClient、VehicleControlClient 和认证 QUIC 中�
 
 ## 复现
 
-在已安装工作区依赖的 Python 3.12 环境运行：
+在已安装工作区依赖的 Python 3.10.12 环境运行：
 
 ~~~bash
-uv sync --all-packages --group dev --python 3.12
+uv sync --all-packages --group dev --python 3.10.12
 uv run --no-sync python scripts/simulate_control.py --output /tmp/control-simulation.json
 ~~~
 

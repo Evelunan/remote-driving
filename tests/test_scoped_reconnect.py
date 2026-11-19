@@ -46,6 +46,7 @@ async def test_quic_restart_waits_for_cleanup_and_keeps_usb(close_during_cleanup
     )
     service.client = client
     task = asyncio.create_task(service.run())
+    cancel_requested = False
     try:
         await asyncio.wait_for(started.wait(), 1)
         assert service.request_control_reconnect()
@@ -54,7 +55,7 @@ async def test_quic_restart_waits_for_cleanup_and_keeps_usb(close_during_cleanup
         assert device.attempts == 1 and not device.closed
         assert client.runs == 1
         if close_during_cleanup:
-            task.cancel()
+            cancel_requested = task.cancel()
             await asyncio.sleep(0.02)
             assert not task.done()
         release.set()
@@ -64,7 +65,7 @@ async def test_quic_restart_waits_for_cleanup_and_keeps_usb(close_during_cleanup
             assert device.attempts == 1 and not device.closed
     finally:
         release.set()
-        if not task.cancelling():
+        if not cancel_requested:
             task.cancel()
         with pytest.raises(asyncio.CancelledError):
             await asyncio.wait_for(task, 1)

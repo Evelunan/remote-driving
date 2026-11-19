@@ -13,7 +13,7 @@ EnvironmentFile=/etc/remote-driving/%i.env
 Environment=RD_RUNTIME_DIR=/var/lib/remote-driving/%i
 StateDirectory=remote-driving/%i
 WorkingDirectory=/var/lib/remote-driving/%i
-ExecStart=/usr/bin/python3.12 /usr/local/lib/remote-driving/manage_release.py run --root /opt/remote-driving/%i
+ExecStart=/usr/bin/python3 /usr/local/lib/remote-driving/manage_release.py run --root /opt/remote-driving/%i
 Restart=on-failure
 RestartSec=3
 KillMode=mixed

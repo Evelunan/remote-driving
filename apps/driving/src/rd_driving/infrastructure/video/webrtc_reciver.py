@@ -1,9 +1,9 @@
 """Authenticated media receiver with owned, generation-scoped decode tasks."""
 
-import asyncio
 
 from aiortc import RTCSessionDescription
 from aiortc.mediastreams import MediaStreamError
+from rd_core.async_compat import async_timeout
 from rd_core.video_safety import VideoSource
 from rd_webrtc.session import MediaSession
 from rd_webrtc.video_timing import ReceiverTiming
@@ -134,7 +134,7 @@ class WebRTCReceiver(MediaSession):
             raise PermissionError("offer source is not a vehicle in this room")
         self._emit_status("receiving_offer", "正在建立 WebRTC 连接")
         peer = await self._create_peer(peer_id)
-        async with asyncio.timeout(15):
+        async with async_timeout(15):
             await peer.pc.setRemoteDescription(
                 RTCSessionDescription(sdp=data["sdp"], type=data["sdpType"])
             )

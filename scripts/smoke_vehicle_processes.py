@@ -15,7 +15,7 @@ import socket
 import sys
 import tempfile
 from collections import deque
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import yaml
@@ -24,11 +24,13 @@ from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.x509.oid import NameOID
 
+from rd_core.async_compat import async_timeout
+
 
 def certificate(directory):
     key = ec.generate_private_key(ec.SECP256R1())
     name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "localhost")])
-    now = datetime.now(UTC)
+    now = datetime.now(timezone.utc)
     cert = (
         x509.CertificateBuilder()
         .subject_name(name)
@@ -72,7 +74,7 @@ async def check_mode(config, components, env):
 
     reader = asyncio.create_task(read())
     try:
-        async with asyncio.timeout(12):
+        async with async_timeout(12):
             while set(pids) != set(components):
                 if process.returncode is not None:
                     raise RuntimeError("vehicle CLI exited before component heartbeat")
@@ -81,7 +83,7 @@ async def check_mode(config, components, env):
                     raise RuntimeError("vehicle CLI output closed before heartbeat")
                 await asyncio.sleep(0.02)
         process.send_signal(signal.SIGTERM)
-        async with asyncio.timeout(9):
+        async with async_timeout(9):
             result = await process.wait()
             await reader
         if result != 0:

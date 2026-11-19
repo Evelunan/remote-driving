@@ -4,6 +4,8 @@ import asyncio
 from collections.abc import Mapping
 from typing import Protocol
 
+from rd_core.async_compat import ExceptionGroup
+
 
 class Service(Protocol):
     async def start(self): ...

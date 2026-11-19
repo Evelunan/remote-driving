@@ -3,6 +3,7 @@
 import asyncio
 from contextlib import ExitStack
 
+from rd_core.async_compat import ExceptionGroup, TaskGroup
 from rd_core.cli import client_arguments
 from rd_core.configuration import ConfigError
 from rd_core.logging import configure_logging, get_logger
@@ -150,7 +151,7 @@ async def start_streaming(settings, *, camera_factory=None, on_fault=None):
     try:
         _configure_cameras(manager, settings, camera_factory or _create_camera)
         await manager.start()
-        async with asyncio.TaskGroup() as tasks:
+        async with TaskGroup() as tasks:
             tasks.create_task(streamer.start())
             tasks.create_task(manager.wait())
     finally:
@@ -217,7 +218,7 @@ async def run(
         if stopped is not None:
             stopped.cancel()
         for task in tasks:
-            if not task.done() and not task.cancelling():
+            if not task.done():
                 task.cancel()
         try:
             results = await asyncio.gather(

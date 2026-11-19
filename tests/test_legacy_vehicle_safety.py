@@ -3,6 +3,7 @@ def test_vehicle_datagrams_use_supervisor_and_ack_after_device_execution(legacy_
         "vehicle-unit",
         """
         import asyncio
+        from rd_core.async_compat import async_timeout
         import threading
         import time
         from aioquic.quic.configuration import QuicConfiguration
@@ -31,7 +32,7 @@ def test_vehicle_datagrams_use_supervisor_and_ack_after_device_execution(legacy_
             p.quic_event_received(HandshakeCompleted(None, False, False))
             p.start()
             async def until(predicate):
-                async with asyncio.timeout(1):
+                async with async_timeout(1):
                     while not predicate(): await asyncio.sleep(0.002)
             def send(seq, throttle=0, session=42, timestamp=None, type_=ControlCodec.MessageType.CONTROL):
                 p._handle_datagram(ControlCodec.encode(type_, session, seq=seq,

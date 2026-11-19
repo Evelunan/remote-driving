@@ -1,6 +1,6 @@
 # 远程驾驶系统
 
-Python 3.12 工作区，包含三个可独立安装的应用：
+Python 3.10.12 工作区，包含三个可独立安装的应用：
 
 | 应用 | 包名 / 命令 | 职责 |
 | --- | --- | --- |
@@ -32,7 +32,8 @@ docs/
 ## 开发与回归
 
 ```bash
-uv sync --all-packages --group dev --locked --python 3.12.16
+# 目标机的 python3 --version 为 Python 3.10.12
+uv sync --all-packages --group dev --locked --python "$(command -v python3)"
 uv run --no-sync pytest -q tests
 uv run --no-sync rd-driving --help
 uv run --no-sync rd-vehicle --help
@@ -48,13 +49,13 @@ CI、独立 wheel 安装检查和环境矩阵见[软件验收说明](docs/softwa
 ## 构建与独立安装
 
 ```bash
-python scripts/build_wheels.py --output-dir dist
-python scripts/verify_wheels.py --wheels dist --output artifacts/wheel-acceptance.json
+uv run --no-sync python scripts/build_wheels.py --output-dir dist
+uv run --no-sync python scripts/verify_wheels.py --wheels dist --output artifacts/wheel-acceptance.json
 # 将完整 wheel 集、验收报告和匹配源码/锁文件交付部署环境。
 # 按部署文档使用 manage_release.py prepare，固定依赖及配套配置。
 ```
 
-构建出的应用 wheel 依赖公共包 wheel；第三方运行依赖仍需通过包源或预备 wheelhouse 安装。ROS2 的 rclpy 由匹配 Python 3.12 的 ROS 环境提供；发行版及实车接口仍待确认。
+构建出的应用 wheel 依赖公共包 wheel；第三方运行依赖仍需通过包源或预备 wheelhouse 安装。ROS2 的 rclpy 由匹配 Python 3.10.12 的 ROS 环境提供；发行版及实车接口仍待确认。
 
 应用不再在导入时初始化日志或清空代理变量。入口显式配置日志；诊断输出目录可由 `RD_RUNTIME_DIR` 指定。相机、显示器、USB、串口、ROS2 和真实网络的验收与软件模拟结果分开记录。
 

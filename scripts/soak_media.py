@@ -23,7 +23,7 @@ import time
 import weakref
 from collections import Counter, OrderedDict
 from concurrent.futures import Future
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from unittest.mock import patch
 
@@ -32,6 +32,7 @@ os.environ["QT_QPA_PLATFORM"] = "offscreen"
 import aioice.ice
 from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtWidgets import QApplication
+from rd_core.async_compat import ExceptionGroup, async_timeout
 from rd_core.auth import AuthProvider
 from rd_core.settings import (
     AuthSettings,
@@ -205,7 +206,7 @@ async def run(args, cache, stop, report):
         return result
 
     async def until(predicate, timeout=20):
-        async with asyncio.timeout(timeout):
+        async with async_timeout(timeout):
             while not predicate():
                 if stop.is_set():
                     raise RuntimeError("soak interrupted")
@@ -492,7 +493,7 @@ def main():
         "schema": "rd-media-soak/1",
         "valid": False,
         "valid_meaning": "all requested windows and reconnects completed, all views rendered, and owned resources closed; RSS trend is observational, not a stability certification",
-        "created_at": datetime.now(UTC).isoformat(),
+        "created_at": datetime.now(timezone.utc).isoformat(),
         "scope": "single-process local WSS/WebRTC, synthetic camera, real decode/cache/Qt offscreen paint; no QUIC, control device, physical display or TURN",
         "python": platform.python_version(),
         "platform": platform.platform(),
@@ -560,7 +561,7 @@ def main():
         try:
 
             async def bounded():
-                async with asyncio.timeout(
+                async with async_timeout(
                     args.cycles * (args.seconds + 20) + args.warmup + 30
                 ):
                     await run(args, cache, stop, report)

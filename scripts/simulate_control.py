@@ -14,13 +14,14 @@ import secrets
 import statistics
 import tempfile
 import time
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from cryptography import x509
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.x509.oid import NameOID
+from rd_core.async_compat import async_timeout
 from rd_core.auth import AuthProvider
 from rd_core.samples import ControlInput
 from rd_core.settings import (
@@ -45,7 +46,7 @@ from rd_vehicle.infrastructure.controller.mock_controller import MockController
 def temporary_tls(directory):
     key = ec.generate_private_key(ec.SECP256R1())
     name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "localhost")])
-    now = datetime.now(UTC)
+    now = datetime.now(timezone.utc)
     cert = (
         x509.CertificateBuilder()
         .subject_name(name)
@@ -79,7 +80,7 @@ def temporary_tls(directory):
 
 
 async def wait_for(predicate):
-    async with asyncio.timeout(5):
+    async with async_timeout(5):
         while not predicate():
             await asyncio.sleep(0.005)
 

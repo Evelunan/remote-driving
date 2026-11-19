@@ -6,7 +6,6 @@ import os
 import time
 from collections.abc import Mapping
 from dataclasses import dataclass, field
-from datetime import datetime
 
 from .configuration import ConfigError
 from .settings import AuthSettings, Role
@@ -68,17 +67,12 @@ class AuthProvider:
             if digest in seen:
                 raise ConfigError("each principal must have a distinct credential")
             seen.add(digest)
-            expiry = (
-                datetime.fromisoformat(record.expires_at).timestamp()
-                if record.expires_at
-                else None
-            )
             principal = Principal(
                 record.id,
                 record.role,
                 frozenset(record.sessions),
                 frozenset(record.rooms),
-                expiry,
+                record.expiry_timestamp(),
             )
             credentials.append(_Credential(principal, digest))
         self._credentials = tuple(credentials)

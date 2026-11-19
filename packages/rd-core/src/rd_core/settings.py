@@ -63,15 +63,21 @@ class PrincipalSettings:
             raise ValueError(
                 "principal rooms must be unique, nonempty, and at most 128 characters"
             )
-        if self.expires_at is not None:
-            try:
-                parsed = datetime.fromisoformat(self.expires_at)
-                if parsed.utcoffset() is None:
-                    raise ValueError
-            except ValueError:
-                raise ValueError(
-                    "expires_at must be an ISO timestamp with timezone"
-                ) from None
+        self.expiry_timestamp()
+
+    def expiry_timestamp(self) -> float | None:
+        if self.expires_at is None:
+            return None
+        value = self.expires_at
+        if value.endswith("Z"):
+            value = value[:-1] + "+00:00"
+        try:
+            parsed = datetime.fromisoformat(value)
+            if parsed.utcoffset() is not None:
+                return parsed.timestamp()
+        except ValueError:
+            pass
+        raise ValueError("expires_at must be an ISO timestamp with timezone")
 
 
 @dataclass(frozen=True)

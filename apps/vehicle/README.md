@@ -1,6 +1,6 @@
 # 车辆端
 
-正式包名为 `rd-vehicle`，命名空间为 `rd_vehicle`，入口为 `rd-vehicle`。用户确认目标环境为 ROS2、Python 3.12；`rclpy` 由匹配 Python 3.12 的 ROS 环境提供。
+正式包名为 `rd-vehicle`，命名空间为 `rd_vehicle`，入口为 `rd-vehicle`。用户确认目标环境为 ROS2、Python 3.10.12；`rclpy` 由匹配 Python 3.10.12 的 ROS 环境提供。
 
 ```bash
 uv run --package rd-vehicle rd-vehicle --config configs/vehicle.mock.yaml --dump-config

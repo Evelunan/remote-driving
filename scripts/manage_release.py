@@ -1,6 +1,6 @@
 """Prepare, check and select versioned installations; never start system services.
 
-Linux/Python 3.12. Run prepare from the reviewed checkout. Other commands need
+Linux/Python 3.10.12. Run prepare from the reviewed checkout. Other commands need
 only this standard-library script and an already prepared installation root.
 """
 
@@ -16,7 +16,7 @@ import subprocess
 import sys
 import uuid
 from contextlib import contextmanager
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import urlsplit
 
@@ -26,8 +26,11 @@ COMPATIBILITY = {"control_alpn": "rd-control/2", "control_revision": "video-boun
 
 
 def digest(path):
+    checksum = hashlib.sha256()
     with path.open("rb") as stream:
-        return hashlib.file_digest(stream, "sha256").hexdigest()
+        for block in iter(lambda: stream.read(1024 * 1024), b""):
+            checksum.update(block)
+    return checksum.hexdigest()
 
 
 def write_json(path, value):
@@ -269,8 +272,9 @@ def prepare(args):
             env=env,
         )
     )
-    if not interpreter["version"].startswith("3.12."):
-        raise ValueError("release environment requires Python 3.12")
+    version = tuple(map(int, interpreter["version"].split(".")))
+    if not (3, 10, 12) <= version < (3, 11):
+        raise ValueError("release environment requires Python 3.10.12 or later in 3.10.x")
     interpreter["sha256"] = digest(Path(interpreter["executable"]))
     command(
         [
@@ -330,7 +334,7 @@ def prepare(args):
             "ready": True,
             "directory": str(directory),
             "compatibility": COMPATIBILITY,
-            "created_at": datetime.now(UTC).isoformat(),
+            "created_at": datetime.now(timezone.utc).isoformat(),
             "platform": platform.platform(),
             "interpreter": interpreter,
             "wheels": {name: inventory[name] for name in sorted(names)},

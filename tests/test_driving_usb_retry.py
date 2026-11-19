@@ -1,6 +1,7 @@
 import asyncio
 
 import pytest
+from rd_core.async_compat import async_timeout
 from rd_core.settings import ClientNetworkSettings, DrivingSettings
 from rd_driving.app.input_service import DrivingInputService
 
@@ -30,7 +31,7 @@ class Device:
 
 
 async def until(predicate):
-    async with asyncio.timeout(2):
+    async with async_timeout(2):
         while not predicate():
             await asyncio.sleep(0.005)
 

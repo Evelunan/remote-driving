@@ -7,6 +7,7 @@ import time
 
 import pytest
 import yaml
+from rd_core.async_compat import async_timeout
 from rd_core.samples import RawInput
 from rd_core.settings import (
     CameraEncodingSettings,
@@ -253,7 +254,7 @@ async def test_formal_vehicle_runtime_and_driving_input_execute_configured_value
     ]
 
     async def until(predicate):
-        async with asyncio.timeout(4):
+        async with async_timeout(4):
             while not predicate():
                 for task in tasks:
                     if task.done():
@@ -287,7 +288,7 @@ async def test_formal_vehicle_runtime_and_driving_input_execute_configured_value
     finally:
         stop.set()
         for task in tasks:
-            if not task.done() and not task.cancelling():
+            if not task.done():
                 task.cancel()
         await asyncio.gather(*tasks, return_exceptions=True)
         await receiver.close()

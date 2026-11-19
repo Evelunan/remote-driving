@@ -7,6 +7,7 @@ from unittest.mock import AsyncMock
 import numpy as np
 import pytest
 from aiortc.mediastreams import MediaStreamError
+from rd_core.async_compat import ExceptionGroup, async_timeout
 from rd_core.settings import ClientNetworkSettings, CredentialSettings
 from rd_vehicle.application.multi_camera_manager import (
     MultiCameraManager,
@@ -62,12 +63,12 @@ async def test_absent_duplicate_and_expired_capture_never_generate_new_frames():
         for image in (None, captured(1, at=time.monotonic() - 1)):
             if image is not None:
                 source.publish(image)
-            with pytest.raises(TimeoutError):
+            with pytest.raises(asyncio.TimeoutError):
                 await asyncio.wait_for(track.recv(), 0.025)
         source.publish(captured(2, 7))
         assert np.all((await track.recv()).to_ndarray(format="bgr24") == 7)
         assert not source.publish(captured(2, 8))
-        with pytest.raises(TimeoutError):
+        with pytest.raises(asyncio.TimeoutError):
             await asyncio.wait_for(track.recv(), 0.025)
         source.publish(captured(3, 9))
         assert np.all((await track.recv()).to_ndarray(format="bgr24") == 9)
@@ -235,7 +236,7 @@ async def test_camera_manager_stop_freeze_resume_and_no_orphan_workers():
             assert (await asyncio.wait_for(tracks["back"].recv(), 1)).height == 48
             await asyncio.to_thread(front.stop_capture)
             await asyncio.sleep(0.02)
-            with pytest.raises(TimeoutError):
+            with pytest.raises(asyncio.TimeoutError):
                 await asyncio.wait_for(tracks["front"].recv(), 0.08)
             await asyncio.wait_for(tracks["back"].recv(), 1)
             await asyncio.to_thread(front.start_capture)
@@ -470,7 +471,7 @@ async def test_real_webrtc_two_receivers_share_capture_and_close_independently(
         await sender.set_answer(answer.sdp, answer.type)
 
     async def until(predicate):
-        async with asyncio.timeout(3):
+        async with async_timeout(3):
             while not predicate():
                 await asyncio.sleep(0.01)
 

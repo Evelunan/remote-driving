@@ -6,8 +6,13 @@ build-backend = "setuptools.build_meta"
 name = "rd-core"
 version = "0.2.0"
 description = "Shared remote-driving control and runtime contracts"
-requires-python = ">=3.12"
-dependencies = ["pyyaml>=6.0.3"]
+requires-python = ">=3.10.12"
+dependencies = [
+    "pyyaml>=6.0.3",
+    "async-timeout>=5,<6; python_version < '3.11'",
+    "exceptiongroup>=1; python_version < '3.11'",
+    "taskgroup>=0.2.2,<0.3; python_version < '3.11'",
+]
 
 [tool.setuptools.packages.find]
 where = ["src"]

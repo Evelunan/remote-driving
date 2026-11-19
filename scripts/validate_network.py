@@ -26,6 +26,8 @@ from unittest.mock import patch
 
 from network_shaper import Policy, Shaper
 
+from rd_core.async_compat import ExceptionGroup, async_timeout
+
 ROOT = Path(__file__).resolve().parents[1]
 CASES = (
     "mild",
@@ -121,7 +123,7 @@ async def validate(args, cache, gate, interrupted):
             self.events.append((time.monotonic(), self.commands[-1]))
 
     async def until(predicate, timeout=15):
-        async with asyncio.timeout(timeout):
+        async with async_timeout(timeout):
             while True:
                 if interrupted.is_set():
                     raise RuntimeError("network validation interrupted")
@@ -681,7 +683,7 @@ def main():
         try:
 
             async def bounded():
-                async with asyncio.timeout(
+                async with async_timeout(
                     args.seconds + (100 if args.case.startswith("turn-") else 60)
                 ):
                     return await validate(args, cache, gate, stop)

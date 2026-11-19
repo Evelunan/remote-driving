@@ -15,7 +15,7 @@ import subprocess
 import sys
 import tempfile
 import zipfile
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import yaml
@@ -24,11 +24,13 @@ from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.x509.oid import NameOID
 
+from rd_core.async_compat import async_timeout
+
 
 def certificate(directory):
     key = ec.generate_private_key(ec.SECP256R1())
     name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "localhost")])
-    now = datetime.now(UTC)
+    now = datetime.now(timezone.utc)
     cert = (
         x509.CertificateBuilder()
         .subject_name(name)
@@ -262,7 +264,7 @@ def main():
                 )
 
             async def timed_checks():
-                async with asyncio.timeout(30):
+                async with async_timeout(30):
                     return await check_server(config_path, cert)
 
             report["server_runtime"] = asyncio.run(timed_checks())

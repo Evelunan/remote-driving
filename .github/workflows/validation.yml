@@ -18,7 +18,7 @@ jobs:
     timeout-minutes: 25
     env:
       QT_QPA_PLATFORM: offscreen
-      UV_PYTHON: '3.12.16'
+      UV_PYTHON: '3.10.12'
       UV_NO_PROGRESS: '1'
       RD_TEST_REQUIRE_TURN: '1'
     steps:
@@ -37,11 +37,11 @@ jobs:
           sudo apt-get install --no-install-recommends -y libgl1 libegl1 libopengl0 libglib2.0-0t64 libusb-1.0-0 coturn
       - name: Install the locked workspace
         run: |
-          uv python install 3.12.16
+          uv python install "$UV_PYTHON"
           uv sync --all-packages --group dev --locked
           git diff --exit-code -- uv.lock
       - name: Check fatal Python errors
-        run: uv run --no-sync ruff check --isolated --select E9,F63,F7,F82 apps packages scripts tests
+        run: uv run --no-sync ruff check --isolated --target-version py310 --select E9,F63,F7,F82 apps packages scripts tests
       - name: Validate service templates without starting services
         run: |
           bash -n deploy/run_vehicle.sh

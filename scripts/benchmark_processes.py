@@ -26,6 +26,8 @@ from pathlib import Path
 
 from process_probe import merge_trace, process_resources, process_tree, vehicle_host
 
+from rd_core.async_compat import ExceptionGroup, async_timeout
+
 ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -78,7 +80,7 @@ async def run_case(args, probe, cache, gate, stop):
         }
 
     async def until(predicate, timeout=20):
-        async with asyncio.timeout(timeout):
+        async with async_timeout(timeout):
             while not predicate():
                 if stop.is_set():
                     raise RuntimeError("process benchmark interrupted")
@@ -539,7 +541,7 @@ def main():
             with probe.hooks():
 
                 async def bounded():
-                    async with asyncio.timeout(2 * (args.seconds + args.warmup) + 60):
+                    async with async_timeout(2 * (args.seconds + args.warmup) + 60):
                         return await run_case(args, probe, cache, gate, stop)
 
                 result = asyncio.run(bounded())

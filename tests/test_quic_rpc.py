@@ -9,6 +9,7 @@ from aioquic.asyncio import connect
 from aioquic.quic.configuration import QuicConfiguration
 from aioquic.quic.connection import QuicConnection
 from aioquic.quic.events import HandshakeCompleted, StreamDataReceived
+from rd_core.async_compat import async_timeout
 from rd_core.wire import ALPN
 from rd_quic.framing import MessageBuffer, RpcError, encode_message
 from rd_quic.protocol import RpcProtocol
@@ -87,7 +88,7 @@ async def local_pair(local_tls, **server_options):
     )
     try:
         async with (
-            asyncio.timeout(5),
+            async_timeout(5),
             connect(
                 "127.0.0.1",
                 port,
@@ -137,7 +138,7 @@ async def test_real_reliable_rpc_both_directions_events_datagrams_and_errors(loc
         }
         client.notify("release", {"epoch": "test"})
         client.send_datagram(b"latest-input")
-        async with asyncio.timeout(1):
+        async with async_timeout(1):
             while not events or not datagrams:
                 await asyncio.sleep(0.001)
         assert events == [("release", {"epoch": "test"})]
@@ -336,7 +337,7 @@ async def test_registration_abandoned_during_handshake_observes_close_failure(
 
             task = asyncio.create_task(register())
             if cancel:
-                async with asyncio.timeout(1):
+                async with async_timeout(1):
                     while not protocols or protocols[0]._connected_waiter is None:
                         await asyncio.sleep(0.001)
                 task.cancel()

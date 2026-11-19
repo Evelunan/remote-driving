@@ -1,4 +1,3 @@
-import asyncio
 import json
 import ssl
 from contextlib import AsyncExitStack
@@ -6,8 +5,10 @@ from contextlib import AsyncExitStack
 import pytest
 from aioquic.asyncio import connect
 from aioquic.quic.configuration import QuicConfiguration
+from rd_core.async_compat import async_timeout
 from rd_server.main import create_runtime, parse_args
 from websockets.asyncio.client import connect as ws_connect
+
 
 
 @pytest.mark.asyncio
@@ -30,7 +31,7 @@ async def test_actual_local_listeners_handshake_and_cleanup(local_tls, services)
         ]
     )
     runtime = create_runtime(args)
-    async with asyncio.timeout(10), AsyncExitStack() as clients:
+    async with async_timeout(10), AsyncExitStack() as clients:
         await runtime.start()
         try:
             assert runtime.ready

@@ -4,9 +4,10 @@ import logging
 import ssl
 import time
 from contextlib import AsyncExitStack
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 import pytest
+from rd_core.async_compat import async_timeout
 from rd_core.auth import Principal
 from rd_server.main import create_runtime, main, parse_args
 from rd_server.signaling.services.room_manager import RoomManager
@@ -215,7 +216,7 @@ async def test_actual_wss_authentication_forwarding_expiry_and_cleanup(
         service.config.max_peers_per_room == 3
         and service.config.max_message_bytes == 4096
     )
-    async with asyncio.timeout(10), AsyncExitStack() as clients:
+    async with async_timeout(10), AsyncExitStack() as clients:
         await runtime.start()
         try:
             port = service._server.sockets[0].getsockname()[1]
@@ -274,7 +275,7 @@ async def test_actual_wss_authentication_forwarding_expiry_and_cleanup(
             from pathlib import Path
 
             config = Path(path)
-            expiry = (datetime.now(UTC) + timedelta(milliseconds=350)).isoformat()
+            expiry = (datetime.now(timezone.utc) + timedelta(milliseconds=350)).isoformat()
             config.write_text(
                 config.read_text().replace(
                     "id: viewer", f"expires_at: '{expiry}'\n      id: viewer"

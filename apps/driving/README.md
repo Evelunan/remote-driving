@@ -8,7 +8,7 @@
 
 数据通道已认证且主画面可用时，输入等待提示按原因区分：设备未连接显示“等待控制设备”；没有有效新采样显示“等待设备输入”；新采样的油门或转向非零显示“请将控制输入归零”。这里的归零指油门与转向为零，不要求松开制动。收到主画面就绪后的新鲜中立输入后，继续等待车端执行确认才授权控制。
 
-正式包名为 `rd-driving`，Python 命名空间为 `rd_driving`，入口为 `rd-driving`。使用 Python 3.12。
+正式包名为 `rd-driving`，Python 命名空间为 `rd_driving`，入口为 `rd-driving`。使用 Python 3.10.12。
 
 ```bash
 uv run --package rd-driving rd-driving --config configs/driving.yaml --dump-config
@@ -26,4 +26,4 @@ PyQt6 需要可用显示环境。OpenCV 导入封装保留用户原有 Qt 插件
 
 主画面必须经过 Qt 新帧绘制、新鲜度与车辆身份/session 校验才能授权控制。过期、隐藏或来源更换撤销授权；恢复须新帧稳定、新采样回中和执行确认，详见 [画面与控制](../../docs/video-safety.zh-CN.md)。
 
-正式 GUI 从 B23 起将 `SIGINT`、`SIGTERM`转入窗口异步关闭流程，等待控制/媒体线程结束；重复信号不强行跳过清理。Python 信号处理器仅标记待退出，由 Qt 的 50ms 定时检查触发关闭，并在事件循环结束时恢复原处理器。此间隔不是实时上限：GUI/native 调用阻塞时仍可能延迟，进程管理器超时与远端控制监护继续承担故障兜底。依据 [Python 信号调度](https://docs.python.org/3.12/library/signal.html#execution-of-python-signal-handlers)与 [Qt 定时器](https://doc.qt.io/qt-6/qtimer.html)。
+正式 GUI 从 B23 起将 `SIGINT`、`SIGTERM`转入窗口异步关闭流程，等待控制/媒体线程结束；重复信号不强行跳过清理。Python 信号处理器仅标记待退出，由 Qt 的 50ms 定时检查触发关闭，并在事件循环结束时恢复原处理器。此间隔不是实时上限：GUI/native 调用阻塞时仍可能延迟，进程管理器超时与远端控制监护继续承担故障兜底。依据 [Python 信号调度](https://docs.python.org/3.10/library/signal.html#execution-of-python-signal-handlers)与 [Qt 定时器](https://doc.qt.io/qt-6/qtimer.html)。

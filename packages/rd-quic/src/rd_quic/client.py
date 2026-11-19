@@ -8,6 +8,7 @@ from dataclasses import dataclass
 
 from aioquic.asyncio import connect
 from aioquic.quic.configuration import QuicConfiguration
+from rd_core.async_compat import async_timeout
 from rd_core.auth import read_secret
 from rd_core.configuration import ConfigError
 from rd_core.settings import ClientNetworkSettings, ControlSettings, CredentialSettings
@@ -147,7 +148,7 @@ async def registered_connection(
     monitor = None
     handshake = None
     try:
-        async with asyncio.timeout(network.register_timeout_s):
+        async with async_timeout(network.register_timeout_s):
             await manager.__aenter__()
             entered = True
             protocol.transmit()

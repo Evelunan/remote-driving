@@ -2,6 +2,7 @@
 
 import asyncio
 
+from rd_core.async_compat import TaskGroup
 from rd_core.logging import get_logger
 from rd_core.samples import RawInput
 
@@ -119,26 +120,22 @@ class DrivingInputService:
                 self._control_restart_requested = False
                 self._control_task = asyncio.create_task(self.client.run())
                 try:
-                    await asyncio.shield(self._control_task)
+                    await asyncio.wait({self._control_task})
                 except asyncio.CancelledError:
-                    if asyncio.current_task().cancelling():
-                        if (
-                            not self._control_task.done()
-                            and not self._control_task.cancelling()
-                        ):
-                            self._control_task.cancel()
-                        await asyncio.gather(self._control_task, return_exceptions=True)
-                        raise
                     if not self._control_restart_requested:
-                        raise
-                else:
-                    return
+                        self._control_task.cancel()
+                    await asyncio.gather(self._control_task, return_exceptions=True)
+                    raise
+                if self._control_restart_requested and self._control_task.cancelled():
+                    continue
+                self._control_task.result()
+                return
         finally:
             self._control_task = None
             self._control_restart_requested = False
 
     async def run(self):
-        async with asyncio.TaskGroup() as tasks:
+        async with TaskGroup() as tasks:
             tasks.create_task(self._usb(), name="driving-usb")
             tasks.create_task(self._process(), name="driving-process-input")
             tasks.create_task(self._control(), name="driving-control")

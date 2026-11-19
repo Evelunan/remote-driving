@@ -11,6 +11,8 @@ from aiortc import VideoStreamTrack
 from aiortc.mediastreams import MediaStreamError
 from av import VideoFrame
 
+from rd_core.async_compat import async_timeout
+
 
 @dataclass(frozen=True)
 class CapturedImage:
@@ -126,7 +128,7 @@ class VideoFrameTrack(VideoStreamTrack):
                 if now >= self._next_send:
                     return
                 try:
-                    async with asyncio.timeout(self._next_send - now):
+                    async with async_timeout(self._next_send - now):
                         await self._changed.wait()
                 except TimeoutError:
                     pass

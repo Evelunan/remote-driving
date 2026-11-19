@@ -4,6 +4,7 @@ from dataclasses import replace
 from types import SimpleNamespace
 
 import pytest
+from rd_core.async_compat import async_timeout
 from rd_core.control import ControlState
 from rd_core.samples import ControlInput
 from rd_core.settings import (
@@ -22,7 +23,7 @@ from rd_vehicle.infrastructure.controller.mock_controller import MockController
 
 
 async def until(predicate, timeout=3):
-    async with asyncio.timeout(timeout):
+    async with async_timeout(timeout):
         while not predicate():
             await asyncio.sleep(0.005)
 

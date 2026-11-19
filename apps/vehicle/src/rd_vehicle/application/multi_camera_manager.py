@@ -5,6 +5,8 @@ import math
 import threading
 import time
 
+from rd_core.async_compat import ExceptionGroup
+
 
 class _FrameNotification:
     def __init__(self, loop):

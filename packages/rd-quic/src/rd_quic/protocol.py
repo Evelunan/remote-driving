@@ -11,6 +11,7 @@ from aioquic.quic.events import (
     StreamDataReceived,
     StreamReset,
 )
+from rd_core.async_compat import async_timeout
 from rd_core.logging import get_logger
 from rd_core.wire import ALPN
 
@@ -94,9 +95,9 @@ class RpcProtocol(QuicConnectionProtocol):
                 stream_id, {"type": "request", "method": method, "params": params}
             )
             sent = True
-            return await asyncio.wait_for(
-                future, self.rpc_timeout_s if timeout_s is None else timeout_s
-            )
+            deadline_s = self.rpc_timeout_s if timeout_s is None else timeout_s
+            async with async_timeout(deadline_s):
+                return await future
         finally:
             self._pending.pop(stream_id, None)
             self._discard_buffer(stream_id)
@@ -181,7 +182,7 @@ class RpcProtocol(QuicConnectionProtocol):
         try:
             if self.request_handler is None:
                 raise RpcError("unsupported_method")
-            async with asyncio.timeout(self.rpc_timeout_s):
+            async with async_timeout(self.rpc_timeout_s):
                 result = await self.request_handler(
                     message["method"], message["params"]
                 )
@@ -270,7 +271,7 @@ class RpcProtocol(QuicConnectionProtocol):
         self.close()
         try:
             await asyncio.wait_for(self.wait_closed(), timeout_s)
-        except TimeoutError:
+        except asyncio.TimeoutError:
             logger.warning("QUIC close deadline exceeded")
             finish_abandoned_close(self)
         finally:

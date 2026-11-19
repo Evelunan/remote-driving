@@ -8,7 +8,7 @@ import types
 from collections.abc import Mapping
 from itertools import pairwise
 from pathlib import Path
-from typing import Literal, Union, get_args, get_origin, get_type_hints
+from typing import Generic, Literal, TypeVar, Union, get_args, get_origin, get_type_hints
 
 import yaml
 
@@ -152,8 +152,11 @@ def _overlay(values):
     return result
 
 
+T = TypeVar("T")
+
+
 @dataclasses.dataclass(frozen=True)
-class LoadedConfig[T]:
+class LoadedConfig(Generic[T]):
     value: T
     sources: Mapping[str, str]
 
@@ -167,7 +170,7 @@ class LoadedConfig[T]:
         )
 
 
-def load_config[T](
+def load_config(
     schema: type[T],
     role: str,
     *,

@@ -44,7 +44,7 @@ rd-vehicle --config /path/vehicle.mock.yaml --components control
 rd-vehicle --config /path/vehicle.mock.yaml --components media
 ```
 
-先提供匹配的 CA、令牌和认证服务端；无硬件测试使用 mock 与 synthetic。生产目标仍为用户确认的 ROS2 / Python 3.12；真实 ROS 发行版及系统兼容性须在目标机验收。
+先提供匹配的 CA、令牌和认证服务端；无硬件测试使用 mock 与 synthetic。生产目标仍为用户确认的 ROS2 / Python 3.10.12；真实 ROS 发行版及系统兼容性须在目标机验收。
 
 ## 验证边界
 

@@ -7,6 +7,7 @@ import ssl
 from urllib.parse import urlsplit
 
 from aiortc import RTCIceServer
+from rd_core.async_compat import async_timeout
 from rd_core.auth import read_secret
 from rd_core.configuration import ConfigError
 from rd_core.settings import ClientNetworkSettings, CredentialSettings
@@ -111,7 +112,7 @@ class SignalingClient:
             self._closing = None
 
     async def join(self, room, *, session=None):
-        async with asyncio.timeout(self.network.register_timeout_s):
+        async with async_timeout(self.network.register_timeout_s):
             await self.send(
                 {
                     "type": "join",
@@ -138,7 +139,7 @@ class SignalingClient:
             raise SignalingError("invalid outgoing signaling message") from None
         if len(message.encode()) > self.network.signaling_max_message_bytes:
             raise SignalingError("outgoing signaling message exceeds limit")
-        async with asyncio.timeout(self.network.signaling_send_timeout_s):
+        async with async_timeout(self.network.signaling_send_timeout_s):
             await self.ws.send(message)
 
     async def recv(self):

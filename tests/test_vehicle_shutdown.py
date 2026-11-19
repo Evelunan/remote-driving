@@ -26,7 +26,6 @@ def test_stop_signals_repeat_without_cancelling_and_restore_handlers(
                 await asyncio.wait_for(stop.wait(), 1)
                 signal.raise_signal(signal.{number})
                 await asyncio.sleep(0.08)
-                assert not asyncio.current_task().cancelling()
             assert all(signal.getsignal(n) == handler for n, handler in previous.items())
             try:
                 with stop_on_signals(asyncio.Event()):

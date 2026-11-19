@@ -8,4 +8,4 @@ if [[ -n "${RD_ROS_SETUP:-}" ]]; then
     fi
     source "$RD_ROS_SETUP"
 fi
-exec /usr/bin/python3.12 /usr/local/lib/remote-driving/manage_release.py run --root "$1"
+exec /usr/bin/python3 /usr/local/lib/remote-driving/manage_release.py run --root "$1"

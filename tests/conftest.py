@@ -5,7 +5,7 @@ import os
 import subprocess
 import sys
 import textwrap
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
@@ -42,7 +42,7 @@ def legacy_python(tmp_path):
 def local_tls(tmp_path):
     key = ec.generate_private_key(ec.SECP256R1())
     name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "localhost")])
-    now = datetime.now(UTC)
+    now = datetime.now(timezone.utc)
     certificate = (
         x509.CertificateBuilder()
         .subject_name(name)

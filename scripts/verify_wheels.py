@@ -9,11 +9,15 @@ import shutil
 import subprocess
 import sys
 import tempfile
-import tomllib
 import zipfile
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from email.parser import BytesParser
 from pathlib import Path
+
+if sys.version_info >= (3, 11):
+    import tomllib
+else:
+    import tomli as tomllib
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -66,8 +70,8 @@ def main():
     args.output.parent.mkdir(parents=True, exist_ok=True)
     # Never leave an earlier successful report in place when this run fails.
     args.output.write_text(json.dumps({"passed": False, "status": "started"}) + "\n")
-    if os.name != "posix" or sys.version_info[:2] != (3, 12):
-        parser.error("the current acceptance environment is POSIX with Python 3.12")
+    if os.name != "posix" or not (3, 10, 12) <= sys.version_info[:3] < (3, 11):
+        parser.error("the current acceptance environment is POSIX with Python 3.10.12 or later in 3.10.x")
     wheels, inventory = wheel_inventory(args.wheels)
     env = {
         k: v
@@ -78,7 +82,7 @@ def main():
     flags = ["--offline"] if args.offline else []
     report = {
         "scope": "isolated wheels; loopback networking, mock controller, synthetic video and Qt offscreen",
-        "created_at": datetime.now(UTC).isoformat(),
+        "created_at": datetime.now(timezone.utc).isoformat(),
         "source_commit": subprocess.check_output(
             ["git", "rev-parse", "HEAD"], cwd=ROOT, text=True
         ).strip(),

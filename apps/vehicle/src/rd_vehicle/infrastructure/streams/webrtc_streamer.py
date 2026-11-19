@@ -1,7 +1,7 @@
 """Vehicle video publisher with per-peer subscriptions and authenticated signaling."""
 
-import asyncio
 
+from rd_core.async_compat import async_timeout
 from rd_webrtc.session import MediaSession
 from rd_webrtc.video_timing import PublisherTiming
 
@@ -60,7 +60,7 @@ class WebRTCStreamer(MediaSession):
 
     async def _handle_new_peer(self, peer_id):
         peer = await self._create_peer(peer_id)
-        async with asyncio.timeout(15):
+        async with async_timeout(15):
             offer = await peer.create_offer()
             await self.signaling.send(
                 {

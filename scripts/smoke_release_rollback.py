@@ -18,6 +18,8 @@ from pathlib import Path
 from check_installed import certificate
 from manage_release import COMPATIBILITY, write_json
 
+from rd_core.async_compat import async_timeout
+
 ROOT = Path(__file__).resolve().parents[1]
 MANAGER = ROOT / "scripts/manage_release.py"
 ROLES = ("server", "vehicle", "driving")
@@ -61,7 +63,7 @@ async def live_server(network, token):
         logger=logging.Logger("rd.release.probe", logging.CRITICAL + 1),  # noqa: LOG001 - no credential-bearing transport logs
     ) as ws:
         await ws.send('{"type":"join","room":"1234"}')
-        async with asyncio.timeout(3):
+        async with async_timeout(3):
             assert json.loads(await ws.recv())["type"] == "joined"
     async with registered_connection(
         ClientNetworkSettings(

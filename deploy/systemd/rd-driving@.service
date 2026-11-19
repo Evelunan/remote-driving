@@ -8,7 +8,7 @@ After=graphical-session.target
 Type=exec
 EnvironmentFile=%h/.config/remote-driving/%i.env
 Environment=RD_RUNTIME_DIR=%h/.local/state/remote-driving/%i
-ExecStart=/usr/bin/python3.12 /usr/local/lib/remote-driving/manage_release.py run --root %h/.local/share/remote-driving/%i
+ExecStart=/usr/bin/python3 /usr/local/lib/remote-driving/manage_release.py run --root %h/.local/share/remote-driving/%i
 Restart=no
 KillMode=mixed
 TimeoutStopSec=20

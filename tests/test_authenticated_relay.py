@@ -9,6 +9,7 @@ from uuid import UUID
 import pytest
 from aioquic.asyncio import connect
 from aioquic.quic.configuration import QuicConfiguration
+from rd_core.async_compat import async_timeout
 from rd_core.wire import (
     ALPN,
     CONTROL_REVISION,
@@ -40,7 +41,7 @@ async def test_real_authenticated_registration_exclusive_lease_and_recovery(
     build, tokens = runtime_factory
     runtime = build(services)
     relay = runtime.services["relay"]
-    async with asyncio.timeout(10), AsyncExitStack() as clients:
+    async with async_timeout(10), AsyncExitStack() as clients:
         await runtime.start()
         try:
             port = relay.listener._transport.get_extra_info("sockname")[1]

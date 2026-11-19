@@ -3,6 +3,7 @@ import time
 
 import numpy as np
 import pytest
+from rd_core.async_compat import async_timeout
 from rd_core.configuration import ConfigError, load_config
 from rd_core.settings import (
     CameraEncodingSettings,
@@ -102,7 +103,7 @@ class Publisher:
 
 
 async def until(predicate):
-    async with asyncio.timeout(1):
+    async with async_timeout(1):
         while not predicate():
             await asyncio.sleep(0.005)
 
@@ -308,7 +309,7 @@ async def test_fallback_four_views_arrive_over_real_webrtc(monkeypatch):
     try:
         await manager.start()
         peer = await streamer._create_peer("viewer")
-        async with asyncio.timeout(5):
+        async with async_timeout(5):
             await receiver.setRemoteDescription(await peer.create_offer())
             await receiver.setLocalDescription(await receiver.createAnswer())
             answer = receiver.localDescription

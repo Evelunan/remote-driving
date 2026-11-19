@@ -2,6 +2,7 @@
 
 import asyncio
 
+from rd_core.async_compat import ExceptionGroup
 from rd_core.configuration import ConfigError
 from rd_core.logging import get_logger
 
@@ -45,7 +46,11 @@ class MediaSession:
         if self._runner is not None or self._closed:
             raise RuntimeError("media session is single-use")
         self._runner = asyncio.create_task(self._run(), name="media-session")
-        await self._runner
+        try:
+            await asyncio.shield(self._runner)
+        except asyncio.CancelledError:
+            await self.close()
+            raise
 
     async def _run(self):
         try:
@@ -120,7 +125,7 @@ class MediaSession:
     async def _close_owned(self):
         failure = None
         if self._runner is not None:
-            if not self._runner.done() and not self._runner.cancelling():
+            if not self._runner.done():
                 self._runner.cancel()
             results = await asyncio.gather(self._runner, return_exceptions=True)
             if isinstance(results[0], Exception):
@@ -182,7 +187,8 @@ class MediaSession:
         def observe(done):
             if not done.cancelled() and done.exception() is not None:
                 self._cleanup_error = done.exception()
-                if self._runner is not None and not self._runner.done():
+                if self._runner is not None and not self._closed:
+                    self._closed = True
                     self._runner.cancel()
 
         task.add_done_callback(observe)

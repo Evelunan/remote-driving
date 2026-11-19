@@ -9,7 +9,7 @@ import threading
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
-from enum import StrEnum
+from enum import Enum
 from typing import Protocol
 
 
@@ -19,7 +19,9 @@ class Controller(Protocol):
     def close(self): ...
 
 
-class ControlState(StrEnum):
+class ControlState(str, Enum):
+    __str__ = str.__str__
+
     DISARMED = "disarmed"
     WAITING_NEUTRAL = "waiting_neutral"
     ACTIVE = "active"
