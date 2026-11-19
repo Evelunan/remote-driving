@@ -1,0 +1,56 @@
+# ROS2 实车接入模板。需现场校验设备路径、网络、限值和底盘安全接口后使用。
+environment: production
+logging:
+  level: INFO
+  directory: ../logs/vehicle
+session: 1234
+room: "1234"
+components: [control, media]
+controller: mock
+# 摄像头不足时可设 front；只补齐未配置 source 的视角，设备故障不会触发替代。
+camera_fallback_source: null
+# null 保留 aiortc 原路径；按目标设备测量后可设 1..32，见配置说明。
+encoder_workers: null
+credentials:
+  token_env: RD_VEHICLE_TOKEN
+network:
+  signaling_url: wss://192.168.3.7:8765
+  signaling_ca_file: tls/lan-server.pem
+  quic_host: 192.168.3.7
+  quic_port: 4433
+  quic_server_name: 192.168.3.7
+  quic_ca_file: tls/lan-server.pem
+  ice_servers: []
+control:
+  send_hz: 50
+  input_timeout_ms: 200
+  command_timeout_ms: 300
+  max_clock_skew_ms: 50
+motion:
+  max_linear_mps: 5.0
+  max_angular_radps: 2.0
+cameras:
+  - name: front
+    source: 0
+    width: 640
+    height: 480
+    fps: 30
+  # - name: back
+  #   source: /dev/v4l/by-id/REPLACE_WITH_BACK_CAMERA
+  #   width: 640
+  #   height: 480
+  #   fps: 30
+  # - name: left
+  #   source: /dev/v4l/by-id/REPLACE_WITH_LEFT_CAMERA
+  #   width: 640
+  #   height: 480
+  #   fps: 30
+  # - name: right
+  #   source: /dev/v4l/by-id/REPLACE_WITH_RIGHT_CAMERA
+  #   width: 640
+  #   height: 480
+  #   fps: 30
+video:
+  primary_view: front
+  stale_frame_ms: 500
+  recovery_ms: 500
