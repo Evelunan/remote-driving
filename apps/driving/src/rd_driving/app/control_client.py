@@ -195,9 +195,12 @@ class DrivingControlClient:
             self.connection.clock.check()
             permit = self.video_gate.snapshot()
             if self._picture_ready(permit):
-                if self._neutral() and self.latest.sampled_at >= permit.ready_at:
+                if not self._fresh() or self.latest.sampled_at < permit.ready_at:
+                    status = "waiting_input"
+                elif self._neutral():
                     break
-                status = "waiting_neutral"
+                else:
+                    status = "waiting_neutral"
             else:
                 status = "waiting_video"
             if self.state != status:

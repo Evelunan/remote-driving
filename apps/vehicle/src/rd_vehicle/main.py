@@ -1,12 +1,14 @@
 """Vehicle entry: one validated configuration for control, media and devices."""
 
 import asyncio
-import signal
+from contextlib import ExitStack
 
 from rd_core.cli import client_arguments
 from rd_core.configuration import ConfigError
 from rd_core.logging import configure_logging, get_logger
 from rd_core.settings import VehicleSettings
+
+from rd_vehicle.shutdown import stop_on_signals
 
 logger = get_logger(__name__)
 
@@ -172,14 +174,9 @@ async def run(
     stop = stop or asyncio.Event()
     if stop.is_set():
         return
-    loop = asyncio.get_running_loop()
-    signals = []
-    for sig in (signal.SIGINT, signal.SIGTERM) if install_signals else ():
-        try:
-            loop.add_signal_handler(sig, stop.set)
-            signals.append(sig)
-        except (NotImplementedError, RuntimeError):
-            pass
+    signals = ExitStack()
+    if install_signals:
+        signals.enter_context(stop_on_signals(stop))
     tasks = []
     stopped = None
     try:
@@ -222,11 +219,14 @@ async def run(
         for task in tasks:
             if not task.done() and not task.cancelling():
                 task.cancel()
-        results = await asyncio.gather(
-            *tasks, *([stopped] if stopped is not None else []), return_exceptions=True
-        )
-        for sig in signals:
-            loop.remove_signal_handler(sig)
+        try:
+            results = await asyncio.gather(
+                *tasks,
+                *([stopped] if stopped is not None else []),
+                return_exceptions=True,
+            )
+        finally:
+            signals.close()
         failures = [result for result in results if isinstance(result, Exception)]
         if failures:
             raise ExceptionGroup("vehicle component failed", failures)

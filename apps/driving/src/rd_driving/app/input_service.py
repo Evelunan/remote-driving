@@ -27,20 +27,45 @@ class DrivingInputService:
         video_gate=None,
     ):
         self.settings, self.on_usb = settings, on_usb
+        self.on_status = on_status
+        self._usb_online = False
+        self._control_state, self._control_detail = "disconnected", ""
         self._device_factory = device_factory or USBConnector
         self.raw, self.processed = LatestValueQueue(), LatestValueQueue()
+        self._usb_retry = asyncio.Event()
+        self._usb_waiting = False
+        self._control_task = None
+        self._control_restart_requested = False
         self.client = DrivingControlClient(
             settings,
             self.processed,
-            on_status=on_status,
+            on_status=self._control_status,
             on_execution=on_execution,
             on_telemetry=on_telemetry,
             video_gate=video_gate,
         )
 
     def _usb_status(self, online, message):
+        self._usb_online = online
         if self.on_usb is not None:
             self.on_usb(online, message)
+        if self._control_state in {"waiting_input", "waiting_neutral"}:
+            self._control_status(self._control_state, self._control_detail)
+
+    def _control_status(self, state, detail=""):
+        self._control_state, self._control_detail = state, detail
+        if not self._usb_online and state in {"waiting_input", "waiting_neutral"}:
+            state = "waiting_device"
+        if self.on_status is not None:
+            self.on_status(state, detail)
+
+    def request_usb_connect(self):
+        """Request one attempt on the service loop; ignore busy/online clicks."""
+        if not self._usb_waiting:
+            return False
+        self._usb_waiting = False
+        self._usb_retry.set()
+        return True
 
     async def _usb(self):
         device = self._device_factory(
@@ -52,17 +77,23 @@ class DrivingInputService:
                 try:
                     self._usb_status(False, "连接中")
                     await device.connect()
-                    self._usb_status(True, "在线")
+                    self._usb_status(True, "已连接")
                     while device.is_connected():
                         await asyncio.sleep(0.1)
                 except (ConnectionError, OSError) as exc:
-                    logger.warning("Input device disconnected (%s)", type(exc).__name__)
+                    logger.warning(
+                        "Input device unavailable (%s); waiting for manual retry",
+                        type(exc).__name__,
+                    )
                 finally:
                     await self.raw.put(RawInput.capture(None))
-                    self._usb_status(False, "未连接")
                     await device.disconnect()
-                await asyncio.sleep(self.settings.network.reconnect_delay_s)
+                self._usb_waiting = True
+                self._usb_status(False, "未连接")
+                await self._usb_retry.wait()
+                self._usb_retry.clear()
         finally:
+            self._usb_waiting = False
             self._usb_status(False, "离线")
 
     async def _process(self):
@@ -70,8 +101,44 @@ class DrivingInputService:
         while True:
             await processor.process(await self.raw.get())
 
+    def request_control_reconnect(self):
+        """Restart only the control client, after its lease/connection cleanup."""
+        if (
+            self._control_task is None
+            or self._control_task.done()
+            or self._control_restart_requested
+        ):
+            return False
+        self._control_restart_requested = True
+        self._control_task.cancel()
+        return True
+
+    async def _control(self):
+        try:
+            while True:
+                self._control_restart_requested = False
+                self._control_task = asyncio.create_task(self.client.run())
+                try:
+                    await asyncio.shield(self._control_task)
+                except asyncio.CancelledError:
+                    if asyncio.current_task().cancelling():
+                        if (
+                            not self._control_task.done()
+                            and not self._control_task.cancelling()
+                        ):
+                            self._control_task.cancel()
+                        await asyncio.gather(self._control_task, return_exceptions=True)
+                        raise
+                    if not self._control_restart_requested:
+                        raise
+                else:
+                    return
+        finally:
+            self._control_task = None
+            self._control_restart_requested = False
+
     async def run(self):
         async with asyncio.TaskGroup() as tasks:
             tasks.create_task(self._usb(), name="driving-usb")
             tasks.create_task(self._process(), name="driving-process-input")
-            tasks.create_task(self.client.run(), name="driving-control")
+            tasks.create_task(self._control(), name="driving-control")

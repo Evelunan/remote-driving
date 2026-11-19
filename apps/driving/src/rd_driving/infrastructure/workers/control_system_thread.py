@@ -12,7 +12,9 @@ logger = get_logger(__name__)
 STATUS_TEXT = {
     "connecting": "连接中",
     "registered": "已认证",
-    "waiting_neutral": "等待回中",
+    "waiting_device": "等待控制设备",
+    "waiting_input": "等待设备输入",
+    "waiting_neutral": "请将控制输入归零",
     "waiting_video": "主画面不可用，控制已禁止",
     "video_unavailable": "主画面失效，控制已撤销",
     "video_vehicle_mismatch": "画面与控制车辆不匹配",
@@ -40,6 +42,8 @@ class ControlSystemThread(QThread):
     def _status(self, state, detail=""):
         online = state in {
             "registered",
+            "waiting_device",
+            "waiting_input",
             "waiting_neutral",
             "waiting_video",
             "waiting_execution",
@@ -100,6 +104,21 @@ class ControlSystemThread(QThread):
             self._status("disconnected")
             self._loop = self._main_task = None
 
+    def request_usb_connect(self):
+        """Dispatch GUI requests to the asyncio loop that owns the device."""
+        loop = self._loop
+        if self._stop_requested.is_set() or loop is None or self.service is None:
+            return False
+        try:
+            loop.call_soon_threadsafe(self._request_usb_connect)
+        except RuntimeError:
+            return False
+        return True
+
+    def _request_usb_connect(self):
+        if not self._stop_requested.is_set() and self.service is not None:
+            self.service.request_usb_connect()
+
     def request_stop(self):
         self._stop_requested.set()
         loop = self._loop
@@ -108,6 +127,20 @@ class ControlSystemThread(QThread):
                 loop.call_soon_threadsafe(self._cancel)
             except RuntimeError:
                 pass
+
+    def request_control_reconnect(self):
+        loop = self._loop
+        if self._stop_requested.is_set() or loop is None or self.service is None:
+            return False
+        try:
+            loop.call_soon_threadsafe(self._request_control_reconnect)
+        except RuntimeError:
+            return False
+        return True
+
+    def _request_control_reconnect(self):
+        if not self._stop_requested.is_set() and self.service is not None:
+            self.service.request_control_reconnect()
 
     def _cancel(self):
         if (

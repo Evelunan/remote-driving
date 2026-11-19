@@ -11,7 +11,6 @@ from PyQt6.QtWidgets import (
     QFrame,
     QGridLayout,
     QLabel,
-    QPushButton,
     QScrollArea,
     QSizePolicy,
     QVBoxLayout,
@@ -28,7 +27,9 @@ class ControlPanel(QFrame):
     def __init__(self):
         super().__init__()
         self._theme: ITheme | None = None
-        self._reconnect_callback: Callable | None = None
+        self._media_reconnect_callback: Callable | None = None
+        self._control_reconnect_callback: Callable | None = None
+        self._usb_connect_callback: Callable | None = None
 
         self.setFixedWidth(300)
         # 设置尺寸策略，让高度跟随父容器
@@ -79,12 +80,23 @@ class ControlPanel(QFrame):
         for conn in self._connections.values():
             self._conn_card.add_widget(conn)
 
-        # 重连按钮
-        self._reconnect_btn = QPushButton("重新连接")
-        self._reconnect_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        self._reconnect_btn.setFixedHeight(38)
-        self._reconnect_btn.clicked.connect(self._on_reconnect)
-        self._conn_card.add_widget(self._reconnect_btn)
+        media_hint = "重建信令与视频连接；画面恢复前暂停控制"
+        self._action_buttons = {
+            name: self._connections[name].add_action(
+                "重连", self._on_media_reconnect, media_hint
+            )
+            for name in ("signal", "webrtc")
+        }
+        self._usb_connect_btn = self._connections["usb"].add_action(
+            "连接", self._on_usb_connect, "探测并连接控制设备"
+        )
+        self._action_buttons["usb"] = self._usb_connect_btn
+        self._usb_connect_btn.setEnabled(False)
+        self._action_buttons["quic"] = self._connections["quic"].add_action(
+            "重连",
+            self._on_control_reconnect,
+            "重连数据通道并申请控制权；保留设备和视频连接",
+        )
 
         self._layout.addWidget(self._conn_card)
 
@@ -200,19 +212,39 @@ class ControlPanel(QFrame):
             for item in data.values():
                 item.apply_theme(theme)
 
-        # 按钮样式
-        self._reconnect_btn.setStyleSheet(theme.get_button_style())
-        self._reconnect_btn.setFixedHeight(38)
-
     def get_connection_items(self) -> dict[str, IConnectionItem]:
         return self._connections
 
-    def set_reconnect_callback(self, callback: Callable) -> None:
-        self._reconnect_callback = callback
+    def set_media_reconnect_callback(self, callback: Callable) -> None:
+        self._media_reconnect_callback = callback
 
-    def _on_reconnect(self):
-        if self._reconnect_callback:
-            self._reconnect_callback()
+    def set_media_reconnecting(self, busy):
+        for name in ("signal", "webrtc"):
+            self._action_buttons[name].setEnabled(not busy)
+
+    def _on_media_reconnect(self):
+        if self._media_reconnect_callback:
+            self.set_media_reconnecting(True)
+            if not self._media_reconnect_callback():
+                self.set_media_reconnecting(False)
+
+    def set_control_reconnect_callback(self, callback: Callable) -> None:
+        self._control_reconnect_callback = callback
+
+    def _on_control_reconnect(self):
+        if self._control_reconnect_callback:
+            self._action_buttons["quic"].setEnabled(False)
+            if not self._control_reconnect_callback():
+                self._action_buttons["quic"].setEnabled(True)
+
+    def set_usb_connect_callback(self, callback: Callable) -> None:
+        self._usb_connect_callback = callback
+
+    def _on_usb_connect(self):
+        if self._usb_connect_callback:
+            self._usb_connect_btn.setEnabled(False)
+            if not self._usb_connect_callback():
+                self._usb_connect_btn.setEnabled(True)
 
     # === 便捷方法 ===
 
@@ -220,6 +252,10 @@ class ControlPanel(QFrame):
         """设置连接状态"""
         if name in self._connections:
             self._connections[name].set_status(online, text)
+        if name == "usb":
+            self._usb_connect_btn.setEnabled(not online and text == "未连接")
+        elif name == "quic":
+            self._action_buttons["quic"].setEnabled(text != "连接中")
 
     def set_command_status(self, throttle, brake, steering, elapsed_ms):
         for key, value in zip(

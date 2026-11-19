@@ -12,10 +12,13 @@ import signal
 import socket
 import struct
 import time
+from contextlib import ExitStack
 from dataclasses import dataclass, replace
 from pathlib import Path
 
 from rd_core.logging import configure_logging, get_logger
+
+from rd_vehicle.shutdown import stop_on_signals
 
 logger = get_logger(__name__)
 _HEARTBEAT = struct.Struct("!d")
@@ -68,13 +71,8 @@ async def _component_lifetime(settings, channel, runner):
             return
     except BlockingIOError:
         pass
-    installed = []
-    for sig in (signal.SIGINT, signal.SIGTERM):
-        try:
-            loop.add_signal_handler(sig, stop.set)
-            installed.append(sig)
-        except (NotImplementedError, RuntimeError):
-            pass
+    signals = ExitStack()
+    signals.enter_context(stop_on_signals(stop, numbers=(signal.SIGTERM,)))
 
     async def parent_lifetime():
         try:
@@ -119,18 +117,23 @@ async def _component_lifetime(settings, channel, runner):
     finally:
         for task in owned:
             task.cancel()
-        await asyncio.gather(*owned, return_exceptions=True)
-        for sig in installed:
-            loop.remove_signal_handler(sig)
+        try:
+            await asyncio.gather(*owned, return_exceptions=True)
+        finally:
+            signals.close()
 
 
 def _component_process(settings, channel, runner):
-    channel.setblocking(False)
-    directory = settings.logging.directory
-    if directory is not None:
-        directory = directory / settings.components[0]
-    configure_logging(settings.logging.level, directory=directory)
+    # A console Ctrl+C is broadcast to the process group on Windows. The parent
+    # owns that request and delivers EOF after entering its shutdown path.
+    # Keep children alive through asyncio.run() cleanup, including repeat Ctrl+C.
+    previous_sigint = signal.signal(signal.SIGINT, signal.SIG_IGN)
     try:
+        channel.setblocking(False)
+        directory = settings.logging.directory
+        if directory is not None:
+            directory = directory / settings.components[0]
+        configure_logging(settings.logging.level, directory=directory)
         asyncio.run(_component_lifetime(settings, channel, runner))
     except Exception as exc:  # noqa: BLE001 - process boundary; never log device payloads
         logger.error(
@@ -140,6 +143,7 @@ def _component_process(settings, channel, runner):
         raise SystemExit(1) from None
     finally:
         channel.close()
+        signal.signal(signal.SIGINT, previous_sigint)
 
 
 @dataclass
@@ -271,14 +275,9 @@ class VehicleProcesses:
         self._used = True
         check_config(self.settings)
         stop = stop or asyncio.Event()
-        loop = asyncio.get_running_loop()
-        installed = []
-        for sig in (signal.SIGINT, signal.SIGTERM) if install_signals else ():
-            try:
-                loop.add_signal_handler(sig, stop.set)
-                installed.append(sig)
-            except (NotImplementedError, RuntimeError):
-                pass
+        signals = ExitStack()
+        if install_signals:
+            signals.enter_context(stop_on_signals(stop))
         try:
             if stop.is_set():
                 return
@@ -326,5 +325,4 @@ class VehicleProcesses:
                         continue
                 cleanup.result()
             finally:
-                for sig in installed:
-                    loop.remove_signal_handler(sig)
+                signals.close()

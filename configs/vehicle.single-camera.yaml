@@ -12,16 +12,16 @@ credentials:
 network:
   signaling_url: wss://localhost:8765
   signaling_ca_file: tls/ca.pem
-  quic_host: localhost
+  quic_host: 127.0.0.1
   quic_port: 4433
   quic_server_name: localhost
   quic_ca_file: tls/ca.pem
 cameras:
   - name: front
     source: 0
-    width: 640
-    height: 480
-    fps: 30
+    width: 1280
+    height: 720
+    fps: 60
   # 新增真实摄像头时，添加对应视角及 source 即可独立采集：
   # - name: back
   #   source: /dev/video2

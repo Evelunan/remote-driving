@@ -59,6 +59,8 @@ class MainWindow(QMainWindow):
         self._receiver_thread = None
         self._control_thread = None
         self._service_generation = 0
+        self._media_generation = 0
+        self._media_restart_pending = False
         self._pending_action = None
         self._closing_ready = False
         self._shutdown_poll = QTimer(self)
@@ -247,7 +249,9 @@ class MainWindow(QMainWindow):
             primary_view=self.settings.video.primary_view,
         )
         self._control_panel = UIFactory.create_control_panel()
-        self._control_panel.set_reconnect_callback(self._reconnect)
+        self._control_panel.set_media_reconnect_callback(self._reconnect_media)
+        self._control_panel.set_control_reconnect_callback(self._reconnect_control)
+        self._control_panel.set_usb_connect_callback(self._connect_usb)
 
         # 直接添加组件，不设置 alignment，让 QHBoxLayout 自动拉伸高度
         content_layout.addWidget(self._multi_video_widget, 1)
@@ -339,6 +343,11 @@ class MainWindow(QMainWindow):
                 "video", fresh, "传输中" if fresh else "主画面已过期"
             )
 
+    def _connect_usb(self):
+        if self._services_running and self._control_thread is not None:
+            return self._control_thread.request_usb_connect()
+        return False
+
     def _start_services(self):
         if any(
             worker is not None and worker.isRunning()
@@ -350,6 +359,7 @@ class MainWindow(QMainWindow):
         self._setup_signals()
         self._webrtc_connected = False
         try:
+            self._control_panel.set_connection_status("usb", False, "连接中")
             self._start_video()
             self._start_control()
         except Exception as exc:  # noqa: BLE001 - GUI boundary rolls back partial startup
@@ -357,6 +367,7 @@ class MainWindow(QMainWindow):
             self._request_shutdown("logout")
 
     def _start_video(self):
+        self._media_generation += 1
         receiver = WebRTCReceiver(
             self._room, self.settings.network, self.settings.credentials
         )
@@ -375,9 +386,9 @@ class MainWindow(QMainWindow):
 
         self._receiver_thread = WebRTCReceiverThread(receiver)
 
-        service_generation = self._service_generation
+        media_generation = self._media_generation
         self._receiver_thread.connection_changed.connect(
-            lambda ok, g=service_generation: self._generation_signal(
+            lambda ok, g=media_generation: self._media_signal(
                 g, self._on_video_conn, ok
             )
         )
@@ -385,12 +396,52 @@ class MainWindow(QMainWindow):
             lambda e: logger.error(f"视频错误: {e}")
         )
         self._receiver_thread.status_changed.connect(
-            lambda status, text, g=service_generation: self._generation_signal(
+            lambda status, text, g=media_generation: self._media_signal(
                 g, self._on_video_status_changed, status, text
             )
         )
         self._receiver_thread.finished.connect(self._finish_shutdown)
         self._receiver_thread.start()
+
+    def _media_signal(self, generation, callback, *args):
+        if generation == self._media_generation and self._services_running:
+            callback(*args)
+
+    def _reconnect_media(self):
+        if (
+            not self._services_running
+            or self._pending_action
+            or self._media_restart_pending
+        ):
+            return False
+        self._media_restart_pending = True
+        self._media_generation += 1
+        self.fb.clear()
+        self.video_gate.invalidate("media_restarted")
+        self._clear_feedback()
+        self._webrtc_connected = False
+        self._control_panel.set_media_reconnecting(True)
+        for name in ("signal", "webrtc"):
+            self._control_panel.set_connection_status(name, False, "重连中")
+        self._control_panel.set_connection_status("video", False, "等待画面")
+        if self._receiver_thread is not None:
+            self._receiver_thread.request_stop()
+        self._shutdown_poll.start()
+        self._finish_shutdown()
+        return True
+
+    def _reconnect_control(self):
+        if (
+            not self._services_running
+            or self._pending_action
+            or self._control_thread is None
+        ):
+            return False
+        if not self._control_thread.request_control_reconnect():
+            return False
+        self._clear_feedback()
+        self._control_panel.set_connection_status("quic", False, "连接中")
+        return True
 
     def _start_control(self):
         self._control_thread = ControlSystemThread(
@@ -419,6 +470,8 @@ class MainWindow(QMainWindow):
 
         # 更新控制面板的连接状态
         if self._control_panel:
+            if status in {"joined", "error", "disconnected"}:
+                self._control_panel.set_media_reconnecting(False)
             if status == "connecting":
                 self._webrtc_connected = False
                 self._control_panel.set_connection_status("signal", False, "连接中")
@@ -478,6 +531,8 @@ class MainWindow(QMainWindow):
         if self._pending_action == "close":
             return
         self._pending_action = action
+        self._media_restart_pending = False
+        self._media_generation += 1
         self._services_running = False
         self._service_generation += 1
         self.fb.clear()
@@ -497,6 +552,20 @@ class MainWindow(QMainWindow):
 
     def _finish_shutdown(self):
         if self._pending_action is None:
+            if self._media_restart_pending and (
+                self._receiver_thread is None or not self._receiver_thread.isRunning()
+            ):
+                self._shutdown_poll.stop()
+                self._receiver_thread = None
+                self._media_restart_pending = False
+                try:
+                    self._start_video()
+                except Exception as exc:  # noqa: BLE001 - isolate GUI restart failures
+                    logger.error("Media restart failed (%s)", type(exc).__name__)
+                    self._control_panel.set_connection_status(
+                        "signal", False, "重连失败"
+                    )
+                    self._control_panel.set_media_reconnecting(False)
             return
         if any(
             worker is not None and worker.isRunning()
