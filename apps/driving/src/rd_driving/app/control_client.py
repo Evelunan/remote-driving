@@ -20,7 +20,7 @@ from rd_core.wire import (
     Telemetry,
     conservative_age_ms,
 )
-from rd_quic.client import registered_connection
+from rd_quic.client import ClockError, registered_connection
 from rd_quic.framing import RpcError
 
 logger = get_logger(__name__)
@@ -310,7 +310,13 @@ class DrivingControlClient:
                         else type(error).__name__,
                     )
                     logger.warning(
-                        "Driving connection ended (%s)", type(error).__name__
+                        "Driving connection ended (%s): %s",
+                        type(error).__name__,
+                        error.code
+                        if isinstance(error, RpcError)
+                        else str(error)
+                        if isinstance(error, ClockError)
+                        else type(error).__name__,
                     )
                 finally:
                     self.connection = None

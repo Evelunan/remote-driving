@@ -11,11 +11,14 @@ from aioquic.quic.configuration import QuicConfiguration
 from rd_core.async_compat import async_timeout
 from rd_core.auth import read_secret
 from rd_core.configuration import ConfigError
+from rd_core.logging import get_logger
 from rd_core.settings import ClientNetworkSettings, ControlSettings, CredentialSettings
 from rd_core.wire import ALPN, CONTROL_REVISION
 
 from .framing import RpcError
 from .protocol import RpcProtocol
+
+logger = get_logger(__name__)
 
 
 class ClockError(ConnectionError):
@@ -38,7 +41,12 @@ class ClockGuard:
             - (time.monotonic() - self.mono) * 1000
         )
         if drift + self.observed_bound_ms > self.max_skew_ms:
-            raise ClockError("local clock changed outside its budget")
+            raise ClockError(
+                "local clock changed outside its budget "
+                f"(drift_ms={drift:.3f}, "
+                f"observed_bound_ms={self.observed_bound_ms:.3f}, "
+                f"budget_ms={self.max_skew_ms:.3f})"
+            )
 
     async def probe(self, protocol):
         samples = []
@@ -52,15 +60,20 @@ class ClockGuard:
             # No symmetry assumption: the server observation occurred somewhere
             # between request and response. Include millisecond quantization.
             bound = max(abs(server - start_wall), abs(end_wall - server)) + 1
-            if (
-                abs((end_wall - start_wall) - (end_mono - start_mono) * 1000)
-                > self.max_skew_ms
-            ):
-                raise ClockError("clock changed during measurement")
+            drift = abs((end_wall - start_wall) - (end_mono - start_mono) * 1000)
+            if drift > self.max_skew_ms:
+                raise ClockError(
+                    "clock changed during measurement "
+                    f"(drift_ms={drift:.3f}, budget_ms={self.max_skew_ms:.3f})"
+                )
             samples.append((bound, end_wall, end_mono))
         best = min(samples)
         if best[0] > self.max_skew_ms:
-            raise ClockError("clock or network uncertainty exceeds configured budget")
+            raise ClockError(
+                "clock or network uncertainty exceeds configured budget "
+                f"(observed_bound_ms={best[0]:.3f}, "
+                f"budget_ms={self.max_skew_ms:.3f})"
+            )
         self.observed_bound_ms, self.wall_ms, self.mono = best
         self.check()
 
@@ -100,7 +113,16 @@ async def _monitor_clock(protocol, guard):
             await asyncio.sleep(1)
             guard.check()
             await guard.probe(protocol)
-    except (ClockError, ConnectionError, TimeoutError, RpcError):
+    except (ClockError, ConnectionError, TimeoutError, RpcError) as error:
+        logger.warning(
+            "Clock verification failed (%s): %s",
+            type(error).__name__,
+            error.code
+            if isinstance(error, RpcError)
+            else str(error)
+            if isinstance(error, ClockError)
+            else type(error).__name__,
+        )
         protocol.close(error_code=0x104, reason_phrase="clock_verification_failed")
 
 

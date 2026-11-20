@@ -15,7 +15,7 @@ from rd_core.wire import (
     Packet,
     conservative_age_ms,
 )
-from rd_quic.client import registered_connection
+from rd_quic.client import ClockError, registered_connection
 from rd_quic.framing import RpcError
 
 logger = get_logger(__name__)
@@ -275,7 +275,13 @@ class VehicleControlClient:
                             "Control protocol revision mismatch; upgrade all applications together"
                         )
                     logger.warning(
-                        "Vehicle connection ended (%s)", type(error).__name__
+                        "Vehicle connection ended (%s): %s",
+                        type(error).__name__,
+                        error.code
+                        if isinstance(error, RpcError)
+                        else str(error)
+                        if isinstance(error, ClockError)
+                        else type(error).__name__,
                     )
                     self._status(
                         "error",

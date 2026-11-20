@@ -249,6 +249,34 @@ async def test_old_connection_callbacks_do_not_touch_current_generation(
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("server_offset_ms", "elapsed_ms", "expected_bound_ms"),
+    [(40, 2, 41), (30, 60, 31)],
+    ids=["clock-offset", "network-uncertainty"],
+)
+async def test_clock_probe_reports_observed_bound_and_budget(
+    monkeypatch, server_offset_ms, elapsed_ms, expected_bound_ms
+):
+    wall = iter([1_000_000_000_000, 1_000_000_000_000 + elapsed_ms * 1_000_000] * 3)
+    mono = iter([1000, 1000 + elapsed_ms / 1000] * 3)
+    monkeypatch.setattr(
+        "rd_quic.client.time",
+        SimpleNamespace(time_ns=lambda: next(wall), monotonic=lambda: next(mono)),
+    )
+
+    class Protocol:
+        async def request(self, method, params):
+            return {"server_time_ms": 1_000_000 + server_offset_ms}
+
+    guard = ClockGuard(25)
+    with pytest.raises(ClockError) as failure:
+        await guard.probe(Protocol())
+    assert f"observed_bound_ms={expected_bound_ms:.3f}" in str(failure.value)
+    assert "budget_ms=25.000" in str(failure.value)
+    assert guard.mono == 0
+
+
+@pytest.mark.asyncio
 async def test_clock_probe_rejects_skew_and_detects_local_wall_clock_step(monkeypatch):
     class Protocol:
         offset = 0
