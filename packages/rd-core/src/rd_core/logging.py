@@ -2,10 +2,37 @@
 
 import logging
 import os
+import time
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
 get_logger = logging.getLogger
+
+
+class SampledControlLog:
+    """Log zero transitions immediately, sample activity, and trace packets at DEBUG."""
+
+    def __init__(self, logger):
+        self.logger = logger
+        self.epoch = None
+        self.next_info = 0.0
+        self.all_zero = False
+
+    def write(self, epoch, message, *args, all_zero=False):
+        if not self.logger.isEnabledFor(logging.INFO):
+            return
+        now = time.monotonic()
+        if (
+            epoch != self.epoch
+            or all_zero != self.all_zero
+            or (not all_zero and now >= self.next_info)
+        ):
+            self.epoch = epoch
+            self.all_zero = all_zero
+            self.next_info = now + 1
+            self.logger.info(message, *args)
+        else:
+            self.logger.debug(message, *args)
 
 
 def runtime_directory() -> Path:

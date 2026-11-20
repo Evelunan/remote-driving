@@ -169,3 +169,18 @@ def test_late_command_cannot_beat_a_delayed_watchdog_tick():
             assert s.state == ControlState.FAILSAFE
     finally:
         assert s.close()
+
+
+def test_queued_command_expires_at_vehicle_window_deadline():
+    supervisor = ControlSupervisor(None, timeout_s=1)
+    try:
+        supervisor.begin_session("test")
+        # Hold both workers until a command accepted with 20 ms left expires.
+        with supervisor._condition:
+            assert supervisor.submit(command(0), deadline=time.monotonic() + 0.02)
+            time.sleep(0.04)
+            assert not supervisor.submit(command(1), deadline=time.monotonic() + 1)
+            assert supervisor.state == ControlState.FAILSAFE
+            assert supervisor._pending is None
+    finally:
+        assert supervisor.close()

@@ -101,7 +101,7 @@ class ControlSupervisor:
         self._reason = "not connected"
         self._epoch: str | None = None
         self._last_seq: int | None = None
-        self._last_valid: float | None = None
+        self._deadline: float | None = None
         self._pending: Command | None = None
         self._pending_stop: str | None = None
         self._safety_notice: str | None = None
@@ -145,10 +145,12 @@ class ControlSupervisor:
             self._trip_locked("new session requires neutral input")
             self._epoch = epoch
             self._last_seq = None
-            self._last_valid = None
+            self._deadline = None
             self._state = ControlState.WAITING_NEUTRAL
 
-    def submit(self, command: Command, *, age_s: float = 0.0) -> bool:
+    def submit(
+        self, command: Command, *, age_s: float = 0.0, deadline: float | None = None
+    ) -> bool:
         try:
             command.validate()
         except (ValueError, TypeError):
@@ -160,8 +162,8 @@ class ControlSupervisor:
                 return False
             if (
                 self._state == ControlState.ACTIVE
-                and self._last_valid is not None
-                and time.monotonic() - self._last_valid >= self.timeout_s
+                and self._deadline is not None
+                and time.monotonic() >= self._deadline
             ):
                 self._trip_locked("control input expired before next command")
                 return False
@@ -171,10 +173,18 @@ class ControlSupervisor:
                 return False
             if self._state == ControlState.WAITING_NEUTRAL and not command.neutral:
                 return False
+            now = time.monotonic()
+            expires = now + self.timeout_s - age_s
+            if deadline is not None:
+                if not math.isfinite(deadline):
+                    return False
+                expires = min(expires, deadline)
+            if now >= expires:
+                return False
             self._state = ControlState.ACTIVE
             self._last_seq = command.seq
             # Age consumed upstream reduces the remaining local watchdog budget.
-            self._last_valid = time.monotonic() - age_s
+            self._deadline = expires
             self._pending = command
             self._condition.notify_all()
             return True
@@ -189,7 +199,7 @@ class ControlSupervisor:
         self._state = ControlState.CLOSED if self._closing else ControlState.FAILSAFE
         self._reason = reason
         self._pending = None
-        self._last_valid = None
+        self._deadline = None
         self._pending_stop = reason
         self._safety_notice = reason
         self._condition.notify_all()
@@ -199,17 +209,17 @@ class ControlSupervisor:
             while not self._closing:
                 now = time.monotonic()
                 if self._state == ControlState.ACTIVE:
-                    if (
-                        self._last_valid is not None
-                        and now - self._last_valid >= self.timeout_s
-                    ):
+                    if self._deadline is not None and now >= self._deadline:
                         self._trip_locked("control input expired")
                     elif (
                         self._device_busy_since is not None
                         and now - self._device_busy_since >= self.timeout_s
                     ):
                         self._trip_locked("device execution timed out")
-                self._condition.wait(timeout=min(self.timeout_s / 4, 0.05))
+                wait = min(self.timeout_s / 4, 0.05)
+                if self._state == ControlState.ACTIVE and self._deadline is not None:
+                    wait = min(wait, max(0, self._deadline - time.monotonic()))
+                self._condition.wait(timeout=wait)
 
     def _execute(self):
         try:
@@ -237,8 +247,8 @@ class ControlSupervisor:
                         continue
                     if (
                         command is not None
-                        and self._last_valid is not None
-                        and time.monotonic() - self._last_valid >= self.timeout_s
+                        and self._deadline is not None
+                        and time.monotonic() >= self._deadline
                     ):
                         self._trip_locked("control input expired before execution")
                         continue

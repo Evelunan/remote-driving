@@ -9,13 +9,16 @@ from rd_core.wire import (
     Packet,
     StopStatus,
     Telemetry,
+    Window,
     conservative_age_ms,
 )
 
 EPOCH = UUID("00112233-4455-6677-8899-aabbccddeeff")
-BASE = Packet(1234, EPOCH, 0xFFFFFFFE, 1234567890123, Control(0.5, 0.25, -1))
+BASE = Packet(
+    1234, EPOCH, 0xFFFFFFFE, 1234567890123, Control(0.5, 0.25, -1, bytes(range(16)))
+)
 GOLDEN = bytes.fromhex(
-    "5244020104d200112233445566778899aabbccddeefffffffffe0000011f71fb04cb3f0000003e800000bf800000"
+    "5244020104d200112233445566778899aabbccddeefffffffffe0000011f71fb04cb3f0000003e800000bf800000000102030405060708090a0b0c0d0e0f"
 )
 
 
@@ -30,6 +33,7 @@ def test_control_has_a_fixed_network_order_vector_and_roundtrips():
         Execution(ExecutionStatus.EXECUTED, 1234567890456),
         Telemetry(2.5, -0.25),
         StopStatus(True, False),
+        Window(bytes(range(16))),
     ],
 )
 def test_receipt_measurement_and_stop_request_have_distinct_wire_types(payload):
@@ -64,8 +68,8 @@ def test_invalid_version_size_epoch_and_nan_are_rejected(data):
         {"seq": 2**32},
         {"source_time_ms": -1},
         {"epoch": UUID(int=0)},
-        {"payload": Control(0, -1, 0)},
-        {"payload": Control(0, 0, float("inf"))},
+        {"payload": Control(0, -1, 0, bytes(16))},
+        {"payload": Control(0, 0, float("inf"), bytes(16))},
         {"payload": Telemetry(1e100, 0)},
         {"payload": StopStatus(False, True)},
     ],

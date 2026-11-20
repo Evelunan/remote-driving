@@ -7,7 +7,7 @@ from collections import OrderedDict
 from uuid import UUID
 
 from rd_core.control import is_newer
-from rd_core.logging import get_logger
+from rd_core.logging import SampledControlLog, get_logger
 from rd_core.samples import ControlInput
 from rd_core.settings import DrivingSettings
 from rd_core.video_safety import VideoGate
@@ -18,9 +18,10 @@ from rd_core.wire import (
     ExecutionStatus,
     Packet,
     Telemetry,
+    Window,
     conservative_age_ms,
 )
-from rd_quic.client import ClockError, registered_connection
+from rd_quic.client import registered_connection
 from rd_quic.framing import RpcError
 
 logger = get_logger(__name__)
@@ -54,14 +55,25 @@ class DrivingControlClient:
         self.armed = False
         self._generation = None
         self._revoked = OrderedDict()
+        self._windows = OrderedDict()
+        self._last_window = None
         self._sent = OrderedDict()
         self._last_ack = None
         self._last_telemetry = None
         self._last_execution = 0
         self._seq = 0
+        self._tx_log = SampledControlLog(logger)
+        self._ack_log = SampledControlLog(logger)
         self.state = "disconnected"
 
     def _status(self, state, detail=""):
+        if self.state != state:
+            logger.info(
+                "Driving control state=%s session=%s epoch=%s",
+                state,
+                self.settings.session,
+                self.epoch,
+            )
         self.state = state
         if self.on_status is not None:
             self.on_status(state, detail)
@@ -124,13 +136,6 @@ class DrivingControlClient:
             return
         try:
             packet = Packet.decode(data)
-            self.connection.clock.check()
-            conservative_age_ms(
-                packet.source_time_ms,
-                time.time_ns() // 1_000_000,
-                max_age_ms=self.connection.max_control_age_ms,
-                clock_skew_ms=self.connection.max_clock_skew_ms,
-            )
         except (ValueError, ConnectionError):
             return
         if (
@@ -139,21 +144,48 @@ class DrivingControlClient:
             or not self._lease_picture_valid()
         ):
             return
+        if isinstance(packet.payload, Window):
+            if is_newer(packet.seq, self._last_window):
+                self._last_window = packet.seq
+                self._windows[packet.payload.token] = time.monotonic()
+                while len(self._windows) > 32:
+                    self._windows.popitem(last=False)
+            return
         if isinstance(packet.payload, Execution):
             sample = self._sent.get(packet.seq)
+            now = time.monotonic()
             if (
                 sample is None
+                or now - sample.sampled_at >= self.connection.max_control_age_ms / 1000
+                or now - self._last_execution
+                >= self.settings.control.command_timeout_ms / 1000
                 or sample.timestamp_ms != packet.source_time_ms
                 or not is_newer(packet.seq, self._last_ack)
             ):
                 return
             if packet.payload.status != ExecutionStatus.EXECUTED:
+                logger.warning(
+                    "Execution failed session=%s epoch=%s seq=%d status=%s",
+                    packet.session,
+                    packet.epoch,
+                    packet.seq,
+                    packet.payload.status.name,
+                )
                 self.connection.protocol.close(
                     error_code=0x105, reason_phrase="execution_failed"
                 )
                 return
             self._last_ack = packet.seq
-            self._last_execution = time.monotonic()
+            self._last_execution = sample.sampled_at
+            self._ack_log.write(
+                packet.epoch,
+                "Command acknowledged session=%s epoch=%s seq=%d sample_to_ack_ms=%.1f",
+                packet.session,
+                packet.epoch,
+                packet.seq,
+                (now - sample.sampled_at) * 1000,
+                all_zero=sample.throttle == sample.brake == sample.steering == 0,
+            )
             if not self.armed and sample.throttle == 0 and sample.steering == 0:
                 self.armed = True
                 self._status("active")
@@ -168,6 +200,15 @@ class DrivingControlClient:
             and self.on_telemetry is not None
             and is_newer(packet.seq, self._last_telemetry)
         ):
+            try:
+                conservative_age_ms(
+                    packet.source_time_ms,
+                    time.time_ns() // 1_000_000,
+                    max_age_ms=self.connection.max_control_age_ms,
+                    clock_skew_ms=self.connection.max_clock_skew_ms,
+                )
+            except ValueError:
+                return
             self._last_telemetry = packet.seq
             self.on_telemetry(packet)
 
@@ -189,10 +230,19 @@ class DrivingControlClient:
             except (ConnectionError, TimeoutError, RpcError):
                 pass  # Closing the connection and vehicle watchdog also revoke control.
 
+    def _sample_window(self, sample, now):
+        # Use USB capture time even when processing or queue delivery was delayed.
+        for token, received in reversed(self._windows.items()):
+            if (
+                received < sample.sampled_at
+                and now - received < self.connection.max_control_age_ms / 1000
+            ):
+                return token
+        return None
+
     async def _send_session(self):
         protocol = self.connection.protocol
         while protocol.rpc_ready:
-            self.connection.clock.check()
             permit = self.video_gate.snapshot()
             if self._picture_ready(permit):
                 if not self._fresh() or self.latest.sampled_at < permit.ready_at:
@@ -227,6 +277,8 @@ class DrivingControlClient:
             raise RpcError("primary_video_unavailable")
         if grant.get("vehicle_principal") != permit.source.principal:
             raise RpcError("video_vehicle_mismatch")
+        self._windows.clear()
+        self._last_window = None
         self._sent.clear()
         self._seq, self._last_ack, self._last_telemetry = 0, None, None
         self._last_execution = time.monotonic()
@@ -234,7 +286,6 @@ class DrivingControlClient:
         next_tick = time.monotonic()
         self._status("waiting_execution")
         while protocol.rpc_ready and self.epoch == epoch:
-            self.connection.clock.check()
             if not self._lease_picture_valid():
                 self.armed = False
                 self._status("video_unavailable", "primary_video_unavailable")
@@ -251,19 +302,34 @@ class DrivingControlClient:
                 raise RpcError("execution_confirmation_expired")
             if now >= next_tick:
                 sample = self.latest
+                token = self._sample_window(sample, now)
+                next_tick += (math.floor((now - next_tick) / period) + 1) * period
+                if token is None:
+                    await asyncio.sleep(max(0, next_tick - time.monotonic()))
+                    continue
                 packet = Packet(
                     self.settings.session,
                     epoch,
                     self._seq,
                     sample.timestamp_ms,
-                    Control(sample.throttle, sample.brake, sample.steering),
+                    Control(sample.throttle, sample.brake, sample.steering, token),
                 )
                 self._sent[self._seq] = sample
                 while len(self._sent) > 64:
                     self._sent.popitem(last=False)
                 protocol.send_datagram(packet.encode())
                 self._seq = (self._seq + 1) & 0xFFFFFFFF
-                next_tick += (math.floor((now - next_tick) / period) + 1) * period
+                self._tx_log.write(
+                    epoch,
+                    "Command sent session=%s epoch=%s seq=%d throttle=%.3f brake=%.3f steering=%.3f",
+                    packet.session,
+                    epoch,
+                    packet.seq,
+                    sample.throttle,
+                    sample.brake,
+                    sample.steering,
+                    all_zero=sample.throttle == sample.brake == sample.steering == 0,
+                )
             await asyncio.sleep(max(0, next_tick - time.monotonic()))
 
     async def run(self):
@@ -314,8 +380,6 @@ class DrivingControlClient:
                         type(error).__name__,
                         error.code
                         if isinstance(error, RpcError)
-                        else str(error)
-                        if isinstance(error, ClockError)
                         else type(error).__name__,
                     )
                 finally:

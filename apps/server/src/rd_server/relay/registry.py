@@ -14,6 +14,7 @@ from rd_core.wire import (
     Execution,
     ExecutionStatus,
     Packet,
+    Window,
     conservative_age_ms,
 )
 from rd_quic.framing import RpcError
@@ -37,6 +38,8 @@ class Lease:
     last_control: int | None = None
     last_execution: int | None = None
     last_observations: dict = field(default_factory=dict)
+    windows: OrderedDict = field(default_factory=OrderedDict)
+    last_window: int | None = None
     samples: OrderedDict = field(default_factory=OrderedDict)
 
 
@@ -216,51 +219,37 @@ class Registry:
             neutral = packet.payload.throttle == 0 and packet.payload.steering == 0
             if not lease.armed and not neutral:
                 return False
-            try:
-                age = conservative_age_ms(
-                    packet.source_time_ms,
-                    int(time.time() * 1000),
-                    max_age_ms=self.settings.max_control_age_ms,
-                    clock_skew_ms=self.settings.max_clock_skew_ms,
-                )
-            except ValueError:
+            issued = lease.windows.get(packet.payload.window)
+            if (
+                issued is None
+                or time.monotonic() >= issued + self.settings.max_control_age_ms / 1000
+            ):
                 return False
             lease.last_control = packet.seq
-            lease.deadline = time.monotonic() + self.settings.lease_ttl_s - age / 1000
-            lease.samples[packet.seq] = (packet.source_time_ms, neutral)
+            lease.deadline = issued + self.settings.lease_ttl_s
+            lease.samples[packet.seq] = (packet.source_time_ms, neutral, issued)
             while len(lease.samples) > 64:
                 lease.samples.popitem(last=False)
             target = lease.vehicle
         else:
             if lease.vehicle is not peer:
                 return False
-            try:
-                conservative_age_ms(
-                    packet.source_time_ms,
-                    int(time.time() * 1000),
-                    max_age_ms=self.settings.max_control_age_ms,
-                    clock_skew_ms=self.settings.max_clock_skew_ms,
-                )
-            except ValueError:
-                return False
-            if isinstance(packet.payload, Execution):
-                try:
-                    conservative_age_ms(
-                        packet.payload.completed_at_ms,
-                        int(time.time() * 1000),
-                        max_age_ms=self.settings.max_control_age_ms,
-                        clock_skew_ms=self.settings.max_clock_skew_ms,
-                    )
-                except ValueError:
-                    return False
+            if isinstance(packet.payload, Window):
                 if (
-                    packet.payload.completed_at_ms + self.settings.max_clock_skew_ms
-                    < packet.source_time_ms
+                    not is_newer(packet.seq, lease.last_window)
+                    or packet.payload.token in lease.windows
                 ):
                     return False
+                lease.last_window = packet.seq
+                lease.windows[packet.payload.token] = time.monotonic()
+                while len(lease.windows) > 32:
+                    lease.windows.popitem(last=False)
+            elif isinstance(packet.payload, Execution):
                 sample = lease.samples.get(packet.seq)
                 if (
                     sample is None
+                    or time.monotonic()
+                    >= sample[2] + self.settings.max_control_age_ms / 1000
                     or sample[0] != packet.source_time_ms
                     or not is_newer(packet.seq, lease.last_execution)
                 ):
@@ -272,6 +261,15 @@ class Registry:
                     self.revoke(binding.session, "execution_failed", epoch=lease.epoch)
                     return False
             else:
+                try:
+                    conservative_age_ms(
+                        packet.source_time_ms,
+                        int(time.time() * 1000),
+                        max_age_ms=self.settings.max_control_age_ms,
+                        clock_skew_ms=self.settings.max_clock_skew_ms,
+                    )
+                except ValueError:
+                    return False
                 if not is_newer(packet.seq, lease.last_observations.get(packet.kind)):
                     return False
                 lease.last_observations[packet.kind] = packet.seq

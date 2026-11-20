@@ -1,11 +1,13 @@
 """Vehicle-side v2 lease adapter around the independent actuator supervisor."""
 
 import asyncio
+import secrets
 import time
+from collections import OrderedDict
 from uuid import UUID
 
 from rd_core.control import Command, ControlState, ControlSupervisor, is_newer
-from rd_core.logging import get_logger
+from rd_core.logging import SampledControlLog, get_logger
 from rd_core.settings import VehicleSettings
 from rd_core.wire import (
     CONTROL_REVISION,
@@ -13,9 +15,9 @@ from rd_core.wire import (
     Execution,
     ExecutionStatus,
     Packet,
-    conservative_age_ms,
+    Window,
 )
-from rd_quic.client import ClockError, registered_connection
+from rd_quic.client import registered_connection
 from rd_quic.framing import RpcError
 
 logger = get_logger(__name__)
@@ -37,20 +39,38 @@ class VehicleControlClient:
         self.epoch = None
         self._generation = None
         self._last_seq = None
+        self._windows = OrderedDict()
+        self._window_seq = 0
+        self._rx_log = SampledControlLog(logger)
+        self._window_drop_log = SampledControlLog(logger)
         self._lease_deadline = 0
         self._lease_ttl_s = 0
         self._loop = None
         self.state = "disconnected"
 
     def _status(self, state, detail=""):
+        if self.state != state:
+            logger.info(
+                "Vehicle control state=%s session=%s epoch=%s",
+                state,
+                self.settings.session,
+                self.epoch,
+            )
         self.state = state
         if self.on_status is not None:
             self.on_status(state, detail)
 
     def _retire(self, reason, *, notify=True):
         epoch, self.epoch = self.epoch, None
+        self._windows.clear()
         if epoch is not None:
             self.supervisor.stop(reason, epoch=str(epoch))
+            logger.info(
+                "Vehicle lease ended session=%s epoch=%s reason=%s",
+                self.settings.session,
+                epoch,
+                reason,
+            )
             if (
                 notify
                 and self.connection is not None
@@ -99,7 +119,6 @@ class VehicleControlClient:
             or params["max_clock_skew_ms"] != self.connection.max_clock_skew_ms
         ):
             raise RpcError("invalid_lease_limits")
-        self.connection.clock.check()
         try:
             self.supervisor.begin_session(str(epoch))
         except (RuntimeError, ValueError):
@@ -136,15 +155,15 @@ class VehicleControlClient:
             or not is_newer(packet.seq, self._last_seq)
         ):
             return
-        try:
-            self.connection.clock.check()
-            age = conservative_age_ms(
-                packet.source_time_ms,
-                int(time.time() * 1000),
-                max_age_ms=self.connection.max_control_age_ms,
-                clock_skew_ms=self.connection.max_clock_skew_ms,
+        deadline = self._windows.get(packet.payload.window)
+        if deadline is None or time.monotonic() >= deadline:
+            self._window_drop_log.write(
+                packet.epoch,
+                "Command dropped session=%s epoch=%s seq=%d reason=window_unavailable",
+                packet.session,
+                packet.epoch,
+                packet.seq,
             )
-        except (ValueError, ConnectionError):
             return
         if time.monotonic() >= self._lease_deadline:
             self._retire("lease expired before command")
@@ -157,9 +176,22 @@ class VehicleControlClient:
             packet.payload.steering,
             packet.source_time_ms,
         )
-        if self.supervisor.submit(command, age_s=age / 1000):
+        if self.supervisor.submit(command, deadline=deadline):
             self._last_seq = packet.seq
-            self._lease_deadline = time.monotonic() + self._lease_ttl_s - age / 1000
+            self._lease_deadline = (
+                deadline - self.connection.max_control_age_ms / 1000 + self._lease_ttl_s
+            )
+            self._rx_log.write(
+                packet.epoch,
+                "Command received and accepted session=%s epoch=%s seq=%d throttle=%.3f brake=%.3f steering=%.3f",
+                packet.session,
+                packet.epoch,
+                packet.seq,
+                command.throttle,
+                command.brake,
+                command.steering,
+                all_zero=command.throttle == command.brake == command.steering == 0,
+            )
         elif self.supervisor.state == ControlState.FAILSAFE:
             self._retire(self.supervisor.reason)
 
@@ -197,20 +229,43 @@ class VehicleControlClient:
         if executed:
             self._status("active")
         else:
+            logger.warning(
+                "Vehicle execution failed session=%s epoch=%s seq=%d status=%s",
+                packet.session,
+                packet.epoch,
+                packet.seq,
+                status.name,
+            )
             self._retire("execution failed")
 
     async def _watch(self):
         while True:
             if self.epoch is not None:
-                self.connection.clock.check()
                 if (
                     self.supervisor.state == ControlState.FAILSAFE
                     or time.monotonic() >= self._lease_deadline
                 ):
                     self._retire("local control expired")
-            await asyncio.sleep(
-                min(self.settings.control.command_timeout_ms / 4000, 0.05)
-            )
+                else:
+                    now = time.monotonic()
+                    while self._windows and next(iter(self._windows.values())) <= now:
+                        self._windows.popitem(last=False)
+                    token = secrets.token_bytes(16)
+                    self._windows[token] = (
+                        now + self.connection.max_control_age_ms / 1000
+                    )
+                    packet = Packet(
+                        self.settings.session,
+                        self.epoch,
+                        self._window_seq,
+                        0,
+                        Window(token),
+                    )
+                    self._window_seq = (self._window_seq + 1) & 0xFFFFFFFF
+                    while len(self._windows) > 32:
+                        self._windows.popitem(last=False)
+                    self.connection.protocol.send_datagram(packet.encode())
+            await asyncio.sleep(min(self.connection.max_control_age_ms / 4000, 0.05))
 
     async def run(self):
         self._loop = asyncio.get_running_loop()
@@ -279,8 +334,6 @@ class VehicleControlClient:
                         type(error).__name__,
                         error.code
                         if isinstance(error, RpcError)
-                        else str(error)
-                        if isinstance(error, ClockError)
                         else type(error).__name__,
                     )
                     self._status(

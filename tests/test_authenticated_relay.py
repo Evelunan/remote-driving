@@ -17,6 +17,7 @@ from rd_core.wire import (
     Execution,
     ExecutionStatus,
     Packet,
+    Window,
 )
 from rd_quic.framing import RpcError
 from rd_quic.protocol import RpcProtocol
@@ -95,7 +96,7 @@ async def test_real_authenticated_registration_exclusive_lease_and_recovery(
                         "token": tokens["driver"],
                         "role": "driving",
                         "session": 42,
-                        "revision": "old",
+                        "revision": "video-bound/1",
                     },
                 )
             viewer = await client()
@@ -156,8 +157,16 @@ async def test_real_authenticated_registration_exclusive_lease_and_recovery(
             grant = await pending
             assert grant["neutral_required"] is True
             assert grant["vehicle_principal"] == "vehicle"
+            token = bytes(range(16))
+            window = Packet(42, UUID(grant["epoch"]), 0, 0, Window(token))
+            vehicle.send_datagram(window.encode())
+            assert Packet.decode(await asyncio.wait_for(driver_data.get(), 1)) == window
             neutral = Packet(
-                42, UUID(grant["epoch"]), 0, int(time.time() * 1000), Control(0, 0, 0)
+                42,
+                UUID(grant["epoch"]),
+                0,
+                int(time.time() * 1000),
+                Control(0, 0, 0, token),
             )
             driver.send_datagram(neutral.encode())
             assert (
@@ -173,7 +182,7 @@ async def test_real_authenticated_registration_exclusive_lease_and_recovery(
                 neutral,
                 seq=1,
                 source_time_ms=int(time.time() * 1000),
-                payload=Control(0.5, 0, 0),
+                payload=Control(0.5, 0, 0, token),
             )
             driver.send_datagram(motion.encode())
             assert (

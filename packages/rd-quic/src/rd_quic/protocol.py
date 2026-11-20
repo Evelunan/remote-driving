@@ -270,7 +270,8 @@ class RpcProtocol(QuicConnectionProtocol):
     async def shutdown(self, timeout_s=3.0):
         self.close()
         try:
-            await asyncio.wait_for(self.wait_closed(), timeout_s)
+            if not self.transport_closed:
+                await asyncio.wait_for(self.wait_closed(), timeout_s)
         except asyncio.TimeoutError:
             logger.warning("QUIC close deadline exceeded")
             finish_abandoned_close(self)

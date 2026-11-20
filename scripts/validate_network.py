@@ -15,6 +15,7 @@ import secrets
 import shutil
 import ssl
 import subprocess
+import sys
 import tempfile
 import threading
 import time
@@ -25,7 +26,6 @@ from pathlib import Path
 from unittest.mock import patch
 
 from network_shaper import Policy, Shaper
-
 from rd_core.async_compat import ExceptionGroup, async_timeout
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -34,7 +34,7 @@ CASES = (
     "rpc-only",
     "control-blackhole",
     "media-blackhole",
-    "clock-budget",
+    "window-budget",
     "signaling-restart",
     "relay-restart",
     "server-restart",
@@ -66,7 +66,6 @@ async def validate(args, cache, gate, interrupted):
     )
     from rd_driving.app.control_client import DrivingControlClient
     from rd_driving.infrastructure.video.webrtc_reciver import WebRTCReceiver
-    from rd_quic.client import ClockError, ClockGuard
     from rd_quic.protocol import RpcProtocol
     from rd_server.relay.control_service import ControlRelayService
     from rd_server.runtime import ServerRuntime
@@ -91,8 +90,6 @@ async def validate(args, cache, gate, interrupted):
     report = {"case": args.case, "physical_stop_verified": False}
     controller = None
     turn = None
-    clock_rejections = []
-    original_probe = ClockGuard.probe
     original_datagram = RpcProtocol.send_datagram
     datagrams = {"drop": False, "dropped": 0}
 
@@ -101,15 +98,6 @@ async def validate(args, cache, gate, interrupted):
             datagrams["dropped"] += 1
             return
         return original_datagram(protocol, data)
-
-    async def observed_clock_probe(guard, protocol):
-        try:
-            return await original_probe(guard, protocol)
-        except ClockError:
-            clock_rejections.append(
-                {"at": time.monotonic(), "budget_ms": guard.max_skew_ms}
-            )
-            raise
 
     class Actuator(MockController):
         def __init__(self, motion):
@@ -193,7 +181,6 @@ async def validate(args, cache, gate, interrupted):
             )
             with (
                 shaper.install(),
-                patch.object(ClockGuard, "probe", observed_clock_probe),
                 patch.object(RpcProtocol, "send_datagram", application_datagram),
                 patch.object(
                     aioice.ice, "get_host_addresses", lambda **kwargs: ["127.0.0.1"]
@@ -367,8 +354,11 @@ async def validate(args, cache, gate, interrupted):
                             shaper.set(
                                 args.case.split("-", 1)[0], Policy(blackhole=True)
                             )
-                        elif args.case == "clock-budget":
-                            shaper.set("control", Policy(delay_ms=80))
+                        elif args.case == "window-budget":
+                            # Four UDP legs per window/command round trip.
+                            delay_ms = relay_settings.max_control_age_ms // 4 + 20
+                            shaper.set("control", Policy(delay_ms=delay_ms))
+                            report["window_round_trip_floor_ms"] = delay_ms * 4
                         else:
                             key = (
                                 "both"
@@ -402,15 +392,6 @@ async def validate(args, cache, gate, interrupted):
                                 not driver.armed and controller.commands[-1] == (0, 0)
                             ),
                         )
-                        if args.case == "clock-budget":
-                            await until(
-                                lambda: any(
-                                    item["at"] >= started_fault
-                                    for item in clock_rejections
-                                ),
-                                timeout=5,
-                            )
-                            report["clock_budget_rejections"] = list(clock_rejections)
                         if args.case == "rpc-only":
                             if vehicle.connection is None:
                                 raise RuntimeError(
@@ -617,6 +598,10 @@ async def validate(args, cache, gate, interrupted):
 
 
 def main():
+    # This in-process harness runs Qt, real UDP sockets and packet shaping together.
+    # Use the selector loop for the Windows UDP worker during the simulation.
+    if sys.platform == "win32":
+        asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--case", choices=CASES, required=True)
     parser.add_argument("--views", type=int, choices=(1, 4), default=4)

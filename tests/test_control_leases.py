@@ -13,6 +13,7 @@ from rd_core.wire import (
     ExecutionStatus,
     Packet,
     Telemetry,
+    Window,
 )
 from rd_quic.framing import RpcError
 from rd_server.relay.registry import Registry
@@ -82,7 +83,11 @@ def setup(monkeypatch):
 
 def control(lease, clock, seq=0, throttle=0, *, age_ms=0):
     return Packet(
-        42, lease.epoch, seq, int(clock.wall * 1000) - age_ms, Control(throttle, 0, 0)
+        42,
+        lease.epoch,
+        seq,
+        int(clock.wall * 1000) - age_ms,
+        Control(throttle, 0, 0, bytes(16)),
     )
 
 
@@ -184,6 +189,9 @@ async def test_neutral_execution_gates_motion_and_binding_controls_both_directio
     registry, peers, clock, _ = setup
     await registry.acquire(peers["driver"])
     lease = registry.leases[42]
+    assert registry.route(
+        peers["vehicle"], Packet(42, lease.epoch, 0, 0, Window(bytes(16))).encode()
+    )
     packet = control(lease, clock)
     assert not registry.route(
         peers["driver"], control(lease, clock, throttle=0.5).encode()
@@ -210,6 +218,9 @@ async def test_duplicates_stale_samples_and_invalid_acks_do_not_extend_lease(set
     registry, peers, clock, _ = setup
     await registry.acquire(peers["driver"])
     lease = registry.leases[42]
+    assert registry.route(
+        peers["vehicle"], Packet(42, lease.epoch, 0, 0, Window(bytes(16))).encode()
+    )
     packet = control(lease, clock, seq=0xFFFFFFFF)
     assert registry.route(peers["driver"], packet.encode())
     assert registry.route(peers["vehicle"], execution(packet).encode())
@@ -219,26 +230,20 @@ async def test_duplicates_stale_samples_and_invalid_acks_do_not_extend_lease(set
     for invalid in (
         packet,
         replace(packet, seq=0x80000000),
-        control(lease, clock, seq=1, age_ms=250),
-        control(lease, clock, seq=2, age_ms=-51),
+        replace(packet, seq=1, payload=replace(packet.payload, window=b"x" * 16)),
     ):
         assert not registry.route(peers["driver"], invalid.encode())
     for invalid in (
         replace(execution(packet), seq=99),
         replace(execution(packet), source_time_ms=packet.source_time_ms - 1),
-        replace(
-            packet,
-            payload=Execution(ExecutionStatus.EXECUTED, packet.source_time_ms + 51),
-        ),
-        replace(
-            packet,
-            payload=Execution(ExecutionStatus.EXECUTED, packet.source_time_ms - 51),
-        ),
     ):
         assert not registry.route(peers["vehicle"], invalid.encode())
     measurement = replace(packet, payload=Telemetry(1.0, 0.5))
     assert registry.route(peers["vehicle"], measurement.encode())
     assert not registry.route(peers["vehicle"], measurement.encode())
+    assert lease.deadline == deadline
+    clock.mono += registry.settings.max_control_age_ms / 1000
+    assert not registry.route(peers["driver"], replace(packet, seq=1).encode())
     assert lease.deadline == deadline
     clock.mono = deadline
     registry.sweep()
@@ -261,6 +266,9 @@ async def test_release_checks_owner_and_epoch_and_execution_failure_revokes(setu
         "revoked": False
     }
     lease = registry.leases[42]
+    assert registry.route(
+        peers["vehicle"], Packet(42, lease.epoch, 0, 0, Window(bytes(16))).encode()
+    )
     packet = control(lease, clock)
     assert registry.route(peers["driver"], packet.encode())
     assert not registry.route(
@@ -292,6 +300,9 @@ async def test_packet_after_deadline_cannot_resurrect_lease_before_maintenance(s
     registry, peers, clock, _ = setup
     await registry.acquire(peers["driver"])
     lease = registry.leases[42]
+    assert registry.route(
+        peers["vehicle"], Packet(42, lease.epoch, 0, 0, Window(bytes(16))).encode()
+    )
     clock.mono = lease.deadline
     assert not registry.route(peers["driver"], control(lease, clock).encode())
     assert not registry.leases
@@ -302,6 +313,9 @@ async def test_expired_destination_is_not_forwarded_to_before_maintenance(setup)
     registry, peers, clock, _ = setup
     await registry.acquire(peers["driver"])
     lease = registry.leases[42]
+    assert registry.route(
+        peers["vehicle"], Packet(42, lease.epoch, 0, 0, Window(bytes(16))).encode()
+    )
     binding = registry.bindings[peers["vehicle"]]
     registry.bindings[peers["vehicle"]] = replace(
         binding, principal=replace(binding.principal, expires_at=time.time() - 1)

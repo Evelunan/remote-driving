@@ -17,7 +17,6 @@ from rd_core.settings import (
 from rd_core.video_safety import VideoGate, VideoSource
 from rd_core.wire import CONTROL_REVISION
 from rd_driving.app.control_client import DrivingControlClient
-from rd_quic.client import ClockError, ClockGuard
 from rd_vehicle.application.control_client import VehicleControlClient
 from rd_vehicle.infrastructure.controller.mock_controller import MockController
 
@@ -105,8 +104,19 @@ def client_settings(local_tls):
 
 @pytest.mark.asyncio
 async def test_real_clients_execute_configured_targets_expire_input_and_rearm_after_driver_restart(
-    runtime_factory, client_settings
+    runtime_factory, client_settings, monkeypatch
 ):
+    # Input acquisition, vehicle completion and relay use different wall clocks.
+    monkeypatch.setattr(
+        "rd_vehicle.application.control_client.time",
+        SimpleNamespace(
+            monotonic=time.monotonic, time_ns=lambda: time.time_ns() + 600_000_000_000
+        ),
+    )
+    monkeypatch.setattr(
+        "rd_server.relay.registry.time",
+        SimpleNamespace(monotonic=time.monotonic, time=lambda: time.time() - 300),
+    )
     build, _ = runtime_factory
     runtime = build()
     relay = runtime.services["relay"]
@@ -248,56 +258,46 @@ async def test_old_connection_callbacks_do_not_touch_current_generation(
     vehicle._event(object(), "unknown", {})
 
 
-@pytest.mark.asyncio
-@pytest.mark.parametrize(
-    ("server_offset_ms", "elapsed_ms", "expected_bound_ms"),
-    [(40, 2, 41), (30, 60, 31)],
-    ids=["clock-offset", "network-uncertainty"],
-)
-async def test_clock_probe_reports_observed_bound_and_budget(
-    monkeypatch, server_offset_ms, elapsed_ms, expected_bound_ms
+def test_cached_usb_sample_cannot_move_to_a_later_window(client_settings):
+    _, settings = client_settings
+    driver = DrivingControlClient(settings, asyncio.Queue())
+    driver.connection = SimpleNamespace(max_control_age_ms=300)
+    driver._windows.update([(b"a" * 16, 10), (b"b" * 16, 10.15)])
+    sample = ControlInput(0.5, 0, 0, 10.1, 123)
+    assert driver._sample_window(sample, 10.2) == b"a" * 16
+    assert driver._sample_window(sample, 10.31) is None
+    assert driver._sample_window(replace(sample, sampled_at=10.16), 10.2) == b"b" * 16
+
+
+def test_vehicle_discards_latest_command_at_window_deadline(
+    client_settings, monkeypatch
 ):
-    wall = iter([1_000_000_000_000, 1_000_000_000_000 + elapsed_ms * 1_000_000] * 3)
-    mono = iter([1000, 1000 + elapsed_ms / 1000] * 3)
+    from unittest.mock import Mock
+    from uuid import uuid4
+
+    from rd_core.wire import Control, Packet
+
+    settings, _ = client_settings
+    vehicle = VehicleControlClient(settings, None)
+    vehicle.supervisor = Mock()
+    vehicle.connection = SimpleNamespace(max_control_age_ms=300)
+    vehicle.epoch = uuid4()
+    vehicle._lease_deadline = 20
+    vehicle._lease_ttl_s = 1
+    token = b"x" * 16
+    vehicle._windows[token] = 10.3
+    packet = Packet(42, vehicle.epoch, 1, 123, Control(0, 0, 0, token))
+    now = 10.28
     monkeypatch.setattr(
-        "rd_quic.client.time",
-        SimpleNamespace(time_ns=lambda: next(wall), monotonic=lambda: next(mono)),
+        "rd_vehicle.application.control_client.time",
+        SimpleNamespace(monotonic=lambda: now),
     )
-
-    class Protocol:
-        async def request(self, method, params):
-            return {"server_time_ms": 1_000_000 + server_offset_ms}
-
-    guard = ClockGuard(25)
-    with pytest.raises(ClockError) as failure:
-        await guard.probe(Protocol())
-    assert f"observed_bound_ms={expected_bound_ms:.3f}" in str(failure.value)
-    assert "budget_ms=25.000" in str(failure.value)
-    assert guard.mono == 0
-
-
-@pytest.mark.asyncio
-async def test_clock_probe_rejects_skew_and_detects_local_wall_clock_step(monkeypatch):
-    class Protocol:
-        offset = 0
-
-        async def request(self, method, params):
-            return {"server_time_ms": int(time.time() * 1000) + self.offset}
-
-    protocol = Protocol()
-    guard = ClockGuard(25)
-    await guard.probe(protocol)
-    guard.check()
-    protocol.offset = 1000
-    with pytest.raises(ClockError):
-        await guard.probe(protocol)
-    wall = time.time_ns()
-    monkeypatch.setattr(
-        "rd_quic.client.time",
-        SimpleNamespace(time_ns=lambda: wall + 1_000_000_000, monotonic=time.monotonic),
-    )
-    with pytest.raises(ClockError):
-        guard.check()
+    vehicle._datagram(vehicle._generation, packet.encode())
+    assert vehicle.supervisor.submit.call_args.kwargs == {"deadline": 10.3}
+    now = 10.3
+    vehicle._datagram(vehicle._generation, replace(packet, seq=2).encode())
+    assert vehicle.supervisor.submit.call_count == 1
+    assert vehicle._last_seq == 1
 
 
 def test_control_client_imports_do_not_load_gui_media_or_ros(legacy_python):
@@ -377,11 +377,10 @@ async def test_blocked_actuator_does_not_block_independent_stop_or_invalidate_ne
 
 
 @pytest.mark.asyncio
-async def test_client_requires_hostname_verification_and_compatible_clock_budget(
+async def test_client_requires_hostname_verification_but_not_clock_agreement(
     runtime_factory, client_settings
 ):
     from rd_quic.client import registered_connection
-    from rd_quic.framing import RpcError
 
     build, _ = runtime_factory
     runtime = build()
@@ -404,16 +403,15 @@ async def test_client_requires_hostname_verification_and_compatible_clock_budget
             ):
                 pytest.fail("certificate hostname must be verified")
         network = replace(network, quic_server_name="localhost")
-        with pytest.raises(RpcError, match="incompatible_clock_budget"):
-            async with registered_connection(
-                network,
-                settings.credentials,
-                replace(settings.control, max_clock_skew_ms=20),
-                session=42,
-                role="vehicle",
-                revision=CONTROL_REVISION,
-            ):
-                pytest.fail("pairwise clock budget must not be weakened locally")
+        async with registered_connection(
+            network,
+            settings.credentials,
+            replace(settings.control, max_clock_skew_ms=0),
+            session=42,
+            role="vehicle",
+            revision=CONTROL_REVISION,
+        ) as connection:
+            assert connection.protocol.rpc_ready
     finally:
         await runtime.stop()
     assert not relay.registry.bindings

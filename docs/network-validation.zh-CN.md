@@ -11,7 +11,7 @@
 每个端点的默认队列同时限制为 256 个包、256 KiB 和 500 ms，超过限制丢包并计数。进入故障时可以丢弃旧队列；恢复时保留仍在排队的旧包，由正式协议和授权逻辑处理晚到流量。停止端点时取消全部定时发送。随机种子固定为 42；编码和网络反馈会改变发包顺序，因此固定种子不代表不同运行的丢包位置完全相同。
 
 ```bash
-for scenario in mild rpc-only control-blackhole media-blackhole clock-budget signaling-restart relay-restart server-restart; do
+for scenario in mild rpc-only control-blackhole media-blackhole window-budget signaling-restart relay-restart server-restart; do
   .venv/bin/python scripts/validate_network.py --case "$scenario" --seconds 3 \
     --output "docs/validation/network-b26-${scenario}.json"
 done
@@ -30,7 +30,7 @@ done
 | rpc-only | 在 QUIC 加密前仅抑制应用 DATAGRAM，可靠 RPC 继续工作。零速后实际发起并收到车辆到中继的 clock RPC，证明连接存活不能维持旧运动目标 |
 | control-blackhole | 丢弃全部控制 UDP，媒体继续。驾驶端撤权、车辆请求模拟零速；恢复网络并保持油门时不能自动恢复 |
 | media-blackhole | 丢弃全部媒体 UDP，控制 UDP 保持正常。主画面失效导致撤权和模拟零速，车辆控制连接仍存活 |
-| clock-budget | 控制 UDP 每跳增加 80 ms，观察正式 ClockGuard 的预算拒绝，不扩大默认预算；要求零速、撤权及恢复后重新回中 |
+| window-budget | 四段控制 UDP 传输的总延迟超过窗口时限，检查模拟底盘归零、撤权及恢复后重新回中。下方 clock-budget 历史报告对应旧协议 |
 | signaling-restart | 信令与中继分开托管；停止信令，使用相同地址/端口创建新的信令实例。中继仍运行，恢复后发布身份改变 |
 | relay-restart | 分开托管；停止中继并创建新监听器/注册表，信令和媒体保持运行，旧授权不继承 |
 | server-restart | 共同托管；停止统一 runtime，再用相同端口创建新的信令与中继实例，重新认证、收流和授权 |

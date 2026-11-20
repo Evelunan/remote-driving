@@ -31,7 +31,8 @@ TLS QUIC 的 ALPN 固定为 `rd-control/2`；完成握手后才处理业务消�
 
 | kind | 负载 | 语义 |
 | --- | --- | --- |
-| 1 CONTROL | float32 throttle、brake、steering | 归一化目标：throttle/steering ∈ [-1,1]，brake ∈ [0,1] |
+| 1 CONTROL | 三个 float32 后接 16 字节窗口标记 | throttle/steering ∈ [-1,1]，brake ∈ [0,1] |
+| 5 WINDOW | 16 字节随机标记 | 车端在当前租约内滚动签发；头部 seq 为窗口序号，source_time_ms 为 0 |
 | 2 EXECUTION | uint8 status、uint64 completed_at_ms | 执行结果；status=1 表示设备 API 完成，2 拒绝、3 控制器未启用、4 已失效；不是实测车速/停车 |
 | 3 TELEMETRY | float32 linear_mps、angular_radps | 来自传感器的真实测量；未接入传感器时不发送伪造值 |
 | 4 STOP_STATUS | uint8 requested、confirmed | 两字段只允许 0/1；请求与物理确认分开，没有真实反馈时 confirmed=0 |
@@ -40,13 +41,15 @@ TLS QUIC 的 ALPN 固定为 `rd-control/2`；完成握手后才处理业务消�
 
 ## 新鲜度与代次约束
 
-接收方用 `max(0, now_ms - source_time_ms + clock_skew_ms)` 作为保守年龄上界；过于超前的时间戳和达到最大年龄的样本被拒绝。这个上界依赖发送方/接收方时钟差不超过配置预算，部署必须同步时钟并验收误差。客户端时钟诊断与车端本地监护已接入 v2 客户端，详见[模拟验证](control-simulation.zh-CN.md)；不能仅凭报文新增字段宣称已保证时限。
+车端在本机单调时钟上记录每个标记的截止时刻。窗口长度取中继的 max_control_age_ms 与车端 command_timeout_ms 的较小值。驾驶端只可选择在该次 USB 采样之前已收到的标记。多个窗口可以重叠，丢失一次签发后可用后续窗口恢复。中继按收到标记的本机时刻检查转发资格，车端以自己的原始截止时刻检查执行资格。窗口包本身不续租。
+
+执行线程和 watchdog 共用窗口的原始截止时刻。ACK 按租约、序号和原始采样标识匹配，驾驶端还用本机采样至确认的耗时检查 ACK 新鲜度。控制路径无需跨机比较 Unix 时间。独立遥测和停车状态仍按原时间戳检查，max_clock_skew_ms 保留用于观测数据。
 
 采样年龄会扣减车端本地单调时钟 watchdog 的剩余预算。心跳不刷新采样时间、序号不代替时间戳、执行 ACK 不代替传感器反馈。每次新的控制权授予需要新 epoch 和中立输入；旧代次命令、确认和关闭回调必须拒绝。服务端已执行代次/来源/序号/新鲜度检查和中立执行确认门控；车端 v2 客户端也执行同样的代次/年龄检查，并接入独立监护。
 
 ## 已实现的中继业务
 
-B16 的 `revision` 必须为 `video-bound/1`，服务端响应也返回该值；缺少或不匹配时返回 `protocol_upgrade_required`，客户端不回退。连接 helper 要求应用显式传入修订，不替旧应用自动声明新能力。ALPN 和 Datagram 字节版本保持 v2，修订标识约束新的授权/画面语义。
+三端和共享包须配套升级到注册修订 `vehicle-window/1`。ALPN 保持 `rd-control/2`。旧版 `video-bound/1` 注册会收到 `protocol_upgrade_required`。
 
 注册 RPC 为 `register(token, role, session, revision)`；令牌确定身份，申报的角色必须与服务端配置相符。只有 driving/vehicle 角色可注册控制 session，viewer 即使拥有视频房间权限也不能控制。车端绑定独占，冲突连接不能覆盖已有绑定；同一连接不能二次注册切换身份。
 

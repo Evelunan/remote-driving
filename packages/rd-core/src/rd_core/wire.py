@@ -8,7 +8,7 @@ from uuid import UUID
 
 VERSION = 2
 ALPN = "rd-control/2"
-CONTROL_REVISION = "video-bound/1"
+CONTROL_REVISION = "vehicle-window/1"
 _HEADER = struct.Struct("!2sBBH16sIQ")
 
 
@@ -17,6 +17,7 @@ class Kind(IntEnum):
     EXECUTION = 2
     TELEMETRY = 3
     STOP_STATUS = 4
+    WINDOW = 5
 
 
 class ExecutionStatus(IntEnum):
@@ -39,12 +40,23 @@ def _finite(*values):
 
 
 @dataclass(frozen=True)
+class Window:
+    token: bytes
+
+    def validate(self):
+        if type(self.token) is not bytes or len(self.token) != 16:
+            raise ValueError("invalid vehicle window")
+
+
+@dataclass(frozen=True)
 class Control:
     throttle: float
     brake: float
     steering: float
+    window: bytes
 
     def validate(self):
+        Window(self.window).validate()
         _finite(self.throttle, self.brake, self.steering)
         if not (
             -1 <= self.throttle <= 1
@@ -87,8 +99,9 @@ class StopStatus:
 
 
 _LAYOUTS = {
-    Kind.CONTROL: (Control, struct.Struct("!fff")),
+    Kind.CONTROL: (Control, struct.Struct("!fff16s")),
     Kind.EXECUTION: (Execution, struct.Struct("!BQ")),
+    Kind.WINDOW: (Window, struct.Struct("!16s")),
     Kind.TELEMETRY: (Telemetry, struct.Struct("!ff")),
     Kind.STOP_STATUS: (StopStatus, struct.Struct("!BB")),
 }
@@ -100,7 +113,7 @@ class Packet:
     epoch: UUID
     seq: int
     source_time_ms: int
-    payload: Control | Execution | Telemetry | StopStatus
+    payload: Control | Execution | Telemetry | StopStatus | Window
 
     @property
     def kind(self):

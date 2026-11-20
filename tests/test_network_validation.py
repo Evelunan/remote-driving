@@ -19,7 +19,7 @@ ROOT = Path(__file__).resolve().parents[1]
         "rpc-only",
         "control-blackhole",
         "media-blackhole",
-        "clock-budget",
+        "window-budget",
         "signaling-restart",
         "relay-restart",
         "server-restart",
@@ -120,8 +120,8 @@ def test_network_faults_preserve_recovery_contract_and_close_resources(tmp_path,
             )
         if case == "media-blackhole":
             assert report["control_transport_survived_video_loss"]
-        if case == "clock-budget":
-            assert report["clock_budget_rejections"]
+        if case == "window-budget":
+            assert report["window_round_trip_floor_ms"] > 300
         if case == "rpc-only":
             assert report["reliable_rpc_survived_datagram_loss"]
             assert report["suppressed_application_datagrams"] > 0
