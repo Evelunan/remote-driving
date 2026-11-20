@@ -9,6 +9,7 @@ description = "Vehicle-side camera streaming and control receiver"
 readme = "README.md"
 requires-python = ">=3.10.12"
 dependencies = [
+    "av==16.1.0",
     "rd-core==0.2.0",
     "rd-quic==0.2.0",
     "rd-webrtc[opencv]==0.2.0",

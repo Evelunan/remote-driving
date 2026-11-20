@@ -330,6 +330,7 @@ class CameraSettings:
     height: int = 480
     fps: float = 30.0
     encoding: CameraEncodingSettings | None = None
+    capture_backend: Literal["opencv", "pyav"] = "opencv"
 
     def __post_init__(self):
         if self.name not in {"front", "back", "left", "right"}:

@@ -84,7 +84,7 @@ def _create_controller(settings):
 
 
 def _create_camera(settings):
-    from rd_vehicle.infrastructure.cameras import TestCamera, USBCamera
+    from rd_vehicle.infrastructure.cameras import PyAVCamera, TestCamera, USBCamera
 
     if settings.source is None or settings.source == "synthetic":
         return TestCamera(
@@ -93,7 +93,10 @@ def _create_camera(settings):
             fps=settings.fps,
             name=settings.name,
         )
-    return USBCamera(
+    adapter = PyAVCamera if settings.capture_backend == "pyav" else USBCamera
+    if adapter is PyAVCamera and not PyAVCamera.supports(settings.source):
+        raise ConfigError("pyav capture requires a Linux /dev video source")
+    return adapter(
         settings.source,
         settings.name,
         width=settings.width,
