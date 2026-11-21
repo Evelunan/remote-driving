@@ -78,6 +78,13 @@ class ControlSystemThread(QThread):
             },
         )
 
+    def _vehicle_status(self, packet, deadline):
+        self._safe_emit("vehicle_status_updated", {
+            "status": packet.payload,
+            "source_time_ms": packet.source_time_ms,
+            "deadline": deadline,
+        })
+
     async def _main(self):
         self._loop = asyncio.get_running_loop()
         self._main_task = asyncio.current_task()
@@ -90,6 +97,7 @@ class ControlSystemThread(QThread):
             on_status=self._status,
             on_execution=self._execution,
             on_telemetry=self._telemetry,
+            on_vehicle_status=self._vehicle_status,
             video_gate=self.video_gate,
         )
         await self.service.run()

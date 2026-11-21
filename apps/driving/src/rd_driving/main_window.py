@@ -78,6 +78,7 @@ class MainWindow(QMainWindow):
         # WebRTC 连接状态标记（只有连接成功后才允许显示视频传输状态）
         self._webrtc_connected = False
         self._telemetry_at = None
+        self._vehicle_status_deadline = None
         self.fb = FrameBuffer()
 
         # 登录数据
@@ -143,12 +144,25 @@ class MainWindow(QMainWindow):
 
     def _on_vehicle_status(self, data):
         if self._services_running and self._control_panel is not None:
+            if "status" in data:
+                if data["deadline"] <= time.monotonic():
+                    self._vehicle_status_deadline = None
+                    self._control_panel.clear_vehicle_status("反馈已过期")
+                    return
+                self._vehicle_status_deadline = data["deadline"]
+                self._control_panel.set_vehicle_status(data["status"])
+                return
             self._control_panel.set_measured_status(
                 data["linear_mps"], data["angular_radps"]
             )
             self._telemetry_at = time.monotonic()
 
     def _expire_telemetry(self):
+        if (self._vehicle_status_deadline is not None
+                and time.monotonic() >= self._vehicle_status_deadline
+                and self._control_panel is not None):
+            self._control_panel.clear_vehicle_status("反馈已过期")
+            self._vehicle_status_deadline = None
         if (
             self._telemetry_at is not None
             and self._control_panel is not None
@@ -174,9 +188,11 @@ class MainWindow(QMainWindow):
 
     def _clear_feedback(self):
         self._telemetry_at = None
+        self._vehicle_status_deadline = None
         if self._control_panel is not None:
             self._control_panel.clear_command_status()
             self._control_panel.clear_measured_status()
+            self._control_panel.clear_vehicle_status("反馈未接入或连接已断开")
 
     def _setup_ui(self):
         self.setWindowTitle(f"{APP_NAME} | {APP_NAME_EN}")

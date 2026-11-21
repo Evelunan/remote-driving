@@ -11,12 +11,14 @@ from PyQt6.QtWidgets import (
     QFrame,
     QGridLayout,
     QLabel,
+    QPushButton,
     QScrollArea,
     QSizePolicy,
     QVBoxLayout,
     QWidget,
 )
 from rd_driving.interfaces.ui import IConnectionItem, ITheme
+from rd_core.wire import VehicleStatus
 
 from ..components import ConnectionItem, DataCard, StatItem
 
@@ -111,6 +113,8 @@ class ControlPanel(QFrame):
 
         self._layout.addWidget(self._conn_card)
 
+        self._setup_vehicle_status()
+
         self._command_card = DataCard("底盘接口执行确认")
         self._command_stats: dict[str, StatItem] = {
             "throttle": StatItem("油门目标", "%"),
@@ -128,7 +132,7 @@ class ControlPanel(QFrame):
         command_grid.addWidget(self._command_stats["elapsed"], 1, 1)
 
         self._command_card.add_layout(command_grid)
-        self._measurement_note = QLabel("实测车速和停车反馈：尚未接入")
+        self._measurement_note = QLabel("停车确认：尚未接入")
         self._measurement_note.setWordWrap(True)
         self._command_card.add_widget(self._measurement_note)
         self.clear_command_status()
@@ -149,6 +153,59 @@ class ControlPanel(QFrame):
 
         self._scroll_area.setWidget(self._panel)
         outer_layout.addWidget(self._scroll_area)
+
+    def _setup_vehicle_status(self):
+        self._vehicle_card = DataCard("底盘实际反馈")
+        self._vehicle_stats = {
+            "speed_kmh": StatItem("车速", "km/h"),
+            "steering_deg": StatItem("转向角", "°"),
+            "shift_level": StatItem("反馈挡位（原始编码）"),
+            "is_autodrive": StatItem("自动驾驶使能"),
+            "p_status": StatItem("底盘刹车状态"),
+            "left_wheel_kmh": StatItem("左轮速度", "km/h"),
+            "right_wheel_kmh": StatItem("右轮速度", "km/h"),
+            "drive_mode": StatItem("驾驶模式（原始编码）"),
+        }
+        main = QGridLayout()
+        main.setColumnStretch(0, 1)
+        main.setColumnStretch(1, 1)
+        for index, key in enumerate(("speed_kmh", "steering_deg", "shift_level",
+                                     "is_autodrive", "p_status")):
+            main.addWidget(self._vehicle_stats[key], index // 2, index % 2)
+        self._vehicle_card.add_layout(main)
+        self._vehicle_note = QLabel()
+        self._vehicle_note.setWordWrap(True)
+        self._vehicle_card.add_widget(self._vehicle_note)
+        self._vehicle_details_button = QPushButton("诊断详情")
+        self._vehicle_details_button.setCheckable(True)
+        self._vehicle_card.add_widget(self._vehicle_details_button)
+        self._vehicle_details = QWidget()
+        details = QGridLayout(self._vehicle_details)
+        details.setContentsMargins(0, 0, 0, 0)
+        for index, key in enumerate(("left_wheel_kmh", "right_wheel_kmh", "drive_mode")):
+            details.addWidget(self._vehicle_stats[key], index // 2, index % 2)
+        self._vehicle_details.setVisible(False)
+        self._vehicle_details_button.toggled.connect(self._vehicle_details.setVisible)
+        self._vehicle_card.add_widget(self._vehicle_details)
+        self.clear_vehicle_status()
+        self._layout.addWidget(self._vehicle_card)
+
+    def set_vehicle_status(self, status: VehicleStatus):
+        for key, item in self._vehicle_stats.items():
+            value = getattr(status, key)
+            if value is not None:
+                if key == "is_autodrive":
+                    value = "已使能" if value else "未使能"
+                elif key == "p_status":
+                    value = "已触发" if value else "未触发"
+            item.set_value(value)
+        partial = any(value is None for value in vars(status).values())
+        self._vehicle_note.setText("反馈：实时，部分字段未知" if partial else "反馈：实时")
+
+    def clear_vehicle_status(self, reason="反馈未接入"):
+        for item in self._vehicle_stats.values():
+            item.set_value(None)
+        self._vehicle_note.setText(reason)
 
     def _add_camera_card(self, key):
         camera_card = DataCard(key)
@@ -174,7 +231,7 @@ class ControlPanel(QFrame):
         )
 
     def clear_measured_status(self):
-        self._measurement_note.setText("实测车速：未接入或已过期；停车反馈：尚未接入")
+        self._measurement_note.setText("独立遥测：未接入或已过期；停车确认：尚未接入")
 
     def get_widget(self):
         return self
@@ -213,6 +270,14 @@ class ControlPanel(QFrame):
         self._gear.apply_theme(theme, prominent_label=True)
         self._braking.apply_theme(theme, prominent_label=True)
         self._conn_card.apply_theme(theme)
+        self._vehicle_card.apply_theme(theme)
+        self._vehicle_note.setStyleSheet(f"color: {theme.text_secondary};")
+        self._vehicle_details_button.setStyleSheet(
+            f"QPushButton {{ color: {theme.text_primary}; border: 1px solid {theme.border};"
+            " border-radius: 4px; padding: 4px; }"
+        )
+        for item in self._vehicle_stats.values():
+            item.apply_theme(theme)
 
         # 连接项样式
         for conn in self._connections.values():
