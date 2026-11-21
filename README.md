@@ -31,6 +31,8 @@ docs/
 
 ## 开发与回归
 
+车辆底盘状态回传的开发范围、单位约定、分阶段提交和测试隔离要求见[车辆状态回传开发计划](docs/vehicle-status-feedback-plan.zh-CN.md)。该功能尚未实现，后续进度在计划文档中记录。
+
 ```bash
 # 目标机的 python3 --version 为 Python 3.10.12
 uv sync --all-packages --group dev --locked --python "$(command -v python3)"
