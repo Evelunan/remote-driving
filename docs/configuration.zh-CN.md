@@ -57,6 +57,8 @@ rd-server --config /path/server.yaml --services signaling --set signaling.port=8
 
 两端 `--dump-config` 不加载 Qt、OpenCV、ROS，也不解析秘密；`--check-config` 校验所选模块的本地凭据/证书，车辆选 ROS2 时检查 rclpy 导入，不创建 ROS 节点，不打开 USB/相机/串口，不连接网络。依赖导入通过不意味着真实设备可用。
 
+真实 ROS2 控制需启动车辆端之外的底盘转换节点和驱动。ROS2 Humble / `Car_jetson/real_ws` 的分终端启动命令、话题查询及底盘输出条件见[车辆端 ROS2 控制器与底盘启动](../apps/vehicle/README.md#ros2-控制器与底盘启动)。
+
 旧配置不再隐式兼容，迁移时显式使用以下字段（禁止混用不同单位）：
 
 | 原配置/行为 | 新配置/行为 |

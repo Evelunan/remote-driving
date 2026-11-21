@@ -43,7 +43,7 @@
 
 本地验证使用 Python 3.10.12、uv 0.13.8。Ubuntu 24.04 CI 的基础原生库清单为 `libgl1 libegl1 libopengl0 libglib2.0-0t64 libusb-1.0-0`；真实桌面还需平台插件的原生依赖，摄像头和 ROS2 需对应系统包。先在目标机运行配置检查及适用的设备检查，再认定该环境可部署。其他系统/CPU、真实 GPU 与 USB 尚无此批验收证据。
 
-ROS2 发行版尚未由用户确认，不预设发行版名称。使用与 ROS2 安装匹配的 Python 3.10.12 准备车辆环境；不要通过 pip 安装一个同名包来替代系统 rclpy。按目标环境加载 `setup.bash` 后，检查：
+当前现场接入使用 ROS2 Humble 和 `/home/akun/workspace/Car_jetson/real_ws`，分终端启动转换器、底盘驱动及车辆端的步骤见[车辆端 ROS2 控制器与底盘启动](../apps/vehicle/README.md#ros2-控制器与底盘启动)。其他主机需按实际 ROS2 安装配置环境。使用与 ROS2 安装匹配的 Python 3.10.12 准备车辆环境；不要通过 pip 安装一个同名包来替代系统 rclpy。按目标环境加载 `setup.bash` 后，检查：
 
 ```bash
 python3 -c 'import sys,rclpy; print(sys.version); print(rclpy.__file__)'

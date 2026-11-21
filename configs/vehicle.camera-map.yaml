@@ -18,7 +18,7 @@ logging:
 session: 1234
 room: "1234"
 components: [control,media]
-controller: mock
+controller: ros2
 camera_fallback_source: null
 encoder_workers: null
 credentials:
