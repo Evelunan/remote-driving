@@ -98,8 +98,8 @@
 | 阶段 | 状态 | 提交与验证记录 |
 | --- | --- | --- |
 | 计划落盘 | 已完成 | 本文件与 README 入口；仅检查文档内容、链接及 Git 差异，不运行应用或硬件测试 |
-| 1. 状态协议 | 已完成 | `VEHICLE_STATUS` 独立消息、八字段有效位、km/h 与 ° 单位；注册修订 `vehicle-status/1`；协议及租约测试 55 项通过。提交号见本文件该阶段的 Git 历史 |
-| 2. ROS 反馈采集 | 待开发 | — |
+| 1. 状态协议 | 已完成 | `760afef`；`VEHICLE_STATUS` 独立消息、八字段有效位、km/h 与 ° 单位；注册修订 `vehicle-status/1`；`test_vehicle_status_wire.py`、`test_v2_wire.py`、`test_control_leases.py` 共 55 项通过 |
+| 2. ROS 反馈采集 | 已完成 | 反馈配置、订阅与执行器、线程安全快照、时间戳及无效字段处理；车速原值 km/h，轮速默认源单位 m/s；`test_vehicle_feedback.py`、`test_legacy_controllers.py`、`test_configuration.py`、协议测试共 84 项通过。提交号见该阶段 Git 历史 |
 | 3. 状态回传 | 待开发 | — |
 | 4. 驾驶端显示 | 待开发 | — |
 | 5. 文档与验收 | 待开发 | — |

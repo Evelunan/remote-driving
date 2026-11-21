@@ -37,6 +37,10 @@ def check_config(settings):
             from rd_vehicle.infrastructure.controller.ros2_cmd_vel_controller import (
                 RCLpyCmdVelController,  # noqa: F401
             )
+            if settings.feedback.enabled:
+                from rd_vehicle.infrastructure.controller.ros2_vehicle_feedback import (
+                    RosVehicleStatusSource,  # noqa: F401
+                )
         elif settings.controller == "serial":
             if (
                 max(settings.motion.max_linear_mps, settings.motion.max_angular_radps)
@@ -78,6 +82,7 @@ def _create_controller(settings):
             return RCLpyCmdVelController(
                 max_linear=settings.motion.max_linear_mps,
                 max_angular=settings.motion.max_angular_radps,
+                feedback=settings.feedback,
             )
         case _:
             raise ValueError("unknown controller")
