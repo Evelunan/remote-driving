@@ -18,6 +18,7 @@ from rd_core.wire import (
     ExecutionStatus,
     Packet,
     Telemetry,
+    VehicleStatus,
     Window,
     conservative_age_ms,
 )
@@ -36,6 +37,7 @@ class DrivingControlClient:
         on_status=None,
         on_execution=None,
         on_telemetry=None,
+        on_vehicle_status=None,
         video_gate=None,
     ):
         self.settings, self.samples = settings, samples
@@ -50,6 +52,7 @@ class DrivingControlClient:
             on_telemetry,
         )
         self.latest = None
+        self.on_vehicle_status = on_vehicle_status
         self.connection = None
         self.epoch = None
         self.armed = False
@@ -60,6 +63,7 @@ class DrivingControlClient:
         self._sent = OrderedDict()
         self._last_ack = None
         self._last_telemetry = None
+        self._last_vehicle_status = None
         self._last_execution = 0
         self._seq = 0
         self._tx_log = SampledControlLog(logger)
@@ -211,6 +215,22 @@ class DrivingControlClient:
                 return
             self._last_telemetry = packet.seq
             self.on_telemetry(packet)
+        elif (isinstance(packet.payload, VehicleStatus)
+              and self.on_vehicle_status is not None
+              and is_newer(packet.seq, self._last_vehicle_status)):
+            try:
+                budget = min(self.connection.max_control_age_ms,
+                             self.settings.control.command_timeout_ms)
+                age = conservative_age_ms(
+                    packet.source_time_ms, time.time_ns() // 1_000_000,
+                    max_age_ms=budget,
+                    clock_skew_ms=self.connection.max_clock_skew_ms,
+                )
+            except ValueError:
+                return
+            self._last_vehicle_status = packet.seq
+            # Carry the remaining original budget across Qt's queued delivery.
+            self.on_vehicle_status(packet, time.monotonic() + (budget - age) / 1000)
 
     async def _release(self):
         epoch, self.epoch = self.epoch, None
@@ -281,6 +301,7 @@ class DrivingControlClient:
         self._last_window = None
         self._sent.clear()
         self._seq, self._last_ack, self._last_telemetry = 0, None, None
+        self._last_vehicle_status = None
         self._last_execution = time.monotonic()
         period = 1 / self.settings.control.send_hz
         next_tick = time.monotonic()

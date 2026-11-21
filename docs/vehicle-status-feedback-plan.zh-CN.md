@@ -99,8 +99,8 @@
 | --- | --- | --- |
 | 计划落盘 | 已完成 | 本文件与 README 入口；仅检查文档内容、链接及 Git 差异，不运行应用或硬件测试 |
 | 1. 状态协议 | 已完成 | `760afef`；`VEHICLE_STATUS` 独立消息、八字段有效位、km/h 与 ° 单位；注册修订 `vehicle-status/1`；`test_vehicle_status_wire.py`、`test_v2_wire.py`、`test_control_leases.py` 共 55 项通过 |
-| 2. ROS 反馈采集 | 已完成 | 反馈配置、订阅与执行器、线程安全快照、时间戳及无效字段处理；车速原值 km/h，轮速默认源单位 m/s；`test_vehicle_feedback.py`、`test_legacy_controllers.py`、`test_configuration.py`、协议测试共 84 项通过。提交号见该阶段 Git 历史 |
-| 3. 状态回传 | 待开发 | — |
+| 2. ROS 反馈采集 | 已完成 | `0548f0e`；反馈配置、订阅与执行器、线程安全快照、时间戳及无效字段处理；车速原值 km/h，轮速默认源单位 m/s；`test_vehicle_feedback.py`、`test_legacy_controllers.py`、`test_configuration.py`、协议测试共 84 项通过 |
+| 3. 状态回传 | 已完成 | 独立限频回传任务、原始采样时间及剩余有效期、驾驶端独立序号；复用中继原有观测转发与鉴权；控制、反馈、设备重试、重连相关 70 项测试通过，含仅绑定回环动态端口的真实 QUIC 测试。提交号见该阶段 Git 历史 |
 | 4. 驾驶端显示 | 待开发 | — |
 | 5. 文档与验收 | 待开发 | — |
 

@@ -13,6 +13,7 @@ from rd_core.wire import (
     ExecutionStatus,
     Packet,
     Telemetry,
+    VehicleStatus,
     Window,
 )
 from rd_quic.framing import RpcError
@@ -103,6 +104,69 @@ def test_old_revision_requires_coordinated_upgrade(setup, revision):
             "revision": revision, "token": tokens["DRIVER"],
             "role": "driving", "session": 42,
         })
+
+
+@pytest.mark.asyncio
+async def test_chassis_feedback_reaches_driver_without_renewing_control(setup, monkeypatch):
+    from rd_core.settings import DrivingSettings, VehicleSettings
+    from rd_driving.app.control_client import DrivingControlClient
+    from rd_vehicle.application.control_client import VehicleControlClient
+    from rd_vehicle.infrastructure.controller.vehicle_feedback import FeedbackSample
+
+    registry, peers, clock, _ = setup
+    await registry.acquire(peers["driver"])
+    lease = registry.leases[42]
+    clock_api = SimpleNamespace(monotonic=lambda: clock.mono,
+                               time_ns=lambda: int(clock.wall * 1_000_000_000))
+    monkeypatch.setattr("rd_vehicle.application.control_client.time", clock_api)
+    monkeypatch.setattr("rd_driving.app.control_client.time", clock_api)
+    reports = []
+    driver = DrivingControlClient(DrivingSettings(session=42), None,
+                                 on_vehicle_status=lambda *args: reports.append(args))
+    driver.epoch = lease.epoch
+    driver._generation = object()
+    monkeypatch.setattr(driver, "_lease_picture_valid", lambda: True)
+    limits = dict(max_control_age_ms=300, max_clock_skew_ms=50)
+    driver.connection = SimpleNamespace(**limits)
+    sent = []
+    def deliver(data):
+        sent.append(data)
+        driver._datagram(driver._generation, data)
+    peers["driver"].send_datagram = deliver
+    status = VehicleStatus(3.5, -12.5, 3.0, None, 2, True, 7, False)
+    source = SimpleNamespace(sample=FeedbackSample(status, int(clock.wall * 1000), clock.mono, 1))
+    source.latest = lambda: source.sample
+    vehicle = VehicleControlClient(VehicleSettings(session=42), SimpleNamespace(feedback=source))
+    vehicle.epoch = lease.epoch
+    vehicle.connection = SimpleNamespace(protocol=SimpleNamespace(
+        rpc_ready=True, send_datagram=lambda data: registry.route(peers["vehicle"], data)), **limits)
+    deadline = lease.deadline
+    assert vehicle._publish_feedback()
+    assert reports[0][0].payload == status
+    assert reports[0][1] == pytest.approx(clock.mono + 0.25)
+    assert lease.deadline == deadline
+    assert not vehicle._publish_feedback()  # Cached samples never gain new sequence/time.
+    packet = Packet.decode(sent[-1])
+    assert not registry.route(peers["driver"], packet.encode())
+    assert not registry.route(peers["vehicle"], packet.encode())
+    assert not registry.route(peers["vehicle"], replace(packet, seq=1, session=43).encode())
+    assert not registry.route(peers["vehicle"], replace(packet, seq=1,
+                              source_time_ms=packet.source_time_ms - 300).encode())
+    # The receiver also rejects stale, duplicate, future and wrong-generation data.
+    for invalid in (packet, replace(packet, seq=2, source_time_ms=packet.source_time_ms-300),
+                    replace(packet, seq=2, source_time_ms=packet.source_time_ms+100)):
+        driver._datagram(driver._generation, invalid.encode())
+    driver._datagram(object(), replace(packet, seq=2).encode())
+    assert len(reports) == 1
+    clock.wall += 0.1
+    clock.mono += 0.1
+    source.sample = replace(source.sample, source_time_ms=int(clock.wall*1000), revision=2)
+    assert vehicle._publish_feedback()
+    assert reports[-1][0].seq == 1 and len(reports) == 2
+    assert lease.deadline == deadline
+    clock.wall += 0.3
+    source.sample = replace(source.sample, revision=3)
+    assert not vehicle._publish_feedback()
 
 
 def test_registration_checks_identity_role_scope_and_duplicate_vehicle(setup):

@@ -25,6 +25,7 @@ class DrivingInputService:
         on_status=None,
         on_execution=None,
         on_telemetry=None,
+        on_vehicle_status=None,
         device_factory=None,
         video_gate=None,
     ):
@@ -46,6 +47,7 @@ class DrivingInputService:
             on_status=self._control_status,
             on_execution=on_execution,
             on_telemetry=on_telemetry,
+            on_vehicle_status=on_vehicle_status,
             video_gate=video_gate,
         )
 
