@@ -2,6 +2,7 @@ import asyncio
 
 import pytest
 from rd_core.async_compat import async_timeout
+from rd_core.samples import RawInput
 from rd_core.settings import ClientNetworkSettings, DrivingSettings
 from rd_driving.app.input_service import DrivingInputService
 
@@ -37,6 +38,61 @@ async def until(predicate):
 
 
 @pytest.mark.asyncio
+async def test_gear_pulse_survives_release_before_command_is_read():
+    device = Device()
+    device.available = True
+    local_states = []
+    service = DrivingInputService(
+        DrivingSettings(), device_factory=lambda *args: device, on_local_input=local_states.append
+    )
+    task = asyncio.create_task(service._usb())
+
+    async def report(pedal, *, up=False, down=False):
+        data = bytearray(28)
+        data[:5] = bytes([0x20 * up + 0x10 * down, 0, 8, 64, pedal])
+        data[15] = 0xFF if down else 0
+        data[16] = 0xFF if up else 0
+        await device.callback(RawInput.capture(bytes(data)))
+
+    async def command():
+        sample = await asyncio.wait_for(service.processed.get(), 1)
+        assert sample.valid and sample.steering == -0.5
+        return sample.throttle, sample.brake
+
+    try:
+        await until(device.is_connected)
+        await report(64)
+        assert await command() == (0.5, 0)
+        assert local_states == [(False, False)]
+        await report(255)
+        assert await command() == (0, 1)
+
+        await report(128, down=True)
+        await report(128)
+        await report(64)
+        assert await command() == (-0.5, 0)
+        assert local_states == [(False, False), (False, True), (True, False)]
+        await report(255)
+        assert await command() == (0, 1)
+        assert local_states[-1] == (True, True)
+        await report(64, up=True, down=True)
+        assert await command() == (-0.5, 0)
+
+        await report(255, up=True)
+        assert await command() == (0, 1)
+        await report(64)
+        assert await command() == (0.5, 0)
+        await until(lambda: local_states[-1] is None)
+        await report(128)
+        assert local_states[-1] == (False, False)
+    finally:
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+    assert local_states[-1] is None
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize("connected_at_shutdown", [False, True])
 async def test_usb_attempts_only_at_startup_and_on_request(connected_at_shutdown):
     device = Device()
@@ -51,7 +107,7 @@ async def test_usb_attempts_only_at_startup_and_on_request(connected_at_shutdown
         await until(lambda: statuses[-1:] == [(False, "未连接")])
         await asyncio.sleep(0.05)
         assert device.attempts == 1
-        assert (await service.raw.get()).data is None
+        assert not (await service.processed.get()).valid
 
         # Repeated clicks result in exactly one additional attempt.
         assert service.request_usb_connect()
@@ -70,7 +126,7 @@ async def test_usb_attempts_only_at_startup_and_on_request(connected_at_shutdown
             # Unplug invalidates input, but never starts another probe.
             device.connected = False
             await until(lambda: statuses[-1] == (False, "未连接"))
-            assert (await service.raw.get()).data is None
+            assert not (await service.processed.get()).valid
             await asyncio.sleep(0.05)
             assert device.attempts == 3
     finally:

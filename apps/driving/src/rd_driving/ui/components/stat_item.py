@@ -80,13 +80,13 @@ class StatItem(QWidget):
             self._unit.deleteLater()  # 安全删除 Qt 对象
             self._unit = None
 
-    def apply_theme(self, theme: ITheme) -> None:
+    def apply_theme(self, theme: ITheme, *, prominent_label: bool = False) -> None:
         """应用主题，动态更新颜色"""
         self._theme = theme
         
         # 使用 try-except 防止主题对象属性缺失导致崩溃
         try:
-            label_color = theme.text_muted
+            label_color = theme.text_secondary if prominent_label else theme.text_muted
             value_color = theme.text_primary
             unit_color = theme.text_secondary
         except AttributeError:
@@ -95,7 +95,8 @@ class StatItem(QWidget):
 
         # 更新样式：只替换颜色部分，保留字体大小等其他属性
         # 这里采用重新设置完整 styleSheet 的方式以确保覆盖之前的硬编码颜色
-        self._label.setStyleSheet(f"color: {label_color}; font-size: 10px; text-transform: uppercase;")
+        label_size = 12 if prominent_label else 10
+        self._label.setStyleSheet(f"color: {label_color}; font-size: {label_size}px; text-transform: uppercase;")
         self._value.setStyleSheet(f"color: {value_color}; font-size: 20px; font-weight: bold;")
         
         if self._unit:

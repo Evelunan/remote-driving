@@ -5,6 +5,7 @@ class SignalBridge(QObject):
     """Qt 信号桥接器 - 用于线程间通信"""
 
     usb_status_changed = pyqtSignal(bool, str)
+    local_input_changed = pyqtSignal(object)
     quic_status_changed = pyqtSignal(bool, str)
     control_data_updated = pyqtSignal(float, float, float, float)
     control_confirmation_expired = pyqtSignal()

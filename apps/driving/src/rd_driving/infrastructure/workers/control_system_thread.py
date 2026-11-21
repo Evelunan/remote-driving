@@ -86,6 +86,7 @@ class ControlSystemThread(QThread):
         self.service = DrivingInputService(
             self.settings,
             on_usb=lambda *args: self._safe_emit("usb_status_changed", *args),
+            on_local_input=lambda state: self._safe_emit("local_input_changed", state),
             on_status=self._status,
             on_execution=self._execution,
             on_telemetry=self._telemetry,

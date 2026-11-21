@@ -51,11 +51,12 @@ class InputConfigManager:
         self.configs[InputType.RS] = InputConfig(
             InputType.RS, [1], expected_values=[0x08]
         )
+        # LT、RT 和挡杆各有独立字节：按下为 0xFF，松开为 0x00。
         self.configs[InputType.LT] = InputConfig(
-            InputType.LT, [0, 17], min_values=[0x40, 0x00], max_values=[0xFF, 0xFF]
+            InputType.LT, [17], expected_values=[0xFF]
         )
         self.configs[InputType.RT] = InputConfig(
-            InputType.RT, [0, 18], min_values=[0x80, 0x00], max_values=[0xFF, 0xFF]
+            InputType.RT, [18], expected_values=[0xFF]
         )
         self.configs[InputType.Y] = InputConfig(
             InputType.Y, [0, 11], expected_values=[0x01, 0xFF]
@@ -95,10 +96,10 @@ class InputConfigManager:
         
         # 挡杆配置
         self.configs[InputType.GEAR_UP] = InputConfig(
-            InputType.GEAR_UP, [0, 16], min_values=[0x20, 0x00], max_values=[0xFF, 0xFF]
+            InputType.GEAR_UP, [16], expected_values=[0xFF]
         )
         self.configs[InputType.GEAR_DOWN] = InputConfig(
-            InputType.GEAR_DOWN, [0, 15], min_values=[0x10, 0x00], max_values=[0xFF, 0xFF]
+            InputType.GEAR_DOWN, [15], expected_values=[0xFF]
         )
 
     def get_config(self, input_type: InputType) -> InputConfig:

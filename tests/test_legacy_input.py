@@ -1,3 +1,27 @@
+def test_trigger_and_gear_reports_recognize_only_the_pressed_button():
+    from rd_driving.infrastructure.communication import LatestValueQueue
+    from rd_driving.infrastructure.device import InputType
+    from rd_driving.infrastructure.processing import AnalogCalculator, DataProcessor
+
+    processor = DataProcessor(LatestValueQueue(), AnalogCalculator())
+    neutral = bytes.fromhex(
+        "00 00 08 80 80 80 80 00 00 00 00 00 00 00 "
+        "00 00 00 00 00 00 02 00 02 00 02 00 02 00"
+    )
+    assert not any(processor._process_digital(neutral).values())
+    for button, flag, index in [
+        (InputType.LT, 0x40, 17),
+        (InputType.RT, 0x80, 18),
+        (InputType.GEAR_UP, 0x20, 16),
+        (InputType.GEAR_DOWN, 0x10, 15),
+    ]:
+        packet = bytearray(neutral)
+        packet[0] = flag
+        packet[index] = 0xFF
+        states = processor._process_digital(bytes(packet))
+        assert {key for key, pressed in states.items() if pressed} == {button}
+
+
 def test_neutral_input_is_delivered_and_unplug_clears_online_state(legacy_python):
     legacy_python("driving", """
         import asyncio

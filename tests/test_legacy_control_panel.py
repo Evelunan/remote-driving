@@ -15,3 +15,35 @@ def test_panel_distinguishes_targets_from_unavailable_odometry(legacy_python):
         assert all(item.get_value() == '--' for item in panel._command_stats.values())
         panel.close()
     """)
+
+
+def test_local_gear_visible_without_vehicle_feedback(legacy_python):
+    legacy_python("driving", """
+        import os
+        os.environ['QT_QPA_PLATFORM'] = 'offscreen'
+        from PyQt6.QtWidgets import QApplication
+        from rd_driving.main_window import MainWindow
+        from rd_driving.infrastructure.processing.data_processor import LocalInputState
+
+        app = QApplication([])
+        window = MainWindow()
+        window._setup_control_page()
+        window._setup_signals()
+        window._services_running = True
+        panel = window._control_panel
+        def displayed():
+            return panel._gear.get_value(), panel._braking.get_value()
+
+        assert displayed() == ('--', '--')
+        window._bridge.local_input_changed.emit(LocalInputState(False, False))
+        assert displayed() == ('D 前进挡', '未触发')
+        window._bridge.local_input_changed.emit(LocalInputState(True, True))
+        window._bridge.control_confirmation_expired.emit()
+        assert displayed() == ('R 倒挡', '已触发')
+        window._bridge.local_input_changed.emit(LocalInputState(True, False))
+        assert displayed() == ('R 倒挡', '未触发')
+        window._bridge.usb_status_changed.emit(False, '未连接')
+        assert displayed() == ('--', '--')
+        window.close()
+        app.processEvents()
+    """)

@@ -110,6 +110,7 @@ class MainWindow(QMainWindow):
         generation = self._service_generation
         for signal, callback in (
             (self._bridge.usb_status_changed, self._on_usb_status_changed),
+            (self._bridge.local_input_changed, self._on_local_input_changed),
             (self._bridge.quic_status_changed, self._on_quic_status_changed),
             (self._bridge.control_data_updated, self._on_control_data_updated),
             (
@@ -160,6 +161,10 @@ class MainWindow(QMainWindow):
     def _on_usb_status_changed(self, ok: bool, text: str):
         if self._services_running and self._control_panel:
             self._control_panel.set_connection_status("usb", ok, text)
+
+    def _on_local_input_changed(self, state):
+        if self._control_panel is not None:
+            self._control_panel.set_local_input(state)
 
     def _on_quic_status_changed(self, ok: bool, text: str):
         if self._services_running and self._control_panel:
@@ -545,6 +550,8 @@ class MainWindow(QMainWindow):
         self.fb.clear()
         self.video_gate.invalidate("service_stopped")
         self._clear_feedback()
+        if self._control_panel is not None:
+            self._control_panel.set_local_input(None)
         self._login_page.setEnabled(False)
         self._control_page.setEnabled(False)
         for name in ("_frame_timer", "_stats_timer", "_time_timer"):

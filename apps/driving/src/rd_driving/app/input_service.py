@@ -21,6 +21,7 @@ class DrivingInputService:
         settings,
         *,
         on_usb=None,
+        on_local_input=None,
         on_status=None,
         on_execution=None,
         on_telemetry=None,
@@ -28,11 +29,13 @@ class DrivingInputService:
         video_gate=None,
     ):
         self.settings, self.on_usb = settings, on_usb
+        self.on_local_input = on_local_input
+        self._last_local_input = None
         self.on_status = on_status
         self._usb_online = False
         self._control_state, self._control_detail = "disconnected", ""
         self._device_factory = device_factory or USBConnector
-        self.raw, self.processed = LatestValueQueue(), LatestValueQueue()
+        self.processed = LatestValueQueue()
         self._usb_retry = asyncio.Event()
         self._usb_waiting = False
         self._control_task = None
@@ -60,6 +63,14 @@ class DrivingInputService:
         if self.on_status is not None:
             self.on_status(state, detail)
 
+    def _update_local_input(self, processor):
+        if self.on_local_input is None:
+            return
+        state = processor.local_input_state(self.settings.control.input_timeout_ms / 1000)
+        if state != self._last_local_input:
+            self._last_local_input = state
+            self.on_local_input(state)
+
     def request_usb_connect(self):
         """Request one attempt on the service loop; ignore busy/online clicks."""
         if not self._usb_waiting:
@@ -72,7 +83,14 @@ class DrivingInputService:
         device = self._device_factory(
             self.settings.usb.vendor_id, self.settings.usb.product_id
         )
-        device.set_data_callback(self.raw.put)
+        # Apply momentary gear selections before coalescing outgoing commands.
+        processor = DataProcessor(self.processed, AnalogCalculator())
+
+        async def process_input(sample):
+            await processor.process(sample)
+            self._update_local_input(processor)
+
+        device.set_data_callback(process_input)
         try:
             while True:
                 try:
@@ -81,13 +99,14 @@ class DrivingInputService:
                     self._usb_status(True, "已连接")
                     while device.is_connected():
                         await asyncio.sleep(0.1)
+                        self._update_local_input(processor)
                 except (ConnectionError, OSError) as exc:
                     logger.warning(
                         "Input device unavailable (%s); waiting for manual retry",
                         type(exc).__name__,
                     )
                 finally:
-                    await self.raw.put(RawInput.capture(None))
+                    await process_input(RawInput.capture(None))
                     await device.disconnect()
                 self._usb_waiting = True
                 self._usb_status(False, "未连接")
@@ -96,11 +115,6 @@ class DrivingInputService:
         finally:
             self._usb_waiting = False
             self._usb_status(False, "离线")
-
-    async def _process(self):
-        processor = DataProcessor(self.processed, AnalogCalculator())
-        while True:
-            await processor.process(await self.raw.get())
 
     def request_control_reconnect(self):
         """Restart only the control client, after its lease/connection cleanup."""
@@ -137,5 +151,4 @@ class DrivingInputService:
     async def run(self):
         async with TaskGroup() as tasks:
             tasks.create_task(self._usb(), name="driving-usb")
-            tasks.create_task(self._process(), name="driving-process-input")
             tasks.create_task(self._control(), name="driving-control")

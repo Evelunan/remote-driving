@@ -41,7 +41,18 @@ class ControlPanel(QFrame):
         # 外层布局（加内边距）
         outer_layout = QVBoxLayout(self)
         outer_layout.setContentsMargins(8, 8, 8, 8)
-        outer_layout.setSpacing(0)
+        outer_layout.setSpacing(8)
+
+        self._input_card = DataCard("驾驶端输入")
+        self._gear = StatItem("所选挡位")
+        self._braking = StatItem("制动状态")
+        input_grid = QGridLayout()
+        input_grid.setColumnStretch(0, 1)
+        input_grid.setColumnStretch(1, 1)
+        input_grid.addWidget(self._gear, 0, 0)
+        input_grid.addWidget(self._braking, 0, 1)
+        self._input_card.add_layout(input_grid)
+        outer_layout.addWidget(self._input_card)
 
         # 内部滚动区域
         self._scroll_area = QScrollArea()
@@ -198,6 +209,9 @@ class ControlPanel(QFrame):
         )
 
         # 卡片样式
+        self._input_card.apply_theme(theme)
+        self._gear.apply_theme(theme, prominent_label=True)
+        self._braking.apply_theme(theme, prominent_label=True)
         self._conn_card.apply_theme(theme)
 
         # 连接项样式
@@ -251,12 +265,22 @@ class ControlPanel(QFrame):
 
     # === 便捷方法 ===
 
+    def set_local_input(self, state):
+        if state is None:
+            self._gear.set_value(None)
+            self._braking.set_value(None)
+        else:
+            self._gear.set_value("R 倒挡" if state.reverse else "D 前进挡")
+            self._braking.set_value("已触发" if state.braking else "未触发")
+
     def set_connection_status(self, name: str, online: bool, text: str | None = None):
         """设置连接状态"""
         if name in self._connections:
             self._connections[name].set_status(online, text)
         if name == "usb":
             self._usb_connect_btn.setEnabled(not online and text == "未连接")
+            if not online:
+                self.set_local_input(None)
         elif name == "quic":
             self._action_buttons["quic"].setEnabled(text != "连接中")
 
