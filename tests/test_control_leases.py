@@ -95,6 +95,16 @@ def execution(packet, status=ExecutionStatus.EXECUTED):
     return replace(packet, payload=Execution(status, packet.source_time_ms + 1))
 
 
+@pytest.mark.parametrize("revision", ["vehicle-window/1", "video-bound/1"])
+def test_old_revision_requires_coordinated_upgrade(setup, revision):
+    registry, _, _, tokens = setup
+    with pytest.raises(RpcError, match="protocol_upgrade_required"):
+        registry.register(Peer(registry), {
+            "revision": revision, "token": tokens["DRIVER"],
+            "role": "driving", "session": 42,
+        })
+
+
 def test_registration_checks_identity_role_scope_and_duplicate_vehicle(setup):
     registry, peers, _, tokens = setup
     for params in (

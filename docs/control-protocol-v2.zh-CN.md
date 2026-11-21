@@ -36,6 +36,9 @@ TLS QUIC 的 ALPN 固定为 `rd-control/2`；完成握手后才处理业务消�
 | 2 EXECUTION | uint8 status、uint64 completed_at_ms | 执行结果；status=1 表示设备 API 完成，2 拒绝、3 控制器未启用、4 已失效；不是实测车速/停车 |
 | 3 TELEMETRY | float32 linear_mps、angular_radps | 来自传感器的真实测量；未接入传感器时不发送伪造值 |
 | 4 STOP_STATUS | uint8 requested、confirmed | 两字段只允许 0/1；请求与物理确认分开，没有真实反馈时 confirmed=0 |
+| 6 VEHICLE_STATUS | uint8 有效位掩码、四个 float32、四个 uint8 | 底盘车速 km/h、转向角 °、左右轮速 km/h、档位、自动驾驶使能、驾驶模式、刹车状态 |
+
+`VEHICLE_STATUS` 的掩码 bit 0..7 对应上述八个字段。未置位表示字段未知，线上占位值必须为 0，解码后为 `None`；已置位的两个布尔字段只允许 0/1。NaN/Inf 不进入协议，不能用无效字段占位冒充实测零。档位和模式保留底盘原始 uint8 编码。该消息不表示停车确认，旧 `TELEMETRY` 的线速度/角速度语义保持不变。
 
 精确匹配类型与长度，拒绝额外字节、未知版本、空 epoch、非法枚举、NaN/Inf 与越界值。固定向量和边界回归见 `tests/test_v2_wire.py`。Datagram 不保证送达，拥塞时同一连接只保留一个尚未发送的最新 Datagram；可靠注册、租约和停车请求不能依赖它保证送达。
 
@@ -49,7 +52,7 @@ TLS QUIC 的 ALPN 固定为 `rd-control/2`；完成握手后才处理业务消�
 
 ## 已实现的中继业务
 
-三端和共享包须配套升级到注册修订 `vehicle-window/1`。ALPN 保持 `rd-control/2`。旧版 `video-bound/1` 注册会收到 `protocol_upgrade_required`。
+三端和共享包须配套升级到注册修订 `vehicle-status/1`。ALPN 保持 `rd-control/2`。旧版 `video-bound/1` 和 `vehicle-window/1` 注册会收到 `protocol_upgrade_required`。
 
 注册 RPC 为 `register(token, role, session, revision)`；令牌确定身份，申报的角色必须与服务端配置相符。只有 driving/vehicle 角色可注册控制 session，viewer 即使拥有视频房间权限也不能控制。车端绑定独占，冲突连接不能覆盖已有绑定；同一连接不能二次注册切换身份。
 

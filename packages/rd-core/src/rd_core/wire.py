@@ -8,7 +8,7 @@ from uuid import UUID
 
 VERSION = 2
 ALPN = "rd-control/2"
-CONTROL_REVISION = "vehicle-window/1"
+CONTROL_REVISION = "vehicle-status/1"
 _HEADER = struct.Struct("!2sBBH16sIQ")
 
 
@@ -18,6 +18,7 @@ class Kind(IntEnum):
     TELEMETRY = 3
     STOP_STATUS = 4
     WINDOW = 5
+    VEHICLE_STATUS = 6
 
 
 class ExecutionStatus(IntEnum):
@@ -87,6 +88,41 @@ class Telemetry:
 
 
 @dataclass(frozen=True)
+class VehicleStatus:
+    """Chassis feedback; None means unavailable, never a measured zero.
+
+    Field order also defines validity-mask bits 0..7 on the wire.
+    Gear and mode are raw chassis uint8 codes, without inferred mappings.
+    """
+
+    speed_kmh: float | None = None
+    steering_deg: float | None = None
+    left_wheel_kmh: float | None = None
+    right_wheel_kmh: float | None = None
+    shift_level: int | None = None
+    is_autodrive: bool | None = None
+    drive_mode: int | None = None
+    p_status: bool | None = None
+
+    def validate(self):
+        for index, (name, value) in enumerate(vars(self).items()):
+            if value is None:
+                continue
+            if index < 4:
+                _finite(value)
+            elif name in ("is_autodrive", "p_status"):
+                if type(value) is not bool:
+                    raise ValueError("invalid chassis boolean")
+            else:
+                _uint(value, 8, name)
+
+    def wire_fields(self):
+        values = tuple(vars(self).values())
+        mask = sum(1 << index for index, value in enumerate(values) if value is not None)
+        return (mask, *(0 if value is None else value for value in values))
+
+
+@dataclass(frozen=True)
 class StopStatus:
     requested: bool
     confirmed: bool
@@ -104,6 +140,7 @@ _LAYOUTS = {
     Kind.WINDOW: (Window, struct.Struct("!16s")),
     Kind.TELEMETRY: (Telemetry, struct.Struct("!ff")),
     Kind.STOP_STATUS: (StopStatus, struct.Struct("!BB")),
+    Kind.VEHICLE_STATUS: (VehicleStatus, struct.Struct("!BffffBBBB")),
 }
 
 
@@ -113,7 +150,7 @@ class Packet:
     epoch: UUID
     seq: int
     source_time_ms: int
-    payload: Control | Execution | Telemetry | StopStatus | Window
+    payload: Control | Execution | Telemetry | StopStatus | Window | VehicleStatus
 
     @property
     def kind(self):
@@ -131,6 +168,8 @@ class Packet:
         kind = self.kind
         self.payload.validate()
         fields = tuple(vars(self.payload).values())
+        if kind == Kind.VEHICLE_STATUS:
+            fields = self.payload.wire_fields()
         try:
             return _HEADER.pack(
                 b"RD",
@@ -167,6 +206,19 @@ class Packet:
             if any(value not in (0, 1) for value in fields):
                 raise ValueError("invalid stop flags")
             fields = tuple(bool(value) for value in fields)
+        elif kind == Kind.VEHICLE_STATUS:
+            mask, *values = fields
+            _finite(*values[:4])
+            for index, value in enumerate(values):
+                if not mask & (1 << index):
+                    if value != 0:
+                        raise ValueError("nonzero unavailable chassis field")
+                    values[index] = None
+                elif index in (5, 7):
+                    if value not in (0, 1):
+                        raise ValueError("invalid chassis boolean")
+                    values[index] = bool(value)
+            fields = values
         payload = model(*fields)
         payload.validate()
         identifier = UUID(bytes=epoch)
