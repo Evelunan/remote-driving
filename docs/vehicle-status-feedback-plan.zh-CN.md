@@ -8,7 +8,7 @@
 
 - 基于当前仓库 `main` 的 `b17bcd7`（支持挡杆切换前进倒挡并显示制动状态）开发。
 - 开发分支：`codex/vehicle-status-feedback`，直接在当前仓库创建，不另建工作区。
-- 当前已开始按阶段实现；实际进度与验证结果见文末进度记录。
+- 软件实现与相关模拟回归已完成，尚未执行实车验收；实际进度与验证结果见文末记录。
 - 既有本地挡杆、制动输入显示和指令执行确认不能作为底盘实际状态反馈。
 
 ## 用户要求与操作边界
@@ -101,7 +101,23 @@
 | 1. 状态协议 | 已完成 | `760afef`；`VEHICLE_STATUS` 独立消息、八字段有效位、km/h 与 ° 单位；注册修订 `vehicle-status/1`；`test_vehicle_status_wire.py`、`test_v2_wire.py`、`test_control_leases.py` 共 55 项通过 |
 | 2. ROS 反馈采集 | 已完成 | `0548f0e`；反馈配置、订阅与执行器、线程安全快照、时间戳及无效字段处理；车速原值 km/h，轮速默认源单位 m/s；`test_vehicle_feedback.py`、`test_legacy_controllers.py`、`test_configuration.py`、协议测试共 84 项通过 |
 | 3. 状态回传 | 已完成 | `2d8021d`；独立限频回传任务、原始采样时间及剩余有效期、驾驶端独立序号；复用中继原有观测转发与鉴权；控制、反馈、设备重试、重连相关 70 项测试通过，含仅绑定回环动态端口的真实 QUIC 测试 |
-| 4. 驾驶端显示 | 已完成 | 主界面独立底盘反馈卡片、可展开诊断详情、原始编码和未知字段、原始有效期与断连清空；Qt、入口及退出相关 16 项测试通过，并检查 offscreen 截图。提交号见该阶段 Git 历史 |
-| 5. 文档与验收 | 待开发 | — |
+| 4. 驾驶端显示 | 已完成 | `de916a4`；主界面独立底盘反馈卡片、可展开诊断详情、原始编码和未知字段、原始有效期与断连清空；Qt、入口及退出相关 16 项测试通过，并检查 offscreen 截图 |
+| 5. 文档与验收 | 软件部分已完成 | 配置、使用、协议升级和人工验收说明已更新；隔离回归脚本 `scripts/test_vehicle_feedback.py`：158 passed、1 skipped，静态检查通过。实车验收待用户执行；提交号见该阶段 Git 历史 |
 
 接续开发时，先核对当前分支、未提交改动和以上进度，从第一个未完成阶段继续；每阶段记录实际提交号、测试命令及结果，并明确尚未执行的实车验收项。
+
+## 本次软件验证记录
+
+在仓库根目录执行：
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 .venv/bin/python scripts/test_vehicle_feedback.py
+```
+
+2026-11-21 结果：**158 passed、1 skipped**（Windows 专用控制台测试在 Linux 跳过），18.49 秒；随后 `ruff check --isolated --target-version py310 --select E9,F63,F7,F82 apps packages scripts tests` 通过。
+
+本次报告位于 `.rd-runtime/feedback-tests/run-4cwamlsy/pytest.xml`，生成产物不提交 Git。脚本每次使用新的项目内目录，保留报告且不清理其他任务的文件。测试范围包括协议、模拟 ROS 映射与退出、本机 QUIC、租约、输入、重连、Qt 反馈显示、入口与关闭回归。
+
+环境中 ROS pytest 插件自动加载曾因缺少 `lark` 失败，测试沙箱也曾拒绝创建本机 socket。已通过测试进程环境禁用插件自动加载、显式加载 `pytest_asyncio.plugin`，并在允许回环套接字的执行环境完成重跑；未安装依赖或更改系统网络设置。隔离脚本保留这些环境约定。
+
+尚未执行：真实 ROS 消息订阅、CAN 与底盘反馈对照、实际车速单位确认、转向角标定和真实桌面/驾驶外设联调。用户可按[车辆端状态反馈](../apps/vehicle/README.md#ros2-底盘状态反馈)自行验收；软件回归不能代替这些项目。

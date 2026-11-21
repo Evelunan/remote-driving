@@ -113,6 +113,50 @@ ros2 topic info /ecu --verbose --no-daemon
 
 依次确认 `/cmd_vel` 有实际输入、`/vehicle_status` 持续更新且自动驾驶状态允许输出，以及 `/ecu` 有底盘驱动订阅。节点数量和话题可见只说明通信端点被发现，不能作为实际停车或运动的确认。
 
+## ROS2 底盘状态反馈
+
+车辆端已支持订阅 `/vehicle_status`（`yunle_msgs/msg/VehicleStatus`），通过当前认证控制租约回传驾驶端。无需修改底盘工作区。`configs/vehicle.camera-map.yaml` 和 `configs/vehicle.yaml` 已启用以下配置，其余配置默认关闭：
+
+```yaml
+feedback:
+  enabled: true
+  topic: /vehicle_status
+  wheel_speed_unit: m/s
+  send_hz: 10
+  stale_timeout_ms: 300
+```
+
+回传车速、转向角、左右轮速、档位、自动驾驶使能、驾驶模式和刹车状态。车速 `cur_speed` 按用户约定暂以 km/h 原值接收；转向角使用 °。左右轮速源单位单独配置，当前默认 m/s，在本项目内乘 3.6 后传输与显示为 km/h。该配置不改变 `/cmd_vel` 的线速度 m/s 和角速度 rad/s。实际底盘车速单位仍待协议或实测确认。
+
+驾驶端将主要信息放在“底盘实际反馈”，轮速和模式放在“诊断详情”。档位和驾驶模式保留原始编码，未知字段显示 `--`；刹车状态不是车辆已停稳的物理确认。mock 控制器不会用目标指令伪造这些反馈。
+
+以下步骤由操作者执行，本次开发未启动真实 ROS 节点或实车程序：
+
+1. 配套升级服务端、车辆端、驾驶端及共享包，注册修订为 `vehicle-status/1`。旧 `vehicle-window/1` / `video-bound/1` 版本会被拒绝，不能混用；回退时恢复配套旧版本和旧配置。
+2. 按上文准备 ROS 和底盘环境；已有驱动时查询即可，不重复启动。检查消息定义、发布者和一次反馈：
+
+   ```bash
+   source /opt/ros/humble/setup.bash
+   source /home/akun/workspace/Car_jetson/real_ws/install/setup.bash
+   ros2 interface show yunle_msgs/msg/VehicleStatus
+   ros2 topic info /vehicle_status --verbose --no-daemon
+   timeout 5s ros2 topic echo /vehicle_status yunle_msgs/msg/VehicleStatus --once --no-daemon
+   ```
+
+3. 依照上文启动车辆端。日志应出现 `ROS chassis feedback subscribed`。依赖缺失时先确认已加载正确工作区，不在本项目任务中修改或构建底盘包。
+4. 驾驶端在主画面和新鲜中立输入允许取得当前控制租约后显示反馈；无需非零油门。未建立租约时，本地 ROS 有消息也不会独立回传给驾驶端。
+5. 对照同一次现场查询和界面，检查车速、转向角、反馈编码、使能、刹车和诊断轮速；区分外设“所选挡位”与底盘“反馈挡位”。消息时间必须有效；时钟偏差超过预算、字段无效或数据过期时应显示未知/过期。
+
+源消息的 `header.stamp` 为零、已过期、在未来或重复时不更新快照；没有新样本不会给缓存值重打时间戳。默认车端有效期 300 ms，中继和驾驶端还会扣除采样年龄及预留时钟偏差；Qt 界面在定时检查时清除过期值。仅在整条消息层面判断新鲜度，轮速若被底盘驱动内部缓存且仍为有限数值，本项目无法独立确认其采样时刻。
+
+软件回归使用模拟 ROS、Qt offscreen 和仅绑定回环动态端口的 QUIC 测试，不连接实车：
+
+```bash
+.venv/bin/python scripts/test_vehicle_feedback.py
+```
+
+脚本使用现有 `.venv`，关闭 pytest 插件自动加载，将所有临时文件、缓存、日志和测试报告写入项目内 `.rd-runtime/feedback-tests/run-*`，不安装依赖、不修改系统网络配置。需要允许本机回环 socket。开发进度和提交记录见[开发计划](../../docs/vehicle-status-feedback-plan.zh-CN.md)。
+
 ## 摄像头启动排查
 
 使用 `configs/vehicle.yaml` 启动时，媒体进程同时写终端和 `logs/vehicle/media/app.log`（自动轮转）。在仓库根目录用 PowerShell 执行 `Get-Content .\logs\vehicle\media\app.log -Tail 80 -Wait` 可跟踪各路启动。

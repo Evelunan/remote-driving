@@ -31,7 +31,7 @@ docs/
 
 ## 开发与回归
 
-车辆底盘状态回传的开发范围、单位约定、分阶段提交和测试隔离要求见[车辆状态回传开发计划](docs/vehicle-status-feedback-plan.zh-CN.md)。该功能尚未实现，后续进度在计划文档中记录。
+车辆底盘状态回传已接通 ROS 订阅、认证中继与驾驶端显示，软件模拟已验证，实车验收待执行。字段、单位、分阶段提交和测试隔离要求见[车辆状态回传开发计划](docs/vehicle-status-feedback-plan.zh-CN.md)，使用步骤见[车辆端状态反馈](apps/vehicle/README.md#ros2-底盘状态反馈)。
 
 ```bash
 # 目标机的 python3 --version 为 Python 3.10.12
