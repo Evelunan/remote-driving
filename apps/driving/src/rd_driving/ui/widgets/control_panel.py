@@ -158,7 +158,7 @@ class ControlPanel(QFrame):
         data: dict[str, StatItem] = {
             "fps": StatItem("帧率", "FPS"),
             "resolution": StatItem("分辨率", ""),
-            "latency": StatItem("画面延迟", "ms"),
+            "latency": StatItem("当前画面年龄", "ms"),
         }
         grid.addWidget(data["fps"], 0, 0)
         grid.addWidget(data["resolution"], 0, 1)

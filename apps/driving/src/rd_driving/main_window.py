@@ -50,6 +50,7 @@ class MainWindow(QMainWindow):
         self.video_gate = VideoGate(
             stale_frame_ms=self.settings.video.stale_frame_ms,
             recovery_ms=self.settings.video.recovery_ms,
+            max_capture_age_ms=self.settings.video.max_capture_age_ms,
         )
         self._session_id = session_id
         self._room = room
@@ -305,7 +306,7 @@ class MainWindow(QMainWindow):
                 previous.stop()
                 previous.deleteLater()
         self._frame_timer = QTimer(self)
-        self._frame_timer.timeout.connect(self._multi_video_widget.update)
+        self._frame_timer.timeout.connect(self._multi_video_widget.check_expiry)
         self._frame_timer.timeout.connect(self._expire_telemetry)
         self._frame_timer.start(self.settings.ui.frame_interval_ms)
 
@@ -376,7 +377,8 @@ class MainWindow(QMainWindow):
     def _start_video(self):
         self._media_generation += 1
         receiver = WebRTCReceiver(
-            self._room, self.settings.network, self.settings.credentials
+            self._room, self.settings.network, self.settings.credentials,
+            video_policy=self.settings.video,
         )
         generation = self.fb.begin_session()
         receiver.on_frame(

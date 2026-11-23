@@ -231,14 +231,14 @@ async def test_formal_vehicle_runtime_and_driving_input_execute_configured_value
     frames = {}
     sequence = 0
 
-    def frame_received(name, image, source):
+    def frame_received(name, image, source, captured_at):
         nonlocal sequence
         frames[name] = image.shape
         sequence += 1
         if name == "front":
-            gate.observe(sequence, time.monotonic(), source)
+            gate.observe(sequence, time.monotonic(), source, captured_at=captured_at)
 
-    receiver.on_frame(frame_received)
+    receiver.on_frame(frame_received, include_capture_time=True)
     stop = asyncio.Event()
     tasks = [
         asyncio.create_task(

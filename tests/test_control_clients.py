@@ -45,6 +45,7 @@ class Inputs:
                 self.video_sequence,
                 time.monotonic(),
                 VideoSource("vehicle", 42, "simulated-video"),
+                captured_at=time.monotonic(),
             )
             if self.enabled:
                 sample = ControlInput(

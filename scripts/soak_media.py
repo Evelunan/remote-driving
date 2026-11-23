@@ -66,9 +66,9 @@ class Observations(FrameBuffer):
         self.last_paint = {}
         self.errors = Counter()
 
-    def put(self, name, pixels, *, source):
+    def put(self, name, pixels, *, source, captured_at=None):
         with self.lock:
-            accepted = super().put(name, pixels, source=source)
+            accepted = super().put(name, pixels, source=source, captured_at=captured_at)
             if accepted:
                 self.received[name] += 1
                 self.associations[name, self.get(name).id] = source.peer_id
@@ -551,7 +551,7 @@ def main():
     widget.show()
     refresh = QTimer()
     refresh.setTimerType(Qt.TimerType.PreciseTimer)
-    refresh.timeout.connect(widget.update)
+    refresh.timeout.connect(widget.check_expiry)
     refresh.start(16)
     monitor = QTimer()
     monitor.timeout.connect(lambda: app.quit() if outcome.done() else None)

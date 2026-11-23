@@ -34,6 +34,14 @@ def test_clock_matches_each_views_rebased_pts_through_wrap_and_probe_loss(monkey
     assert capture("front", -10_000, 1_900) == pytest.approx(99.92)
     assert capture("back", 10_000, 12_000) == pytest.approx(99.82)
     assert capture("left", 0, 0) is None
+    assert clock.capture_time(
+        SimpleNamespace(track=SimpleNamespace(id="back"),
+                         _RTCRtpReceiver__timestamp_mapper=SimpleNamespace(_origin=10_000)),
+        12_000, conservative=True,
+    ) == pytest.approx(99.80)
+    clock.pending = round(99.8 * 1e9)
+    clock._reply(timing.PROBE.pack(clock.pending) + timing.ANCHOR.pack(1, 40_000))
+    assert capture("back", 10_000, 12_000) is None
     now += 6
     assert capture("back", 10_000, 12_000) is None
     clock._reply(message)  # delayed reply to the old probe cannot restore timing

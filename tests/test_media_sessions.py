@@ -376,3 +376,20 @@ def test_window_reconnect_waits_for_old_workers_without_blocking_gui(legacy_pyth
         assert window._closing_ready
     """,
     )
+
+
+def test_peer_recovery_requires_a_full_media_gap_and_persistently_late_primary():
+    from rd_core.settings import VideoSafetySettings
+    from rd_driving.infrastructure.video.webrtc_reciver import _MediaOutage
+
+    monitor = _MediaOutage(VideoSafetySettings())
+    assert not monitor.needs_reconnect("front", 9.95, 10.0)
+    for i in range(1, 20):
+        assert not monitor.needs_reconnect("left", None, 10 + i * 0.1)
+    assert not monitor.needs_reconnect("front", 10.0, 12.0)
+    assert not monitor.needs_reconnect("left", 13.0, 13.1)
+    assert not monitor.needs_reconnect("front", None, 13.3)
+    assert not monitor.needs_reconnect("front", 12.0, 13.4)
+    assert monitor.needs_reconnect("front", 12.0, 13.7)
+    assert not monitor.needs_reconnect("front", 13.75, 13.8)
+    assert not monitor.needs_reconnect("front", 12.5, 14.0)

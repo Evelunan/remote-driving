@@ -220,6 +220,87 @@ class LocalPublisher:
         self.tracks.invalidate(name)
 
 
+@pytest.mark.parametrize(
+    ("level", "sample_levels"), [("INFO", ["INFO"]), ("DEBUG", ["INFO", "DEBUG"])]
+)
+def test_capture_pacing_absorbs_timer_overshoot(monkeypatch, caplog, level, sample_levels):
+    from types import SimpleNamespace
+
+    from rd_vehicle.infrastructure.cameras import thread_camera
+
+    elapsed = 0.0
+    waits = 0
+    camera = TestCamera(32, 24, 60, "front")
+    pixels = np.zeros((24, 32, 3), np.uint8)
+
+    def read():
+        nonlocal elapsed
+        elapsed += 0.002
+        return pixels
+
+    def wait(delay):
+        nonlocal elapsed, waits
+        assert delay >= 0
+        elapsed += delay + 0.004
+        waits += 1
+
+    clock = SimpleNamespace(
+        perf_counter=lambda: elapsed, monotonic=lambda: int(elapsed * 64) / 64
+    )
+    monkeypatch.setattr(thread_camera, "time", clock)
+    camera._read = read
+    camera._stop = SimpleNamespace(is_set=lambda: waits >= 1260, wait=wait)
+    with caplog.at_level(level, logger=thread_camera.__name__):
+        camera._run()
+    assert camera.failure is None and camera.get_frame_count() == 1260
+    assert elapsed == pytest.approx(21.004)
+    samples = [r for r in caplog.records if "read_fps=" in r.msg]
+    assert [r.levelname for r in samples] == sample_levels
+    for sample in samples:
+        _, fps, frames, seconds, target, read_percent = sample.args
+        assert seconds >= 10 and frames / seconds == fps
+        assert fps == pytest.approx(target, abs=0.15)
+        assert read_percent == pytest.approx(100 * frames * 0.002 / seconds)
+
+
+@pytest.mark.asyncio
+async def test_two_reads_in_one_clock_tick_do_not_reopen_or_extend_primary_deadline():
+    from rd_core.settings import VideoSafetySettings
+
+    publisher = LocalPublisher()
+    health = []
+    camera = TestCamera(32, 24, 60, "front")
+    manager = MultiCameraManager(
+        publisher, video_policy=VideoSafetySettings(stale_frame_ms=150),
+        on_capture_health=health.append,
+    )
+    manager.add_camera(camera)
+    stamp = time.monotonic()
+    image = captured(1, at=stamp)
+    camera.get_snapshot = lambda: image
+    notice = _FrameNotification(asyncio.get_running_loop())
+    manager._running = True
+    worker = asyncio.create_task(manager._isolated_worker(camera, notice, True, False))
+    try:
+        async with async_timeout(1):
+            while publisher.count < 1:
+                await asyncio.sleep(0)
+            image = captured(2, at=stamp)
+            notice.event.set()
+            while publisher.count < 2 and not health:
+                await asyncio.sleep(0)
+            assert publisher.count == 2 and not health
+            while not health:
+                image = captured(image.sequence + 1, at=stamp)
+                notice.event.set()
+                await asyncio.sleep(0.01)
+            assert health == [False]
+    finally:
+        worker.cancel()
+        await asyncio.gather(worker, return_exceptions=True)
+        publisher.tracks.close()
+
+
 @pytest.mark.asyncio
 async def test_camera_manager_stop_freeze_resume_and_no_orphan_workers():
     for _ in range(3):
@@ -444,6 +525,30 @@ def test_usb_handle_opens_at_start_and_closes_on_owner_thread(
     assert camera.get_snapshot() is None
 
 
+def test_directshow_applies_mjpg_dimensions_after_setting_rate(monkeypatch):
+    from unittest.mock import Mock
+
+    from rd_vehicle.infrastructure.cameras import usb_camera
+
+    cv = usb_camera.cv2
+    camera = USBCamera(0, "front", width=1280, height=720, fps=60)
+    capture = Mock()
+    capture.get.return_value = cv.VideoWriter.fourcc(*"MJPG")
+    monkeypatch.setattr(cv, "VideoCapture", lambda *args: capture)
+    monkeypatch.setattr(usb_camera.platform, "system", lambda: "Windows")
+    camera._open()
+    try:
+        assert [c.args for c in capture.set.call_args_list] == [
+            (cv.CAP_PROP_BUFFERSIZE, 1),
+            (cv.CAP_PROP_FPS, 60),
+            (cv.CAP_PROP_FOURCC, cv.VideoWriter.fourcc(*"MJPG")),
+            (cv.CAP_PROP_FRAME_WIDTH, 1280),
+            (cv.CAP_PROP_FRAME_HEIGHT, 720),
+        ]
+    finally:
+        camera._close()
+
+
 @pytest.mark.asyncio
 async def test_streamer_peer_replacement_and_stop_during_listen():
     config = ClientNetworkSettings(signaling_url="ws://127.0.0.1:1")
@@ -479,6 +584,51 @@ async def test_streamer_peer_replacement_and_stop_during_listen():
     assert streamer.track_manager.sources["front"].closed
     with pytest.raises(RuntimeError, match="single-use"):
         await streamer.start()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("broken_view", ["front", "back"])
+async def test_isolated_camera_reopens_without_interrupting_healthy_track(broken_view):
+    from rd_core.settings import VideoSafetySettings
+    from rd_vehicle.application.capture_health import CaptureHealth
+
+    fail = False
+
+    class Intermittent(TestCamera):
+        def _read(self):
+            if fail:
+                raise OSError("simulated camera outage")
+            return super()._read()
+
+    publisher = LocalPublisher()
+    health = CaptureHealth()
+    manager = MultiCameraManager(
+        publisher, video_policy=VideoSafetySettings(), on_capture_health=health.update
+    )
+    healthy_view = "front" if broken_view == "back" else "back"
+    manager.add_camera(Intermittent(64, 48, 30, broken_view))
+    manager.add_camera(TestCamera(64, 48, 30, healthy_view))
+    tracks = publisher.tracks.create_tracks("viewer")
+    try:
+        await manager.start()
+        await asyncio.wait_for(tracks[broken_view].recv(), 2)
+        await asyncio.wait_for(tracks[healthy_view].recv(), 2)
+        revision = health.permit()
+        assert revision is not None
+        fail = True
+        async with async_timeout(2):
+            while health.permit() is not None:
+                await asyncio.sleep(0.01)
+        first = await asyncio.wait_for(tracks[healthy_view].recv(), 1)
+        second = await asyncio.wait_for(tracks[healthy_view].recv(), 1)
+        assert second.pts > first.pts
+        fail = False
+        await asyncio.wait_for(tracks[broken_view].recv(), 3)
+        assert health.permit() is not None and health.permit() != revision
+    finally:
+        await manager.stop()
+        publisher.tracks.close()
+    assert health.permit() is None
 
 
 @pytest.mark.asyncio

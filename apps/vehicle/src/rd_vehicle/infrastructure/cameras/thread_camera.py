@@ -91,10 +91,17 @@ class ThreadCamera(ICamera):
             self._open()
             stage = "capture"
             self._ready.set()
+            period = 1 / self.fps
+            next_read = time.perf_counter()
+            sample_start = next_read
+            sample_frames = 0
+            read_seconds = 0.0
+            sample_log_level = logging.INFO
             while not self._stop.is_set():
-                started = time.monotonic()
+                read_start = time.perf_counter()
                 frame = self._read()
                 captured_at = time.monotonic()
+                read_seconds += time.perf_counter() - read_start
                 if self._stop.is_set():
                     break
                 if frame is None:
@@ -107,8 +114,27 @@ class ThreadCamera(ICamera):
                         logger.info("Camera %s receiving frames", self.camera_name)
                         receiving = True
                     self.buffer.publish_owned(frame, captured_at=captured_at)
-                # Interruptible pacing, without busy waiting or catch-up bursts.
-                self._stop.wait(max(0, started + 1 / self.fps - time.monotonic()))
+                    sample_frames += 1
+                # Keep short timer overruns from accumulating across reads. A
+                # blocked driver consumes its slot; discard any missed periods.
+                now = time.perf_counter()
+                elapsed = now - sample_start
+                if elapsed >= 10:
+                    logger.log(
+                        sample_log_level,
+                        "Camera %s capture: read_fps=%.1f frames=%d interval_s=%.2f "
+                        "target_fps=%.1f in_read_pct=%.1f",
+                        self.camera_name,
+                        sample_frames / elapsed,
+                        sample_frames,
+                        elapsed,
+                        self.fps,
+                        100 * read_seconds / elapsed,
+                    )
+                    sample_log_level = logging.DEBUG
+                    sample_start, sample_frames, read_seconds = now, 0, 0.0
+                next_read = max(next_read + period, now)
+                self._stop.wait(next_read - now)
         except Exception as exc:  # noqa: BLE001 - capture failure crosses thread boundary
             self._failure = exc
             logger.error(

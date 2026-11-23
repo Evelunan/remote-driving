@@ -150,6 +150,7 @@ async def simulate(directory, motion_seconds):
                 sequence,
                 time.monotonic(),
                 VideoSource("sim-vehicle", 42, "simulated-video"),
+                captured_at=time.monotonic(),
             )
             if current["enabled"]:
                 sample = ControlInput(

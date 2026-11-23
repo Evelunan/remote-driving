@@ -38,6 +38,34 @@ class FrameBuffer:
         self._frames = {name: Frame() for name in self.positions}
         self._generation = 0
         self._lock = threading.Lock()
+        self._notify = None
+        self._pending = False
+
+    def set_notifier(self, callback):
+        with self._lock:
+            self._notify = callback
+            self._pending = False
+
+    def remove_notifier(self, callback):
+        with self._lock:
+            if self._notify == callback:
+                self._notify = None
+                self._pending = False
+
+    def consume_notification(self, callback):
+        with self._lock:
+            if self._notify != callback or not self._pending:
+                return False
+            self._pending = False
+            return True
+
+    def _changed(self):
+        with self._lock:
+            if self._notify is None or self._pending:
+                return
+            notify = self._notify
+            self._pending = True
+        notify()
 
     def begin_session(self):
         with self._lock:
@@ -46,7 +74,9 @@ class FrameBuffer:
                 name: Frame(id=frame.id + 1, generation=self._generation)
                 for name, frame in self._frames.items()
             }
-            return self._generation
+            generation = self._generation
+        self._changed()
+        return generation
 
     def clear(self):
         self.begin_session()
@@ -90,7 +120,8 @@ class FrameBuffer:
             self._frames[track_id] = Frame(
                 previous.id + 1, readonly, received_at, generation, source, captured_at
             )
-            return True
+        self._changed()
+        return True
 
     def invalidate_source(self, source, *, generation):
         with self._lock:
@@ -99,7 +130,8 @@ class FrameBuffer:
             for name, frame in self._frames.items():
                 if frame.source == source:
                     self._frames[name] = Frame(id=frame.id + 1, generation=generation)
-            return True
+        self._changed()
+        return True
 
     def get(self, position):
         with self._lock:

@@ -233,9 +233,10 @@ async def validate(args, cache, gate, interrupted):
                         views=views,
                     )
                     receiver.on_frame(
-                        lambda name, frame, source: cache.put(
-                            name, frame, source=source
-                        )
+                        lambda name, frame, source, captured_at: cache.put(
+                            name, frame, source=source, captured_at=captured_at
+                        ),
+                        include_capture_time=True,
                     )
 
                     def invalidate(source):
@@ -305,10 +306,11 @@ async def validate(args, cache, gate, interrupted):
                     throttle = 0.25
                     await until(lambda: controller.commands[-1][0] > 0)
                     old_epoch, old_publisher = driver.epoch, publisher.my_id
-                    started_fault = time.monotonic()
                     before_counts = cache.counts()
                     before_network = await network_snapshot(publisher, receiver)
                     report["udp_before_fault"] = shaper.snapshot()
+                    fault_event_index = len(controller.events)
+                    started_fault = time.monotonic()
                     if args.case == "turn-relay":
                         await duration(
                             args.seconds,
@@ -375,11 +377,12 @@ async def validate(args, cache, gate, interrupted):
                             timeout=5,
                         )
                         stopped = time.monotonic()
-                        first_zero = next(
-                            stamp
-                            for stamp, command in controller.events
-                            if stamp >= started_fault and command == (0, 0)
+                        first_zero_index = next(
+                            i
+                            for i in range(fault_event_index, len(controller.events))
+                            if controller.events[i][1] == (0, 0)
                         )
+                        first_zero = controller.events[first_zero_index][0]
                         report["fault_to_mock_zero_ms"] = (
                             first_zero - started_fault
                         ) * 1000
@@ -453,6 +456,13 @@ async def validate(args, cache, gate, interrupted):
                         except TimeoutError:
                             report["failure"] = {
                                 "phase": "media_recovery",
+                                "gate_reason": gate.snapshot().reason,
+                                "primary_capture_age_ms": (
+                                    round((time.monotonic() - capture_time) * 1000)
+                                    if (capture_time := cache.get("front").captured_at)
+                                    is not None
+                                    else None
+                                ),
                                 "elapsed_ms": (time.monotonic() - recovery) * 1000,
                                 "driver_armed": driver.armed,
                                 "mock_target": list(controller.commands[-1]),
@@ -473,7 +483,7 @@ async def validate(args, cache, gate, interrupted):
                             raise RuntimeError(
                                 "server restart reused publisher identity"
                             )
-                        held_start = time.monotonic()
+                        held_event_index = len(controller.events)
                         await duration(
                             0.75,
                             lambda: (
@@ -481,9 +491,7 @@ async def validate(args, cache, gate, interrupted):
                             ),
                         )
                         if any(
-                            v or w
-                            for stamp, (v, w) in controller.events
-                            if held_start <= stamp
+                            v or w for _, (v, w) in controller.events[held_event_index:]
                         ):
                             raise RuntimeError(
                                 "held input restored motion before neutral"
@@ -497,8 +505,7 @@ async def validate(args, cache, gate, interrupted):
                         report["new_epoch_after_fresh_neutral"] = True
                         if any(
                             v or w
-                            for stamp, (v, w) in controller.events
-                            if stamp >= first_zero
+                            for _, (v, w) in controller.events[first_zero_index + 1 :]
                         ):
                             raise RuntimeError(
                                 "motion resumed between failsafe and fresh-neutral recovery"
@@ -657,7 +664,7 @@ def main():
     timer.setTimerType(Qt.TimerType.PreciseTimer)
 
     def tick():
-        widget.update()
+        widget.check_expiry()
         if outcome.done():
             app.quit()
 

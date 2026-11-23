@@ -398,9 +398,14 @@ class VideoSafetySettings:
     primary_view: Literal["front", "back", "left", "right"] = "front"
     stale_frame_ms: int = 500
     recovery_ms: int = 500
+    max_capture_age_ms: int = 300
 
     def __post_init__(self):
-        _positive(stale_frame_ms=self.stale_frame_ms, recovery_ms=self.recovery_ms)
+        _positive(
+            stale_frame_ms=self.stale_frame_ms,
+            recovery_ms=self.recovery_ms,
+            max_capture_age_ms=self.max_capture_age_ms,
+        )
 
 
 @dataclass(frozen=True)

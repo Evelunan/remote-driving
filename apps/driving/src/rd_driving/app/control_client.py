@@ -42,6 +42,7 @@ class DrivingControlClient:
         self.video_gate = video_gate or VideoGate(
             stale_frame_ms=settings.video.stale_frame_ms,
             recovery_ms=settings.video.recovery_ms,
+            max_capture_age_ms=settings.video.max_capture_age_ms,
         )
         self._lease_video = None
         self.on_status, self.on_execution, self.on_telemetry = (

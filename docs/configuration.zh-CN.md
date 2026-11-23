@@ -53,6 +53,12 @@ rd-server --config /path/server.yaml --services signaling --set signaling.port=8
 - [vehicle.yaml](../configs/vehicle.yaml)：ROS2 模板，真实相机稳定路径需替换，`RD_VEHICLE_TOKEN`。
 - [vehicle.mock.yaml](../configs/vehicle.mock.yaml)：模拟控制器与四路合成相机；无需底盘/相机，仍需要真实的本地 TLS 和认证配置。
 
+**现场局域网实车**使用以下三份配置。
+
+| 服务端 | 驾驶端 | 车辆端（ROS2 底盘、四路摄像头） |
+| --- | --- | --- |
+| [server.lan.yaml](../configs/server.lan.yaml) | [driving.lan.yaml](../configs/driving.lan.yaml) | [vehicle.lan.yaml](../configs/vehicle.lan.yaml) |
+
 驾驶端 `--connect` 立即使用配置的 session/room，否则打开选择页面；同时提供两个便捷参数也会立即连接。车辆端 `--components control,media` 或单项选择模块；controller 为 none 时禁用控制、不注册、不生成 ACK，control-only + none 会在启动前拒绝。正式入口默认以父进程管理独立 control/media 子进程，单模块模式只启动所选子进程。详见[进程隔离](process-isolation.zh-CN.md)。
 
 两端 `--dump-config` 不加载 Qt、OpenCV、ROS，也不解析秘密；`--check-config` 校验所选模块的本地凭据/证书，车辆选 ROS2 时检查 rclpy 导入，不创建 ROS 节点，不打开 USB/相机/串口，不连接网络。依赖导入通过不意味着真实设备可用。

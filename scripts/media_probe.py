@@ -129,8 +129,8 @@ class Probe:
             "watermark_probe": ("callback", "identified"),
             "cache_publication": ("identified", "cached"),
             "cache_to_render": ("cached", "render_start"),
-            "qt_scale_pixmap": ("render_start", "render_end"),
-            "render_to_paint": ("render_end", "paint"),
+            "qt_frame_submission": ("render_start", "render_end"),
+            "submit_to_paint_complete": ("render_end", "paint"),
             "capture_to_receive": ("capture", "callback"),
             "capture_to_qt_paint": ("capture", "paint"),
         }
@@ -312,7 +312,7 @@ def measured_cache(probe):
             self.probe_lock = threading.RLock()
             self.last_sequence = {}
 
-        def put(self, name, pixels, *, source):
+        def put(self, name, pixels, *, source, captured_at=None):
             callback_at = time.monotonic()
             try:
                 key = identify(pixels)
@@ -339,7 +339,7 @@ def measured_cache(probe):
                 probe.mark(key, stage, timestamp)
             with self.probe_lock:
                 result = super().put(
-                    name, pixels, source=source, received_at=callback_at
+                    name, pixels, source=source, captured_at=captured_at, received_at=callback_at
                 )
                 self.associations[name, super().get(name).id] = key
                 while len(self.associations) > 1024:

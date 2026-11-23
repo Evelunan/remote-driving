@@ -62,7 +62,7 @@ def _log_component_failure(component, exception):
     visit(exception)
 
 
-async def _component_lifetime(settings, channel, runner):
+async def _component_lifetime(settings, channel, runner, capture_health=None):
     from rd_vehicle.main import run
 
     stop = asyncio.Event()
@@ -118,7 +118,11 @@ async def _component_lifetime(settings, channel, runner):
                     pass
 
             await run(
-                settings, stop, on_fault=fault, on_media_started=heartbeat_ready.set
+                settings,
+                stop,
+                on_fault=fault,
+                on_media_started=heartbeat_ready.set,
+                capture_health=capture_health,
             )
         else:
             await runner(settings, stop)
@@ -131,7 +135,7 @@ async def _component_lifetime(settings, channel, runner):
             signals.close()
 
 
-def _component_process(settings, channel, runner):
+def _component_process(settings, channel, runner, capture_health=None):
     # A console Ctrl+C is broadcast to the process group on Windows. The parent
     # owns that request and delivers EOF after entering its shutdown path.
     # Keep children alive through asyncio.run() cleanup, including repeat Ctrl+C.
@@ -142,7 +146,7 @@ def _component_process(settings, channel, runner):
         if directory is not None:
             directory = directory / settings.components[0]
         configure_logging(settings.logging.level, directory=directory)
-        asyncio.run(_component_lifetime(settings, channel, runner))
+        asyncio.run(_component_lifetime(settings, channel, runner, capture_health))
     except Exception as exc:  # noqa: BLE001 - process boundary; never log device payloads
         logger.error(
             "Vehicle %s failed (%s)", settings.components[0], type(exc).__name__
@@ -193,6 +197,7 @@ class VehicleProcesses:
         self.settings = settings
         self._runner = runner  # Importable simulation runner; never a CLI option.
         self.children = []
+        self._capture_health = None
         self.outcomes = []
         self._used = False
 
@@ -200,7 +205,13 @@ class VehicleProcesses:
         from rd_vehicle.main import active_components
 
         context = multiprocessing.get_context("spawn")
-        for component in active_components(self.settings):
+        from rd_vehicle.application.capture_health import CaptureHealth
+
+        components = active_components(self.settings)
+        # Spawned children open the shared semaphore after start() returns.
+        if "media" in components:
+            self._capture_health = CaptureHealth(context)
+        for component in components:
             parent, child = socket.socketpair()
             parent.setblocking(False)
             started = time.monotonic()
@@ -210,6 +221,7 @@ class VehicleProcesses:
                     replace(self.settings, components=(component,)),
                     child,
                     self._runner,
+                    self._capture_health,
                 ),
                 name=f"rd-vehicle-{component}",
             )

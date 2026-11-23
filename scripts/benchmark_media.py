@@ -282,7 +282,10 @@ async def run_case(args, probe, cache, gate, stop):
                 "benchmark", network, CredentialSettings("RD_BENCH_DRIVER"), views=views
             )
             receiver.on_frame(
-                lambda name, pixels, source: cache.put(name, pixels, source=source)
+                lambda name, pixels, source, captured_at: cache.put(
+                    name, pixels, source=source, captured_at=captured_at
+                ),
+                include_capture_time=True,
             )
 
             def invalidated(source):
@@ -530,7 +533,7 @@ def main():
     widget.show()
     refresh = QTimer()
     refresh.setTimerType(Qt.TimerType.PreciseTimer)
-    refresh.timeout.connect(widget.update)
+    refresh.timeout.connect(widget.check_expiry)
     refresh.start(16)
     last_tick = time.monotonic()
 

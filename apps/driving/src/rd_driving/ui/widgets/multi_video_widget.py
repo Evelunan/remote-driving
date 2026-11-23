@@ -1,17 +1,16 @@
 """
 多路视频布局组件
 
-支持三种布局模式：
+支持两种布局模式：
 - front_dominant: 前视主导，前视占上半部分，下方左/后/右三等分
 - grid: 2×2 等分网格
 """
 
-import time
 
+from PyQt6.QtCore import QObject, Qt, pyqtSignal, pyqtSlot
 from PyQt6.QtWidgets import (
     QFrame,
     QGridLayout,
-    QHBoxLayout,
     QSizePolicy,
     QVBoxLayout,
     QWidget,
@@ -49,6 +48,13 @@ _CONTAINER_STYLE = f"""
 """
 
 
+class _FrameWakeup(QObject):
+    ready = pyqtSignal()
+
+    def notify(self):
+        self.ready.emit()
+
+
 class MultiVideoWidget(QWidget):
     def __init__(
         self,
@@ -63,6 +69,11 @@ class MultiVideoWidget(QWidget):
         super().__init__(parent)
 
         self._fb = fb
+        # A pending producer callback keeps the signal owner alive during teardown.
+        self._wakeup = _FrameWakeup()
+        self._wakeup.ready.connect(
+            self._on_frames_ready, Qt.ConnectionType.QueuedConnection
+        )
         self._video_gate, self._primary_view = video_gate, primary_view
         if stale_frame_ms <= 0:
             raise ValueError("stale_frame_ms must be positive")
@@ -74,17 +85,26 @@ class MultiVideoWidget(QWidget):
         self._displays: dict[str, VideoDisplay] = {}
         for cam in CAMERA_NAMES:
             d = VideoDisplay(
-                scaling_mode="ultra_low_latency", debug_overlay=debug_overlay
+                scaling_mode="ultra_low_latency",
+                debug_overlay=debug_overlay,
+                view_label=DEFAULT_LABELS[cam],
             )
-            d.show_message(f"{DEFAULT_LABELS[cam]} - 等待视频流...")
+            d.show_message("等待视频流...")
             self._displays[cam] = d
 
-        # 主布局容器
-        self._root_layout = QVBoxLayout(self)
-        self._root_layout.setContentsMargins(0, 0, 0, 0)
-        self._root_layout.setSpacing(0)
-
-        # 默认构建前视主导布局
+        container = QFrame(self)
+        container.setStyleSheet(_CONTAINER_STYLE)
+        root = QVBoxLayout(self)
+        root.setContentsMargins(0, 0, 0, 0)
+        root.addWidget(container)
+        self._grid = QGridLayout(container)
+        self._grid.setContentsMargins(2, 2, 2, 2)
+        self._grid.setSpacing(2)
+        for column in range(6):
+            self._grid.setColumnStretch(column, 1)
+        self._cells = {
+            cam: self._wrap_in_frame(display) for cam, display in self._displays.items()
+        }
         self._apply_layout(LAYOUT_FRONT_DOMINANT)
 
     # ------------------------------------------------------------------ #
@@ -104,73 +124,34 @@ class MultiVideoWidget(QWidget):
         return frame
 
     # ------------------------------------------------------------------ #
-    #  布局构建（每次切换时重建）
-    # ------------------------------------------------------------------ #
-
-    def _clear_layout(self) -> None:
-        """清空主布局中的所有子控件"""
-        while self._root_layout.count():
-            item = self._root_layout.takeAt(0)
-            w = item.widget()
-            if w is not None:
-                w.setParent(None)
-
-    def _apply_layout(self, mode: str) -> None:
-        """根据模式重建布局"""
-        self._clear_layout()
-
-        # 外层带边框的容器
-        container = QWidget()
-        container.setSizePolicy(
-            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding
-        )
-        container.setStyleSheet(_CONTAINER_STYLE)
-
-        # 为每个 VideoDisplay 创建新的边框 frame
-        frames = {}
-        for cam in CAMERA_NAMES:
-            frames[cam] = self._wrap_in_frame(self._displays[cam])
-
-        if mode == LAYOUT_FRONT_DOMINANT:
-            self._build_front_dominant(container, frames)
-        elif mode == LAYOUT_GRID:
-            self._build_grid(container, frames)
-        else:
-            self._build_front_dominant(container, frames)
-
-        self._root_layout.addWidget(container)
-        self._layout_mode = mode
-
-    def _build_front_dominant(self, container: QWidget, frames: dict) -> None:
-        """前视主导布局：前视占上方约 62%，下方三等分显示左/后/右"""
-        layout = QVBoxLayout(container)
-        layout.setContentsMargins(2, 2, 2, 2)
-        layout.setSpacing(2)
-
-        layout.addWidget(frames["front"], stretch=3)
-
-        bottom = QWidget()
-        bottom_layout = QHBoxLayout(bottom)
-        bottom_layout.setContentsMargins(0, 0, 0, 0)
-        bottom_layout.setSpacing(2)
-        for cam in ("left", "back", "right"):
-            bottom_layout.addWidget(frames[cam])
-
-        layout.addWidget(bottom, stretch=2)
-
-    def _build_grid(self, container: QWidget, frames: dict) -> None:
-        """2×2 等分网格布局"""
-        layout = QGridLayout(container)
-        layout.setContentsMargins(2, 2, 2, 2)
-        layout.setSpacing(2)
-
-        order = [("front", 0, 0), ("back", 0, 1), ("left", 1, 0), ("right", 1, 1)]
-        for cam, row, col in order:
-            layout.addWidget(frames[cam], row, col)
-
-    # ------------------------------------------------------------------ #
     #  布局切换
     # ------------------------------------------------------------------ #
+
+    def _apply_layout(self, mode: str) -> None:
+        if mode == LAYOUT_GRID:
+            positions = (
+                ("front", 0, 0, 3),
+                ("back", 0, 3, 3),
+                ("left", 1, 0, 3),
+                ("right", 1, 3, 3),
+            )
+            row_weights = (1, 1)
+        else:
+            mode = LAYOUT_FRONT_DOMINANT
+            positions = (
+                ("front", 0, 0, 6),
+                ("left", 1, 0, 2),
+                ("back", 1, 2, 2),
+                ("right", 1, 4, 2),
+            )
+            row_weights = (3, 2)
+        for row, weight in enumerate(row_weights):
+            self._grid.setRowStretch(row, weight)
+        for name, row, column, span in positions:
+            cell = self._cells[name]
+            self._grid.removeWidget(cell)
+            self._grid.addWidget(cell, row, column, 1, span)
+        self._layout_mode = mode
 
     def set_layout(self, mode: str) -> None:
         """切换布局模式"""
@@ -182,23 +163,34 @@ class MultiVideoWidget(QWidget):
     #  帧刷新
     # ------------------------------------------------------------------ #
 
+    @pyqtSlot()
+    def _on_frames_ready(self):
+        if self._fb.consume_notification(self._wakeup.notify):
+            self.update()
+
+    def check_expiry(self):
+        self._refresh_frames(expiry_only=True)
+
     def update(self) -> None:
-        """从 FrameBuffer 拉取最新帧并更新各 VideoDisplay"""
-        now = time.monotonic()
+        self._refresh_frames(expiry_only=False)
+
+    def _refresh_frames(self, *, expiry_only):
         for cam in CAMERA_NAMES:
             frame = self._fb.get(cam)
             state = (
                 "waiting"
                 if frame is None or frame.frame is None
                 else "fresh"
-                if frame.fresh(self._stale_after_s, now=now)
+                if frame.fresh(self._stale_after_s)
                 else "stale"
             )
             if state == "fresh":
+                if expiry_only:
+                    continue
                 callback = None
                 if cam == self._primary_view and self._video_gate is not None:
                     callback = lambda f=frame: self._video_gate.observe(
-                        f.id, f.received_at, f.source
+                        f.id, f.received_at, f.source, captured_at=f.captured_at
                     )
                 self._displays[cam].update_frame(
                     frame.frame,
@@ -210,7 +202,7 @@ class MultiVideoWidget(QWidget):
                 if cam == self._primary_view and self._video_gate is not None:
                     self._video_gate.invalidate("picture_unavailable")
                 message = "接收画面已过期" if state == "stale" else "等待视频流..."
-                self._displays[cam].show_message(DEFAULT_LABELS[cam] + " - " + message)
+                self._displays[cam].show_message(message)
             self._availability[cam] = state
 
     def apply_theme(self, theme) -> None:
@@ -224,7 +216,13 @@ class MultiVideoWidget(QWidget):
         for display in self._displays.values():
             display.show_message(message)
 
+    def showEvent(self, event):
+        super().showEvent(event)
+        self._fb.set_notifier(self._wakeup.notify)
+        self.update()
+
     def hideEvent(self, event):
+        self._fb.remove_notifier(self._wakeup.notify)
         if self._video_gate is not None:
             self._video_gate.invalidate("picture_hidden")
         super().hideEvent(event)

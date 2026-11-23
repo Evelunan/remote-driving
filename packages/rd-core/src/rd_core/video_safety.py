@@ -47,15 +47,19 @@ class VideoGate:
     received_at is not a remote capture time or an end-to-end latency estimate.
     """
 
-    def __init__(self, *, stale_frame_ms=500, recovery_ms=500):
+    def __init__(self, *, stale_frame_ms=500, recovery_ms=500, max_capture_age_ms=300):
         if (
             not math.isfinite(stale_frame_ms)
             or stale_frame_ms <= 0
             or not math.isfinite(recovery_ms)
             or recovery_ms < 0
+            or not math.isfinite(max_capture_age_ms)
+            or max_capture_age_ms <= 0
         ):
             raise ValueError("invalid video freshness policy")
         self.max_age_s, self.recovery_s = stale_frame_ms / 1000, recovery_ms / 1000
+        self.capture_age_s = max_capture_age_ms / 1000
+        self._expires_at = None
         self._lock = threading.Lock()
         self._revision = 0
         self._source = None
@@ -67,7 +71,7 @@ class VideoGate:
 
     def _invalidate(self, reason):
         self._revision += 1
-        self._received_at = self._since = None
+        self._received_at = self._since = self._expires_at = None
         self._ready_at = 0.0
         self._reason = reason
 
@@ -79,11 +83,11 @@ class VideoGate:
     def _expire(self, now):
         if (
             self._received_at is not None
-            and not 0 <= now - self._received_at < self.max_age_s
+            and not self._received_at <= now < self._expires_at
         ):
             self._invalidate("picture_expired")
 
-    def observe(self, sequence, received_at, source, *, now=None):
+    def observe(self, sequence, received_at, source, *, captured_at=None, now=None):
         now = time.monotonic() if now is None else now
         if (
             type(sequence) is not int
@@ -91,7 +95,6 @@ class VideoGate:
             or not isinstance(source, VideoSource)
             or not math.isfinite(received_at)
             or not math.isfinite(now)
-            or not 0 <= now - received_at < self.max_age_s
         ):
             return False
         with self._lock:
@@ -99,11 +102,22 @@ class VideoGate:
             if source != self._source:
                 self._invalidate("source_changed")
                 self._source, self._sequence = source, -1
-            if sequence <= self._sequence or (
-                self._received_at is not None and received_at <= self._received_at
-            ):
+            if sequence <= self._sequence:
                 return False
-            self._sequence, self._received_at = sequence, received_at
+            self._sequence = sequence
+            if (
+                (self._received_at is not None and received_at < self._received_at)
+                or captured_at is None
+                or not math.isfinite(captured_at)
+                or not 0 <= now - captured_at < self.capture_age_s
+                or not 0 <= now - received_at < self.max_age_s
+            ):
+                self._invalidate("capture_unknown_or_expired")
+                return False
+            self._received_at = received_at
+            self._expires_at = min(
+                received_at + self.max_age_s, captured_at + self.capture_age_s
+            )
             if self._since is None:
                 self._since = now
             if not self._ready_at and now - self._since >= self.recovery_s:

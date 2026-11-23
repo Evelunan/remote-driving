@@ -17,27 +17,39 @@ def test_unique_pictures_recovery_outage_revision_and_source_replacement():
     source = VideoSource("vehicle", 42, "publisher")
     gate = VideoGate(stale_frame_ms=100, recovery_ms=50)
     assert not gate.snapshot(now=10).ready
-    assert gate.observe(1, 10, source, now=10)
+    assert gate.observe(1, 10, source, captured_at=10, now=10)
     assert not gate.snapshot(now=10.06).ready  # Time alone is not new picture evidence.
-    assert gate.observe(2, 10.06, source, now=10.06)
+    assert gate.observe(2, 10.06, source, captured_at=10.06, now=10.06)
     ready = gate.snapshot(now=10.06)
     assert ready.ready and ready.ready_at == 10.06
-    assert not gate.observe(2, 10.12, source, now=10.12)
+    assert not gate.observe(2, 10.12, source, captured_at=10.12, now=10.12)
     assert not gate.snapshot(now=10.17).ready
-    gate.observe(3, 10.18, source, now=10.18)
-    gate.observe(4, 10.24, source, now=10.24)
+    gate.observe(3, 10.18, source, captured_at=10.18, now=10.18)
+    gate.observe(4, 10.24, source, captured_at=10.24, now=10.24)
     recovered = gate.snapshot(now=10.24)
     assert recovered.ready and recovered.revision != ready.revision
     gate.invalidate("hidden")
-    assert not gate.observe(4, 10.25, source, now=10.25)
+    assert not gate.observe(4, 10.25, source, captured_at=10.25, now=10.25)
     assert not gate.observe(5, float("nan"), source, now=10.25)
-    assert not gate.observe(5, 11, source, now=10.25)
+    assert not gate.observe(5, 11, source, captured_at=11, now=10.25)
     replacement = VideoSource("vehicle", 42, "replacement-publisher")
-    gate.observe(1, 10.26, replacement, now=10.26)
+    gate.observe(1, 10.26, replacement, captured_at=10.26, now=10.26)
     assert not gate.snapshot(now=10.26).ready
-    gate.observe(2, 10.32, replacement, now=10.32)
+    gate.observe(2, 10.32, replacement, captured_at=10.32, now=10.32)
     gate.invalidate("old disconnect", source=source)
     assert gate.snapshot(now=10.32).ready
+
+
+def test_capture_deadline_expires_even_if_gui_stops_and_unknown_breaks_recovery():
+    gate = VideoGate(stale_frame_ms=500, max_capture_age_ms=150, recovery_ms=0)
+    source = VideoSource("vehicle", 42, "publisher")
+    assert gate.observe(1, 10, source, captured_at=9.90, now=10)
+    assert not gate.snapshot(now=10.06).ready
+    assert not gate.observe(2, 10.06, source, captured_at=9.7, now=10.06)
+    assert gate.observe(3, 10.07, source, captured_at=10.05, now=10.07)
+    # Two unique paints may share one Windows monotonic clock tick.
+    assert not gate.observe(4, 10.07, source, now=10.08)
+    assert not gate.snapshot(now=10.08).ready
 
 
 def test_only_completed_primary_qt_paints_allow_control_and_hidden_ui_expires(
@@ -53,6 +65,8 @@ def test_only_completed_primary_qt_paints_allow_control_and_hidden_ui_expires(
         from rd_core.video_safety import VideoGate, VideoSource
         from rd_driving.infrastructure.video.frame_buffer import FrameBuffer
         from rd_driving.ui.widgets.multi_video_widget import MultiVideoWidget
+        now = 10.0
+        time.monotonic = lambda: now
         app = QApplication([])
         gate = VideoGate(stale_frame_ms=100, recovery_ms=20)
         cache = FrameBuffer()
@@ -63,35 +77,35 @@ def test_only_completed_primary_qt_paints_allow_control_and_hidden_ui_expires(
         app.processEvents()
         pixels = np.zeros((64,96,3),dtype=np.uint8)
         def publish(view="front", paint=True):
-            cache.put(view,pixels,source=source)
+            cache.put(view,pixels,source=source,captured_at=time.monotonic())
             widget.update()
             if paint:
                 app.processEvents()
         publish(paint=False)
         assert not gate.snapshot().ready
         app.processEvents()
-        time.sleep(0.03)
+        now += 0.03
         publish()
         assert gate.snapshot().ready
-        time.sleep(0.12)  # No Qt event processing: control still observes the expiry.
+        now += 0.12  # No Qt event processing: control still observes the expiry.
         assert not gate.snapshot().ready
         for _ in range(3):
             publish("back")
-            time.sleep(0.02)
+            now += 0.02
         assert not gate.snapshot().ready
         publish()
-        time.sleep(0.03)
+        now += 0.03
         publish()
         assert gate.snapshot().ready
         widget.hide()
         assert not gate.snapshot().ready
         for _ in range(3):
             publish()
-            time.sleep(0.02)
+            now += 0.02
         assert not gate.snapshot().ready
         widget.show()
         publish()
-        time.sleep(0.03)
+        now += 0.03
         publish()
         assert gate.snapshot().ready
         widget.close()
@@ -168,7 +182,9 @@ def test_live_gui_media_and_control_revoke_on_hidden_picture_then_require_neutra
             deadline=time.monotonic()+timeout
             while not predicate():
                 assert not errors, errors
-                assert time.monotonic()<deadline, "GUI condition timed out"
+                if time.monotonic() >= deadline:
+                    service = window._control_thread.service
+                    raise AssertionError((window.video_gate.snapshot(), service._control_state, service._control_detail, service._usb_online))
                 app.processEvents()
                 time.sleep(0.005)
         try:
@@ -213,7 +229,7 @@ async def test_video_loss_during_acquire_cannot_reuse_recovered_picture_revision
 
     gate = VideoGate(recovery_ms=0)
     source = VideoSource("vehicle", 42, "publisher")
-    gate.observe(1, time.monotonic(), source)
+    gate.observe(1, time.monotonic(), source, captured_at=time.monotonic())
     entered, resume = asyncio.Event(), asyncio.Event()
     sent = []
 
@@ -240,7 +256,7 @@ async def test_video_loss_during_acquire_cannot_reuse_recovered_picture_revision
     task = asyncio.create_task(client._send_session())
     await entered.wait()
     gate.invalidate()
-    gate.observe(2, time.monotonic(), source)
+    gate.observe(2, time.monotonic(), source, captured_at=time.monotonic())
     resume.set()
     with pytest.raises(RpcError, match="primary_video_unavailable"):
         await task
@@ -298,7 +314,9 @@ async def test_real_control_requires_matching_live_video_and_neutral_after_recov
         while True:
             sequence += 1
             if live:
-                gate.observe(sequence, time.monotonic(), source)
+                gate.observe(
+                    sequence, time.monotonic(), source, captured_at=time.monotonic()
+                )
             if queue.full():
                 queue.get_nowait()
             queue.put_nowait(
@@ -356,6 +374,48 @@ async def test_real_control_requires_matching_live_video_and_neutral_after_recov
             task.cancel()
         await asyncio.gather(*tasks, return_exceptions=True)
         await server.stop()
+
+
+@pytest.mark.asyncio
+async def test_vehicle_retires_camera_bound_lease_even_after_rapid_recovery():
+    from unittest.mock import Mock
+
+    from rd_core.control import ControlState
+    from rd_core.settings import VehicleSettings
+    from rd_vehicle.application.capture_health import CaptureHealth
+    from rd_vehicle.application.control_client import VehicleControlClient
+
+    health = CaptureHealth()
+    vehicle = VehicleControlClient(
+        VehicleSettings(session=42), None, capture_health=health
+    )
+    vehicle.connection = SimpleNamespace(
+        max_control_age_ms=100, max_clock_skew_ms=10, protocol=Mock(rpc_ready=True)
+    )
+    vehicle.supervisor = Mock(state=ControlState.ACTIVE)
+    prepare = {
+        "session": 42,
+        "epoch": str(uuid4()),
+        "lease_ttl_ms": 500,
+        "max_control_age_ms": 100,
+        "max_clock_skew_ms": 10,
+    }
+    with pytest.raises(RpcError, match="vehicle_not_ready"):
+        await vehicle._request(None, "prepare_lease", prepare)
+    health.update(True)
+    await vehicle._request(None, "prepare_lease", prepare)
+    health.update(False)
+    health.update(True)
+    watch = asyncio.create_task(vehicle._watch())
+    try:
+        await asyncio.sleep(0)
+        assert vehicle.epoch is None
+        vehicle.supervisor.stop.assert_called_once_with(
+            "capture unavailable", epoch=prepare["epoch"]
+        )
+    finally:
+        watch.cancel()
+        await asyncio.gather(watch, return_exceptions=True)
 
 
 @pytest.mark.asyncio

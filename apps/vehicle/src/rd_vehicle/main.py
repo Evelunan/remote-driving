@@ -105,13 +105,13 @@ def _create_camera(settings):
     )
 
 
-async def start_control(settings, *, controller_factory=None):
+async def start_control(settings, *, controller_factory=None, capture_health=None):
     from rd_vehicle.application.control_client import VehicleControlClient
 
     controller = (controller_factory or _create_controller)(settings)
     if controller is None:
         raise ConfigError("control component requires a controller")
-    client = VehicleControlClient(settings, controller)
+    client = VehicleControlClient(settings, controller, capture_health=capture_health)
     await client.run()
 
 
@@ -138,7 +138,12 @@ def _configure_cameras(manager, settings, camera_factory):
 
 
 async def start_streaming(
-    settings, *, camera_factory=None, on_fault=None, on_started=None
+    settings,
+    *,
+    camera_factory=None,
+    on_fault=None,
+    on_started=None,
+    capture_health=None,
 ):
     from rd_vehicle.application.multi_camera_manager import MultiCameraManager
     from rd_vehicle.infrastructure.streams.webrtc_streamer import WebRTCStreamer
@@ -151,7 +156,10 @@ async def start_streaming(
         encoder_workers=settings.encoder_workers,
     )
     manager = MultiCameraManager(
-        streamer, video_policy=settings.video, on_fault=on_fault
+        streamer,
+        video_policy=settings.video,
+        on_fault=on_fault,
+        on_capture_health=capture_health.update if capture_health is not None else None,
     )
     try:
         _configure_cameras(manager, settings, camera_factory or _create_camera)
@@ -177,6 +185,7 @@ async def run(
     install_signals=False,
     on_fault=None,
     on_media_started=None,
+    capture_health=None,
 ):
     """In-process component host; the production CLI owns separate spawned hosts."""
     check_config(settings)
@@ -190,10 +199,18 @@ async def run(
     stopped = None
     try:
         components = active_components(settings)
+        if "media" in components and capture_health is None:
+            from rd_vehicle.application.capture_health import CaptureHealth
+
+            capture_health = CaptureHealth()
         if "control" in components:
             tasks.append(
                 asyncio.create_task(
-                    start_control(settings, controller_factory=controller_factory),
+                    start_control(
+                        settings,
+                        controller_factory=controller_factory,
+                        capture_health=capture_health,
+                    ),
                     name="vehicle-control",
                 )
             )
@@ -209,6 +226,7 @@ async def run(
                         camera_factory=camera_factory,
                         on_fault=on_fault,
                         on_started=on_media_started,
+                        capture_health=capture_health,
                     ),
                     name="vehicle-media",
                 )

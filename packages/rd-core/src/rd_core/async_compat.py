@@ -3,7 +3,8 @@
 import sys
 
 if sys.version_info >= (3, 11):
-    from asyncio import TaskGroup, timeout as async_timeout
+    from asyncio import Runner, TaskGroup
+    from asyncio import timeout as async_timeout
     from builtins import BaseExceptionGroup, ExceptionGroup
 else:
     import asyncio
@@ -11,7 +12,7 @@ else:
 
     from async_timeout import timeout
     from exceptiongroup import BaseExceptionGroup, ExceptionGroup
-    from taskgroup import TaskGroup
+    from taskgroup import Runner, TaskGroup
 
     @asynccontextmanager
     async def async_timeout(delay):
@@ -25,4 +26,4 @@ else:
                 raise TimeoutError from exc
             raise
 
-__all__ = ["BaseExceptionGroup", "ExceptionGroup", "TaskGroup", "async_timeout"]
+__all__ = ["BaseExceptionGroup", "ExceptionGroup", "Runner", "TaskGroup", "async_timeout"]

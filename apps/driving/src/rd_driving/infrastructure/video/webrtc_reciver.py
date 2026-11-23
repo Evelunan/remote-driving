@@ -1,9 +1,11 @@
 """Authenticated media receiver with owned, generation-scoped decode tasks."""
 
+import time
 
 from aiortc import RTCSessionDescription
 from aiortc.mediastreams import MediaStreamError
 from rd_core.async_compat import async_timeout
+from rd_core.settings import VideoSafetySettings
 from rd_core.video_safety import VideoSource
 from rd_webrtc.session import MediaSession
 from rd_webrtc.video_timing import ReceiverTiming
@@ -22,11 +24,50 @@ class VideoStatus:
     ERROR = "error"
 
 
+class _MediaOutage:
+    """Recover an established peer if a full outage leaves its primary stream delayed."""
+
+    def __init__(self, policy):
+        self.policy = policy
+        self.last_delivery = None
+        self.resumed_at = None
+        self.had_fresh_primary = False
+
+    def needs_reconnect(self, view, captured_at, now):
+        timeout = self.policy.stale_frame_ms / 1000
+        if (
+            self.had_fresh_primary
+            and self.last_delivery is not None
+            and now - self.last_delivery >= timeout
+        ):
+            self.resumed_at = now
+        self.last_delivery = now
+        if view != self.policy.primary_view or captured_at is None:
+            return False
+        age = now - captured_at
+        if 0 <= age < self.policy.max_capture_age_ms / 1000:
+            self.had_fresh_primary = True
+            self.resumed_at = None
+            return False
+        return (
+            self.resumed_at is not None
+            and age >= self.policy.max_capture_age_ms / 1000
+            and now - self.resumed_at >= max(timeout, self.policy.recovery_ms / 1000)
+        )
+
+
 class WebRTCReceiver(MediaSession):
     def __init__(
-        self, room, network, credentials, *, views=("front", "back", "left", "right")
+        self,
+        room,
+        network,
+        credentials,
+        *,
+        views=("front", "back", "left", "right"),
+        video_policy=None,
     ):
         super().__init__(room, network, credentials)
+        self._video_policy = video_policy or VideoSafetySettings()
         self._on_frame = None
         self._include_capture_time = False
         self._on_invalidate = None
@@ -65,6 +106,7 @@ class WebRTCReceiver(MediaSession):
         peer = await super()._create_peer(peer_id)
         self._track_ids[peer] = set()
         timing = ReceiverTiming()
+        outage = _MediaOutage(self._video_policy)
         peer.pc.on("datachannel", timing.attach)
 
         @peer.pc.on("track")
@@ -82,12 +124,12 @@ class WebRTCReceiver(MediaSession):
                 return
             self._track_ids[peer].add(track.id)
             self._spawn_peer_task(
-                peer_id, peer, self._recv_track(peer_id, peer, track, timing)
+                peer_id, peer, self._recv_track(peer_id, peer, track, timing, outage)
             )
 
         return peer
 
-    async def _recv_track(self, peer_id, peer, track, timing=None):
+    async def _recv_track(self, peer_id, peer, track, timing=None, outage=None):
         first = True
         last_pts = None
         receiver = (
@@ -112,10 +154,18 @@ class WebRTCReceiver(MediaSession):
                 if self._on_frame is not None:
                     if self._include_capture_time:
                         captured_at = (
-                            timing.capture_time(receiver, frame.pts)
+                            timing.capture_time(receiver, frame.pts, conservative=True)
                             if receiver is not None
                             else None
                         )
+                        if outage is not None and outage.needs_reconnect(
+                            track.id, captured_at, time.monotonic()
+                        ):
+                            self._emit_status(
+                                "connecting", "媒体中断后主画面持续滞后，正在重连"
+                            )
+                            self._schedule_cleanup(peer_id, peer)
+                            return
                         self._on_frame(track.id, pixels, source, captured_at)
                     else:
                         self._on_frame(track.id, pixels, source)

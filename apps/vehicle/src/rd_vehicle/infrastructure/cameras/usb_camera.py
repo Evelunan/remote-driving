@@ -57,12 +57,17 @@ class USBCamera(ThreadCamera):
             raise RuntimeError("cannot open configured camera")
         self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
         mjpg = cv2.VideoWriter.fourcc(*"MJPG")
-        if backend != cv2.CAP_DSHOW:
-            self.cap.set(cv2.CAP_PROP_FOURCC, mjpg)
+        if backend == cv2.CAP_DSHOW:
+            # OpenCV's DirectShow FPS setter can rebuild the graph without the
+            # FourCC. Stage MJPG before the width/height pair commits the format.
+            self.cap.set(cv2.CAP_PROP_FPS, self.fps)
+        self.cap.set(cv2.CAP_PROP_FOURCC, mjpg)
         self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.width)
         self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.height)
-        self.cap.set(cv2.CAP_PROP_FPS, self.fps)
-        if backend == cv2.CAP_DSHOW:
+        if backend != cv2.CAP_DSHOW:
+            self.cap.set(cv2.CAP_PROP_FPS, self.fps)
+        elif self.cap.get(cv2.CAP_PROP_FOURCC) != mjpg:
+            # Some drivers switch back to YUY2 on resize.
             self.cap.set(cv2.CAP_PROP_FOURCC, mjpg)
         fourcc = int(self.cap.get(cv2.CAP_PROP_FOURCC))
         raw_code = (fourcc & 0xFFFFFFFF).to_bytes(4, "little")

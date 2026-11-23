@@ -87,16 +87,14 @@ rd-vehicle → /cmd_vel（geometry_msgs/msg/Twist）
 
 4. **终端四：启用车辆端的 ROS2 控制器。**
 
-   先通过环境提供有效的 `RD_VEHICLE_TOKEN`，并核对配置的服务地址、CA、session、room、相机路径和运动限值。以下使用[四路相机配置](../../configs/vehicle.camera-map.yaml)，同时启动控制与视频；`--set controller=ros2` 覆盖本次启动的控制器选择，无需编辑 YAML。
+   先通过环境提供有效的 `RD_VEHICLE_TOKEN`，并核对配置的服务地址、CA、session、room、相机路径和运动限值。以下命令使用现场局域网配置，同时启动 ROS2 控制与四路视频。[车辆端局域网配置](../../configs/vehicle.lan.yaml)
 
    ```bash
    source /opt/ros/humble/setup.bash
    source /home/akun/workspace/Car_jetson/real_ws/install/setup.bash
    cd /home/akun/workspace/my-driving
 
-   .venv/bin/rd-vehicle \
-     --config configs/vehicle.camera-map.yaml \
-     --set controller=ros2
+   .venv/bin/rd-vehicle --config configs/vehicle.lan.yaml
    ```
 
    仅排查控制接口时，可在同一命令中增加 `--components control`，不打开摄像头。已有车辆端实例时，先结束旧实例再启动。返回终端二查询 `/cmd_vel`，单实例下预期新增发布节点 `cmd_vel_publisher`，发布者和转换器订阅者各为 `1`。

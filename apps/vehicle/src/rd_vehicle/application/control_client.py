@@ -31,9 +31,12 @@ class VehicleControlClient:
         *,
         on_status=None,
         independent_stop=None,
+        capture_health=None,
     ):
         self.settings, self.controller = settings, controller
         self.on_status, self.independent_stop = on_status, independent_stop
+        self.capture_health = capture_health
+        self._capture_revision = None
         self.supervisor = None
         self.connection = None
         self.epoch = None
@@ -119,6 +122,10 @@ class VehicleControlClient:
             or params["max_clock_skew_ms"] != self.connection.max_clock_skew_ms
         ):
             raise RpcError("invalid_lease_limits")
+        if self.capture_health is not None:
+            self._capture_revision = self.capture_health.permit()
+            if self._capture_revision is None:
+                raise RpcError("vehicle_not_ready")
         try:
             self.supervisor.begin_session(str(epoch))
         except (RuntimeError, ValueError):
@@ -154,6 +161,9 @@ class VehicleControlClient:
             or not isinstance(packet.payload, Control)
             or not is_newer(packet.seq, self._last_seq)
         ):
+            return
+        if self._capture_lost():
+            self._retire("capture unavailable")
             return
         deadline = self._windows.get(packet.payload.window)
         if deadline is None or time.monotonic() >= deadline:
@@ -238,10 +248,18 @@ class VehicleControlClient:
             )
             self._retire("execution failed")
 
+    def _capture_lost(self):
+        return (
+            self.capture_health is not None
+            and self.capture_health.permit() != self._capture_revision
+        )
+
     async def _watch(self):
         while True:
             if self.epoch is not None:
-                if (
+                if self._capture_lost():
+                    self._retire("capture unavailable")
+                elif (
                     self.supervisor.state == ControlState.FAILSAFE
                     or time.monotonic() >= self._lease_deadline
                 ):

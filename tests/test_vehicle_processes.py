@@ -238,12 +238,12 @@ async def test_spawned_control_and_media_execute_receive_video_and_clean_up(
     receiver = WebRTCReceiver("video", network, driving.credentials)
     frames = []
 
-    def received(name, pixels, source):
+    def received(name, pixels, source, captured_at):
         frames.append((name, pixels.shape))
         if name == "front":
-            gate.observe(len(frames), time.monotonic(), source)
+            gate.observe(len(frames), time.monotonic(), source, captured_at=captured_at)
 
-    receiver.on_frame(received)
+    receiver.on_frame(received, include_capture_time=True)
     axis = 0.0
 
     async def produce():

@@ -1,9 +1,11 @@
 """Qt adapter around the GUI-independent input and authenticated control service."""
 
 import asyncio
+import sys
 import threading
 
 from PyQt6.QtCore import QThread
+from rd_core.async_compat import Runner
 from rd_core.logging import get_logger
 from rd_driving.app.input_service import DrivingInputService
 
@@ -96,7 +98,10 @@ class ControlSystemThread(QThread):
 
     def run(self):
         try:
-            asyncio.run(self._main())
+            # The Windows Qt worker exchanges small UDP control packets continuously.
+            factory = asyncio.SelectorEventLoop if sys.platform == "win32" else None
+            with Runner(loop_factory=factory) as runner:
+                runner.run(self._main())
         except asyncio.CancelledError:
             pass
         except Exception as exc:  # noqa: BLE001 - thread boundary, sanitized diagnostics

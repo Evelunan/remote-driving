@@ -14,7 +14,7 @@ from rd_vehicle.main import _create_camera
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
-        "--config", type=Path, default=Path("configs/vehicle.camera-map.yaml")
+        "--config", type=Path, default=Path("configs/vehicle.lan.yaml")
     )
     parser.add_argument(
         "--backend",

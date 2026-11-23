@@ -3,7 +3,6 @@
 import struct
 import time
 
-
 CHANNEL = "rd-video-clock-v1"
 VIEWS = ("front", "back", "left", "right")
 RATE = 90_000
@@ -11,6 +10,7 @@ MASK = (1 << 32) - 1
 PROBE = struct.Struct("!Q")
 ANCHOR = struct.Struct("!BI")  # view index, RTP clock at the instant of reply
 SYNC_TTL = 5.0
+MAX_PROBE_ERROR_S = 0.050
 
 
 class PublisherTiming:
@@ -64,6 +64,7 @@ class ReceiverTiming:
         self.channel = None
         self.pending = None
         self.next_probe = 0
+        self.probe_error_s = 0.0
         self.sample_at = 0
         self.anchors = {}
 
@@ -86,7 +87,9 @@ class ReceiverTiming:
         self.pending = None
         # The midpoint estimates the instant of the remote reply. Its error
         # due to path asymmetry can be up to half the probe's round trip.
-        if not 0 <= now - sent < SYNC_TTL:
+        self.probe_error_s = (now - sent) / 2
+        if not 0 <= self.probe_error_s <= MAX_PROBE_ERROR_S:
+            self.anchors.clear()
             return
         self.sample_at = (sent + now) / 2
         self.anchors = {
@@ -95,7 +98,7 @@ class ReceiverTiming:
             if index < len(VIEWS)
         }
 
-    def capture_time(self, receiver, pts):
+    def capture_time(self, receiver, pts, *, conservative=False):
         """Return this decoded frame's capture time on the local monotonic clock."""
         channel = self.channel
         if channel is None or channel.readyState != "open":
@@ -121,4 +124,6 @@ class ReceiverTiming:
             return None
         delta = (pts + origin - anchor + (1 << 31)) & MASK
         captured_at = self.sample_at + (delta - (1 << 31)) / RATE
+        if conservative:
+            captured_at -= self.probe_error_s
         return captured_at if captured_at <= now else None

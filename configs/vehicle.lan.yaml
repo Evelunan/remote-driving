@@ -1,15 +1,25 @@
-# ROS2 实车接入模板。需现场校验设备路径、网络、限值和底盘安全接口后使用。
+# 现场局域网实车配置，使用 ROS2 底盘和四路摄像头。
+# 相机按 USB 拓扑路径定位，避免重启后 /dev/videoN 编号变化。
+#
+# 当前映射（前后已按现场反馈调整，左右待确认）：
+#   front -> video8  (USB 4.1，快照为货架/桌面)
+#   back  -> video0  (USB 1.1，快照为门口)
+#   left  -> video10 (USB 4.2，快照为椅子/货架)
+#   right -> video12 (USB 4.3，快照为显示器/桌面)
+#   video14 (USB 4.4，快照为地面/车体边缘) 暂作备用
+#
+# 五路普通摄像头中先发布四路；RealSense 的深度/红外节点不纳入本配置。
+# 设备原生输出为 MJPG 640x480@30。PyAV/FFmpeg-V4L2 四路并行实测约
+# 30.12 FPS；保留 OpenCV 后端作为显式回退选项。
 environment: production
 logging:
   level: INFO
-  directory: ../logs/vehicle
+  directory: ../logs/vehicle-camera-map
 session: 1234
 room: "1234"
-components: [control, media]
-controller: mock
-# 摄像头不足时可设 front；只补齐未配置 source 的视角，设备故障不会触发替代。
+components: [control,media]
+controller: ros2
 camera_fallback_source: null
-# null 保留 aiortc 原路径；按目标设备测量后可设 1..32，见配置说明。
 encoder_workers: null
 credentials:
   token_env: RD_VEHICLE_TOKEN
@@ -31,25 +41,29 @@ motion:
   max_angular_radps: 2.0
 cameras:
   - name: front
-    source: 0
+    source: "/dev/v4l/by-path/pci-0000:00:14.0-usb-0:4.1:1.0-video-index0"
+    width: 1080
+    height: 720
+    fps: 30
+    capture_backend: pyav
+  - name: back
+    source: "/dev/v4l/by-path/pci-0000:00:14.0-usb-0:1.1:1.0-video-index0"
     width: 640
     height: 480
     fps: 30
-  # - name: back
-  #   source: /dev/v4l/by-id/REPLACE_WITH_BACK_CAMERA
-  #   width: 640
-  #   height: 480
-  #   fps: 30
-  # - name: left
-  #   source: /dev/v4l/by-id/REPLACE_WITH_LEFT_CAMERA
-  #   width: 640
-  #   height: 480
-  #   fps: 30
-  # - name: right
-  #   source: /dev/v4l/by-id/REPLACE_WITH_RIGHT_CAMERA
-  #   width: 640
-  #   height: 480
-  #   fps: 30
+    capture_backend: pyav
+  - name: left
+    source: "/dev/v4l/by-path/pci-0000:00:14.0-usb-0:4.2:1.0-video-index0"
+    width: 640
+    height: 480
+    fps: 30
+    capture_backend: pyav
+  - name: right
+    source: "/dev/v4l/by-path/pci-0000:00:14.0-usb-0:4.3:1.0-video-index0"
+    width: 640
+    height: 480
+    fps: 30
+    capture_backend: pyav
 video:
   primary_view: front
   stale_frame_ms: 500
