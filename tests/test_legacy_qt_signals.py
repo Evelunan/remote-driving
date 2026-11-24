@@ -14,15 +14,15 @@ def test_control_worker_delivers_state_on_receivers_qt_thread(legacy_python):
         app = QCoreApplication([])
         received = []
         class Receiver(QObject):
-            @pyqtSlot(float, float, float, float)
-            def update(self, throttle, brake, steering, elapsed):
-                received.append((throttle, brake, steering, elapsed, QThread.currentThread()))
+            @pyqtSlot(dict)
+            def update(self, report):
+                received.append((report, QThread.currentThread()))
         receiver = Receiver()
         bridge = SignalBridge()
         bridge.control_data_updated.connect(receiver.update)
         worker = ControlSystemThread(bridge, DrivingSettings(session=42))
+        sample = ControlInput(0.01, 0.02, 0.03, time.monotonic(), time.time_ns() // 1_000_000)
         async def emit():
-            sample = ControlInput(0.01, 0.02, 0.03, time.monotonic(), time.time_ns() // 1_000_000)
             worker._execution(sample, None, 4.0)
         thread = threading.Thread(target=lambda: asyncio.run(emit()))
         thread.start()
@@ -32,6 +32,9 @@ def test_control_worker_delivers_state_on_receivers_qt_thread(legacy_python):
             time.sleep(0.005)
         thread.join(timeout=2)
         assert not thread.is_alive()
-        assert received == [(1.0, 2.0, 3.0, 4.0, app.thread())], received
+        assert len(received) == 1 and received[0][1] == app.thread()
+        report = received[0][0]
+        assert report['sample'] is sample and report['elapsed_ms'] == 4.0
+        assert report['deadline'] == sample.sampled_at + 0.3
     """,
     )

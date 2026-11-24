@@ -25,7 +25,7 @@ def test_chassis_display_units_unknown_fields_and_details(legacy_python):
         packet = Packet(1234, uuid4(), 0, sample.source_time_ms, sample.status)
         panel.set_vehicle_status(Packet.decode(packet.encode()).payload)
         values = {key: item.get_value() for key, item in panel._vehicle_stats.items()}
-        assert values == {'speed_mps': '3.5', 'steering_deg': '-15', 'shift_level': '255',
+        assert values == {'speed_mps': '3.5', 'steering_deg': '-15', 'shift_level': '未知（255）',
                           'is_autodrive': '未使能', 'p_status': '已触发',
                           'left_wheel_mps': '--', 'right_wheel_mps': '4.5', 'drive_mode': '7'}
         for key in ('speed_mps', 'left_wheel_mps', 'right_wheel_mps'):

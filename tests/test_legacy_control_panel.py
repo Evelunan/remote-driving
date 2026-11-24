@@ -35,19 +35,19 @@ def test_local_gear_visible_without_vehicle_feedback(legacy_python):
         window._services_running = True
         panel = window._control_panel
         def displayed():
-            return panel._gear.get_value(), panel._braking.get_value()
+            return panel._gear.get_value(), panel._input_stats['brake'].get_value()
         def state(reverse, braking):
             return LocalInputState(reverse, ControlInput(0, int(braking), 0,
                                    time.monotonic(), time.time_ns() // 1_000_000))
 
         assert displayed() == ('--', '--')
         window._bridge.local_input_changed.emit(state(False, False))
-        assert displayed() == ('D 前进挡', '未触发')
+        assert displayed() == ('D 前进挡', '0')
         window._bridge.local_input_changed.emit(state(True, True))
         window._bridge.control_confirmation_expired.emit()
-        assert displayed() == ('R 倒挡', '已触发')
+        assert displayed() == ('R 倒挡', '100')
         window._bridge.local_input_changed.emit(state(True, False))
-        assert displayed() == ('R 倒挡', '未触发')
+        assert displayed() == ('R 倒挡', '0')
         window._bridge.usb_status_changed.emit(False, '未连接')
         assert displayed() == ('--', '--')
         window.close()

@@ -45,17 +45,6 @@ class ControlPanel(QFrame):
         outer_layout.setContentsMargins(8, 8, 8, 8)
         outer_layout.setSpacing(8)
 
-        self._input_card = DataCard("驾驶端输入")
-        self._gear = StatItem("所选挡位")
-        self._braking = StatItem("制动状态")
-        input_grid = QGridLayout()
-        input_grid.setColumnStretch(0, 1)
-        input_grid.setColumnStretch(1, 1)
-        input_grid.addWidget(self._gear, 0, 0)
-        input_grid.addWidget(self._braking, 0, 1)
-        self._input_card.add_layout(input_grid)
-        outer_layout.addWidget(self._input_card)
-
         # 内部滚动区域
         self._scroll_area = QScrollArea()
         self._scroll_area.setWidgetResizable(True)
@@ -78,6 +67,9 @@ class ControlPanel(QFrame):
         self._layout = QVBoxLayout(self._panel)
         self._layout.setContentsMargins(0, 0, 4, 0)
         self._layout.setSpacing(16)
+
+        self._setup_local_input()
+        self._setup_vehicle_status()
 
         # === 连接状态卡片 ===
         self._conn_card = DataCard("系统连接")
@@ -113,31 +105,6 @@ class ControlPanel(QFrame):
 
         self._layout.addWidget(self._conn_card)
 
-        self._setup_vehicle_status()
-
-        self._command_card = DataCard("底盘接口执行确认")
-        self._command_stats: dict[str, StatItem] = {
-            "throttle": StatItem("油门目标", "%"),
-            "steering": StatItem("转向目标", "%"),
-            "brake": StatItem("制动输入", "%"),
-            "elapsed": StatItem("采样至确认", "ms"),
-        }
-
-        command_grid = QGridLayout()
-        command_grid.setSpacing(16)
-
-        command_grid.addWidget(self._command_stats["throttle"], 0, 0)
-        command_grid.addWidget(self._command_stats["steering"], 0, 1)
-        command_grid.addWidget(self._command_stats["brake"], 1, 0)
-        command_grid.addWidget(self._command_stats["elapsed"], 1, 1)
-
-        self._command_card.add_layout(command_grid)
-        self._measurement_note = QLabel("停车确认：尚未接入")
-        self._measurement_note.setWordWrap(True)
-        self._command_card.add_widget(self._measurement_note)
-        self.clear_command_status()
-        self._layout.addWidget(self._command_card)
-
         self.CAMERA_NAMES = ("front", "back", "left", "right")
 
         self.camera_cards: dict[str, DataCard] = {}
@@ -154,28 +121,79 @@ class ControlPanel(QFrame):
         self._scroll_area.setWidget(self._panel)
         outer_layout.addWidget(self._scroll_area)
 
+    def _setup_local_input(self):
+        self._input_card = DataCard("驾驶端输入")
+        self._gear = StatItem("所选挡位")
+        self._input_stats = {
+            "throttle": StatItem("油门输入", "%"),
+            "brake": StatItem("制动输入", "%"),
+            "steering": StatItem("转向输入", "%"),
+        }
+        grid = QGridLayout()
+        grid.setColumnStretch(0, 1)
+        grid.setColumnStretch(1, 1)
+        for index, widget in enumerate((self._gear, self._input_stats["steering"],
+                                        self._input_stats["throttle"], self._input_stats["brake"])):
+            grid.addWidget(widget, index // 2, index % 2)
+        self._input_card.add_layout(grid)
+        self._input_note = QLabel("输入：等待采样")
+        self._input_card.add_widget(self._input_note)
+        self._input_hint = QLabel("所选挡位决定后续行驶方向；当前制动输入转换为零速请求。")
+        self._input_hint.setWordWrap(True)
+        self._input_card.add_widget(self._input_hint)
+        self._layout.addWidget(self._input_card)
+
     def _setup_vehicle_status(self):
-        self._vehicle_card = DataCard("底盘实际反馈")
+        self._vehicle_card = DataCard("车辆反馈")
+        self._vehicle_heading = QLabel("底盘实际状态")
+        self._vehicle_card.add_widget(self._vehicle_heading)
         self._vehicle_stats = {
             "speed_mps": StatItem("车速", "m/s"),
             "steering_deg": StatItem("转向角", "°"),
-            "shift_level": StatItem("反馈挡位（原始编码）"),
+            "shift_level": StatItem("反馈挡位"),
             "is_autodrive": StatItem("自动驾驶使能"),
-            "p_status": StatItem("底盘刹车状态"),
+            "p_status": StatItem("底盘制动反馈"),
             "left_wheel_mps": StatItem("左轮速度", "m/s"),
             "right_wheel_mps": StatItem("右轮速度", "m/s"),
             "drive_mode": StatItem("驾驶模式（原始编码）"),
         }
+        self._vehicle_stats["shift_level"].setToolTip(
+            "1 为 D，3 为 R；2 在源码中为 N、底盘说明中为停止，不构成车辆已停稳的证明。"
+        )
+        self._vehicle_stats["p_status"].setToolTip(
+            "底盘返回的 p_status；与驾驶端的制动输入分别显示。"
+        )
         main = QGridLayout()
         main.setColumnStretch(0, 1)
         main.setColumnStretch(1, 1)
-        for index, key in enumerate(("speed_mps", "steering_deg", "shift_level",
-                                     "is_autodrive", "p_status")):
-            main.addWidget(self._vehicle_stats[key], index // 2, index % 2)
+        main.addWidget(self._vehicle_stats["speed_mps"], 0, 0)
+        main.addWidget(self._vehicle_stats["steering_deg"], 0, 1)
+        main.addWidget(self._vehicle_stats["shift_level"], 1, 0, 1, 2)
+        main.addWidget(self._vehicle_stats["is_autodrive"], 2, 0)
+        main.addWidget(self._vehicle_stats["p_status"], 2, 1)
         self._vehicle_card.add_layout(main)
         self._vehicle_note = QLabel()
         self._vehicle_note.setWordWrap(True)
         self._vehicle_card.add_widget(self._vehicle_note)
+        self._confirmation_heading = QLabel("指令确认")
+        self._vehicle_card.add_widget(self._confirmation_heading)
+        self._confirmation_state = StatItem("接口确认")
+        self._command_stats = {
+            "throttle": StatItem("已确认油门（含方向）", "%"),
+            "brake": StatItem("已确认制动输入", "%"),
+            "steering": StatItem("已确认转向输入", "%"),
+            "elapsed": StatItem("采样至确认", "ms"),
+        }
+        confirmation = QGridLayout()
+        confirmation.setColumnStretch(0, 1)
+        confirmation.setColumnStretch(1, 1)
+        confirmation.addWidget(self._confirmation_state, 0, 0)
+        confirmation.addWidget(self._command_stats["elapsed"], 0, 1)
+        self._vehicle_card.add_layout(confirmation)
+        self._confirmation_note = QLabel("接口调用完成，不代表底盘已执行或车辆已停稳。")
+        self._confirmation_note.setWordWrap(True)
+        self._vehicle_card.add_widget(self._confirmation_note)
+        self.clear_command_status()
         self._vehicle_details_button = QPushButton("诊断详情")
         self._vehicle_details_button.setCheckable(True)
         self._vehicle_card.add_widget(self._vehicle_details_button)
@@ -186,6 +204,11 @@ class ControlPanel(QFrame):
             details.addWidget(self._vehicle_stats[key], index // 2, index % 2)
         self._vehicle_details.setVisible(False)
         self._vehicle_details_button.toggled.connect(self._vehicle_details.setVisible)
+        for index, key in enumerate(("throttle", "brake", "steering")):
+            details.addWidget(self._command_stats[key], 2 + index // 2, index % 2)
+        self._measurement_note = QLabel("独立遥测：未接入；停车确认：未接入")
+        self._measurement_note.setWordWrap(True)
+        details.addWidget(self._measurement_note, 4, 0, 1, 2)
         self._vehicle_card.add_widget(self._vehicle_details)
         self.clear_vehicle_status()
         self._layout.addWidget(self._vehicle_card)
@@ -196,6 +219,10 @@ class ControlPanel(QFrame):
             if value is not None:
                 if key == "is_autodrive":
                     value = "已使能" if value else "未使能"
+                elif key == "shift_level":
+                    value = {1: "D 前进（1）", 2: "N／停止（2）", 3: "R 倒退（3）"}.get(
+                        value, f"未知（{value}）"
+                    )
                 elif key == "p_status":
                     value = "已触发" if value else "未触发"
             item.set_value(value)
@@ -268,10 +295,16 @@ class ControlPanel(QFrame):
         # 卡片样式
         self._input_card.apply_theme(theme)
         self._gear.apply_theme(theme, prominent_label=True)
-        self._braking.apply_theme(theme, prominent_label=True)
+        for item in self._input_stats.values():
+            item.apply_theme(theme, prominent_label=True)
+        self._input_note.setStyleSheet(f"color: {theme.text_secondary};")
+        self._input_hint.setStyleSheet(f"color: {theme.text_secondary};")
         self._conn_card.apply_theme(theme)
         self._vehicle_card.apply_theme(theme)
-        self._vehicle_note.setStyleSheet(f"color: {theme.text_secondary};")
+        for label in (self._vehicle_heading, self._confirmation_heading):
+            label.setStyleSheet(f"color: {theme.text_primary}; font-weight: bold;")
+        for label in (self._vehicle_note, self._confirmation_note, self._measurement_note):
+            label.setStyleSheet(f"color: {theme.text_secondary};")
         self._vehicle_details_button.setStyleSheet(
             f"QPushButton {{ color: {theme.text_primary}; border: 1px solid {theme.border};"
             " border-radius: 4px; padding: 4px; }"
@@ -283,7 +316,7 @@ class ControlPanel(QFrame):
         for conn in self._connections.values():
             conn.apply_theme(theme)
 
-        self._command_card.apply_theme(theme)
+        self._confirmation_state.apply_theme(theme)
         for item in self._command_stats.values():
             item.apply_theme(theme)
 
@@ -330,13 +363,18 @@ class ControlPanel(QFrame):
 
     # === 便捷方法 ===
 
-    def set_local_input(self, state):
+    def set_local_input(self, state, reason="输入：无效或已过期"):
         if state is None:
             self._gear.set_value(None)
-            self._braking.set_value(None)
+            for item in self._input_stats.values():
+                item.set_value(None)
+            self._input_note.setText(reason)
         else:
             self._gear.set_value("R 倒挡" if state.reverse else "D 前进挡")
-            self._braking.set_value("已触发" if state.braking else "未触发")
+            self._input_stats["throttle"].set_value(abs(state.sample.throttle) * 100)
+            self._input_stats["brake"].set_value(state.sample.brake * 100)
+            self._input_stats["steering"].set_value(state.sample.steering * 100)
+            self._input_note.setText("输入：有效")
 
     def set_connection_status(self, name: str, online: bool, text: str | None = None):
         """设置连接状态"""
@@ -345,18 +383,20 @@ class ControlPanel(QFrame):
         if name == "usb":
             self._usb_connect_btn.setEnabled(not online and text == "未连接")
             if not online:
-                self.set_local_input(None)
+                self.set_local_input(None, "输入：设备未连接")
         elif name == "quic":
             self._action_buttons["quic"].setEnabled(text != "连接中")
 
     def set_command_status(self, throttle, brake, steering, elapsed_ms):
+        self._confirmation_state.set_value("接口已确认")
         for key, value in zip(
             ("throttle", "brake", "steering", "elapsed"),
             (throttle, brake, steering, elapsed_ms),
         ):
             self._command_stats[key].set_value(value)
 
-    def clear_command_status(self):
+    def clear_command_status(self, reason="待确认"):
+        self._confirmation_state.set_value(reason)
         for item in self._command_stats.values():
             item.set_value("--")
 

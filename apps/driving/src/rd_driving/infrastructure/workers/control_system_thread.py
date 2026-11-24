@@ -60,13 +60,15 @@ class ControlSystemThread(QThread):
             self._safe_emit("control_confirmation_expired")
 
     def _execution(self, sample, execution, elapsed_ms):
-        self._safe_emit(
-            "control_data_updated",
-            sample.throttle * 100,
-            sample.brake * 100,
-            sample.steering * 100,
-            float(elapsed_ms),
-        )
+        budget_ms = self.settings.control.command_timeout_ms
+        connection = getattr(getattr(self.service, "client", None), "connection", None)
+        if connection is not None:
+            budget_ms = min(budget_ms, connection.max_control_age_ms)
+        self._safe_emit("control_data_updated", {
+            "sample": sample,
+            "elapsed_ms": float(elapsed_ms),
+            "deadline": sample.sampled_at + budget_ms / 1000,
+        })
 
     def _telemetry(self, packet):
         self._safe_emit(
