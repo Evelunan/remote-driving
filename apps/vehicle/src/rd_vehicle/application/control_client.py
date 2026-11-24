@@ -16,6 +16,7 @@ from rd_core.wire import (
     ExecutionStatus,
     Packet,
     Window,
+    conservative_age_ms,
 )
 from rd_quic.client import registered_connection
 from rd_quic.framing import RpcError
@@ -44,6 +45,8 @@ class VehicleControlClient:
         self._last_seq = None
         self._windows = OrderedDict()
         self._window_seq = 0
+        self._feedback_seq = 0
+        self._last_feedback_sample = None
         self._rx_log = SampledControlLog(logger)
         self._window_drop_log = SampledControlLog(logger)
         self._lease_deadline = 0
@@ -131,6 +134,7 @@ class VehicleControlClient:
         except (RuntimeError, ValueError):
             raise RpcError("device_not_ready") from None
         self.epoch, self._last_seq = epoch, None
+        self._feedback_seq, self._last_feedback_sample = 0, None
         self._lease_ttl_s = params["lease_ttl_ms"] / 1000
         self._lease_deadline = time.monotonic() + self._lease_ttl_s
         self._status("waiting_neutral")
@@ -254,6 +258,35 @@ class VehicleControlClient:
             and self.capture_health.permit() != self._capture_revision
         )
 
+    def _publish_feedback(self):
+        source = getattr(self.controller, "feedback", None)
+        if (source is None or self.epoch is None or self.connection is None
+                or not self.connection.protocol.rpc_ready):
+            return False
+        sample = source.latest()
+        if sample is None or sample.revision == self._last_feedback_sample:
+            return False
+        try:
+            conservative_age_ms(
+                sample.source_time_ms, time.time_ns() // 1_000_000,
+                max_age_ms=min(self.settings.feedback.stale_timeout_ms,
+                               self.connection.max_control_age_ms),
+                clock_skew_ms=self.connection.max_clock_skew_ms,
+            )
+            packet = Packet(self.settings.session, self.epoch, self._feedback_seq,
+                            sample.source_time_ms, sample.status)
+            self.connection.protocol.send_datagram(packet.encode())
+        except (ConnectionError, ValueError):
+            return False
+        self._last_feedback_sample = sample.revision
+        self._feedback_seq = (self._feedback_seq + 1) & 0xFFFFFFFF
+        return True
+
+    async def _feedback_watch(self):
+        while True:
+            self._publish_feedback()
+            await asyncio.sleep(1 / self.settings.feedback.send_hz)
+
     async def _watch(self):
         while True:
             if self.epoch is not None:
@@ -327,18 +360,22 @@ class VehicleControlClient:
                             self._watch(), name="vehicle-control-watch"
                         )
                         closed = asyncio.create_task(connection.protocol.wait_closed())
+                        feedback = asyncio.create_task(
+                            self._feedback_watch(), name="vehicle-feedback"
+                        )
+                        owned = (watch, closed, feedback)
                         try:
                             self._status("registered")
                             done, _ = await asyncio.wait(
-                                [watch, closed], return_when=asyncio.FIRST_COMPLETED
+                                owned, return_when=asyncio.FIRST_COMPLETED
                             )
                             for task in done:
                                 task.result()
                         finally:
                             self._retire("control session ended")
-                            for task in (watch, closed):
+                            for task in owned:
                                 task.cancel()
-                            await asyncio.gather(watch, closed, return_exceptions=True)
+                            await asyncio.gather(*owned, return_exceptions=True)
                 except (ConnectionError, OSError, TimeoutError, RpcError) as error:
                     if (
                         isinstance(error, RpcError)

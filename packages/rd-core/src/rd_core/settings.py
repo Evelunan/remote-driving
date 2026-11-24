@@ -409,6 +409,24 @@ class VideoSafetySettings:
 
 
 @dataclass(frozen=True)
+class VehicleFeedbackSettings:
+    enabled: bool = False
+    topic: str = "/vehicle_status"
+    wheel_speed_unit: Literal["m/s", "km/h"] = "m/s"
+    send_hz: float = 10.0
+    stale_timeout_ms: int = 300
+
+    def __post_init__(self):
+        _positive(send_hz=self.send_hz, stale_timeout_ms=self.stale_timeout_ms)
+        if self.send_hz > 50 or self.stale_timeout_ms > 10000:
+            raise ValueError("feedback rate/timeout exceeds supported limit")
+        if not self.topic.startswith("/") or not self.topic.strip("/"):
+            raise ValueError("feedback topic must be an absolute ROS topic")
+        if self.wheel_speed_unit not in ("m/s", "km/h"):
+            raise ValueError("unsupported wheel speed unit")
+
+
+@dataclass(frozen=True)
 class VehicleSettings:
     environment: Environment = "development"
     session: int = 1234
@@ -423,6 +441,7 @@ class VehicleSettings:
     network: ClientNetworkSettings = field(default_factory=ClientNetworkSettings)
     control: ControlSettings = field(default_factory=ControlSettings)
     motion: MotionSettings = field(default_factory=MotionSettings)
+    feedback: VehicleFeedbackSettings = field(default_factory=VehicleFeedbackSettings)
     serial: SerialSettings = field(default_factory=SerialSettings)
     cameras: tuple[CameraSettings, ...] = field(
         default_factory=lambda: (CameraSettings(source="synthetic"),)

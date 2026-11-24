@@ -15,7 +15,7 @@ from rd_core.settings import (
     VehicleSettings,
 )
 from rd_core.video_safety import VideoGate, VideoSource
-from rd_core.wire import CONTROL_REVISION
+from rd_core.wire import CONTROL_REVISION, VehicleStatus
 from rd_driving.app.control_client import DrivingControlClient
 from rd_vehicle.application.control_client import VehicleControlClient
 from rd_vehicle.infrastructure.controller.mock_controller import MockController
@@ -25,6 +25,62 @@ async def until(predicate, timeout=3):
     async with async_timeout(timeout):
         while not predicate():
             await asyncio.sleep(0.005)
+
+
+@pytest.mark.asyncio
+async def test_real_feedback_transport_keeps_units_and_never_repeats_stale_cache(
+    runtime_factory, client_settings
+):
+    from rd_vehicle.infrastructure.controller.vehicle_feedback import FeedbackSample
+
+    build, _ = runtime_factory
+    runtime = build()
+    await runtime.start()
+    port = runtime.services["relay"].listener._transport.get_extra_info("sockname")[1]
+    vehicle_settings, driving_settings = [
+        replace(settings, network=replace(settings.network, quic_port=port))
+        for settings in client_settings
+    ]
+    controller = MockController(vehicle_settings.motion)
+    source = SimpleNamespace(sample=None)
+    source.latest = lambda: source.sample
+    controller.feedback = source
+    status = VehicleStatus(3.5, -15, None, 4.5, 2, True, 7, False)
+    inputs, reports = Inputs(), []
+    vehicle = VehicleControlClient(vehicle_settings, controller)
+    driver = DrivingControlClient(driving_settings, inputs.queue,
+                                  video_gate=inputs.video_gate,
+                                  on_vehicle_status=lambda *args: reports.append(args))
+    tasks = [asyncio.create_task(vehicle.run()), asyncio.create_task(inputs.run()),
+             asyncio.create_task(driver.run())]
+    try:
+        await until(lambda: driver.armed)
+        source.sample = FeedbackSample(status, time.time_ns() // 1_000_000,
+                                       time.monotonic(), 1)
+        await until(lambda: len(reports) == 1)
+        packet, deadline = reports[0]
+        assert packet.payload == status
+        assert time.monotonic() < deadline <= time.monotonic() + 0.3
+        original_timestamp = packet.source_time_ms
+        await asyncio.sleep(0.35)
+        assert len(reports) == 1 and driver.armed
+        # Changing a revision without a new source timestamp cannot renew freshness.
+        source.sample = replace(source.sample, revision=2)
+        await asyncio.sleep(0.15)
+        assert len(reports) == 1
+        source.sample = FeedbackSample(replace(status, speed_mps=0, p_status=True),
+                                       time.time_ns() // 1_000_000, time.monotonic(), 3)
+        await until(lambda: len(reports) == 2)
+        assert reports[-1][0].payload.speed_mps == 0
+        assert reports[-1][0].source_time_ms > original_timestamp
+        assert reports[-1][0].payload.p_status is True
+    finally:
+        for task in tasks:
+            task.cancel()
+        await asyncio.gather(*tasks, return_exceptions=True)
+        await runtime.stop()
+    assert controller.closed
+    assert not [task for task in asyncio.all_tasks() if task.get_name() == "vehicle-feedback"]
 
 
 class Inputs:

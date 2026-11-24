@@ -62,13 +62,15 @@ class ControlSystemThread(QThread):
             self._safe_emit("control_confirmation_expired")
 
     def _execution(self, sample, execution, elapsed_ms):
-        self._safe_emit(
-            "control_data_updated",
-            sample.throttle * 100,
-            sample.brake * 100,
-            sample.steering * 100,
-            float(elapsed_ms),
-        )
+        budget_ms = self.settings.control.command_timeout_ms
+        connection = getattr(getattr(self.service, "client", None), "connection", None)
+        if connection is not None:
+            budget_ms = min(budget_ms, connection.max_control_age_ms)
+        self._safe_emit("control_data_updated", {
+            "sample": sample,
+            "elapsed_ms": float(elapsed_ms),
+            "deadline": sample.sampled_at + budget_ms / 1000,
+        })
 
     def _telemetry(self, packet):
         self._safe_emit(
@@ -79,6 +81,13 @@ class ControlSystemThread(QThread):
                 "source_time_ms": packet.source_time_ms,
             },
         )
+
+    def _vehicle_status(self, packet, deadline):
+        self._safe_emit("vehicle_status_updated", {
+            "status": packet.payload,
+            "source_time_ms": packet.source_time_ms,
+            "deadline": deadline,
+        })
 
     async def _main(self):
         self._loop = asyncio.get_running_loop()
@@ -92,6 +101,7 @@ class ControlSystemThread(QThread):
             on_status=self._status,
             on_execution=self._execution,
             on_telemetry=self._telemetry,
+            on_vehicle_status=self._vehicle_status,
             video_gate=self.video_gate,
         )
         await self.service.run()

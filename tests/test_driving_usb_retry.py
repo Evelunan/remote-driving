@@ -59,22 +59,31 @@ async def test_gear_pulse_survives_release_before_command_is_read():
         assert sample.valid and sample.steering == -0.5
         return sample.throttle, sample.brake
 
+    async def local_state(reverse, brake):
+        await until(lambda: local_states and local_states[-1] is not None
+                    and local_states[-1].reverse == reverse
+                    and local_states[-1].sample.brake == brake)
+        return local_states[-1]
+
     try:
         await until(device.is_connected)
         await report(64)
         assert await command() == (0.5, 0)
-        assert local_states == [(False, False)]
+        state = await local_state(False, 0)
+        assert state.sample.throttle == 0.5 and state.sample.steering == -0.5
+        assert state.sample.sampled_at > 0 and state.sample.timestamp_ms > 0
         await report(255)
         assert await command() == (0, 1)
+        assert (await local_state(False, 1)).braking
 
         await report(128, down=True)
         await report(128)
         await report(64)
         assert await command() == (-0.5, 0)
-        assert local_states == [(False, False), (False, True), (True, False)]
+        assert (await local_state(True, 0)).sample.throttle == -0.5
         await report(255)
         assert await command() == (0, 1)
-        assert local_states[-1] == (True, True)
+        assert (await local_state(True, 1)).braking
         await report(64, up=True, down=True)
         assert await command() == (-0.5, 0)
 
@@ -84,12 +93,41 @@ async def test_gear_pulse_survives_release_before_command_is_read():
         assert await command() == (0.5, 0)
         await until(lambda: local_states[-1] is None)
         await report(128)
-        assert local_states[-1] == (False, False)
+        await local_state(False, 0)
     finally:
         task.cancel()
         with pytest.raises(asyncio.CancelledError):
             await task
     assert local_states[-1] is None
+
+
+@pytest.mark.asyncio
+async def test_local_display_coalesces_burst_without_changing_command_capture():
+    import time
+
+    device = Device()
+    device.available = True
+    received = []
+    service = DrivingInputService(DrivingSettings(), device_factory=lambda *args: device,
+                                 on_local_input=received.append)
+    task = asyncio.create_task(service._usb())
+    try:
+        await until(device.is_connected)
+        for value in range(1, 65):
+            sample = RawInput(bytes([0, 0, 8, 128, value]), time.monotonic(), value)
+            await device.callback(sample)
+        # No Qt update per USB report; the command queue already has the newest sample.
+        assert received == []
+        command = await service.processed.get()
+        assert command.timestamp_ms == 64 and command.throttle == 0.5
+        await until(lambda: received)
+        assert len(received) == 1
+        assert received[-1].sample is command
+        await device.callback(RawInput.capture(None))
+        assert received[-1] is None
+    finally:
+        task.cancel()
+        await asyncio.gather(task, return_exceptions=True)
 
 
 @pytest.mark.asyncio

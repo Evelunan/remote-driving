@@ -1,6 +1,6 @@
 # 部署、迁移与回退
 
-当前控制协议使用 `rd-control/2` 和注册修订 `vehicle-window/1`。中继、驾驶端、车端及共享包须使用同一修订。新构建的 wheel 应按[独立安装验收](software-validation.zh-CN.md)重新验证。
+当前控制协议使用 `rd-control/2` 和注册修订 `vehicle-status/2`，状态速度统一为 m/s。中继、驾驶端、车端及共享包须使用同一修订；旧 `vehicle-window/1` 及按 km/h 解释反馈的 `vehicle-status/1` 会被拒绝。新构建的 wheel 应按[独立安装验收](software-validation.zh-CN.md)重新验证。ROS 底盘反馈的配置与人工验收见[车辆端状态反馈](../apps/vehicle/README.md#ros2-底盘状态反馈)。
 
 ## 版本和目录
 
@@ -105,7 +105,7 @@ python3 scripts/manage_release.py activate \
 | `servers/webrtc`与`servers/quic`各自配置/日志 | `rd-server`中的`signaling`与`relay`配置；默认同进程，也可两个实例单模块运行 |
 | 多份 logger、codec、连接构建和配置加载器 | core/quic/webrtc公共包；不要从旧目录复制文件或设置跨应用 PYTHONPATH |
 | 关闭证书校验的 QUIC、明文 ws、固定 TURN 密码 | 配置 CA、服务端名称、WSS、按角色的凭据引用；轮换曾部署的历史私钥与令牌 |
-| 旧 HELLO / 12 字节控制包或 `video-bound/1` | 当前三端须匹配 `vehicle-window/1` |
+| 旧 HELLO / 12 字节控制包、`video-bound/1`、`vehicle-window/1` 或 `vehicle-status/1` | 当前三端须匹配 `vehicle-status/2`，状态速度统一为 m/s |
 | UI 回显当成实测速度、底盘零速当成停车确认 | 分开展示执行确认、传感器遥测和停车反馈；真实停车接口未接入时 `confirmed=False` |
 
 迁移前记录三端 session、room、车辆身份、服务地址/TCP/UDP 端口、CA/证书名称、令牌权限与有效期、相机路径、ROS 环境和运动单位。数值配置不是逐字段机械复制：当前速度单位是 m/s、rad/s，默认 5.0/2.0 仅按用户要求保留，尚未实车确认。

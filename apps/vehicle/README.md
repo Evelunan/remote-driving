@@ -111,6 +111,54 @@ ros2 topic info /ecu --verbose --no-daemon
 
 依次确认 `/cmd_vel` 有实际输入、`/vehicle_status` 持续更新且自动驾驶状态允许输出，以及 `/ecu` 有底盘驱动订阅。节点数量和话题可见只说明通信端点被发现，不能作为实际停车或运动的确认。
 
+## ROS2 底盘状态反馈
+
+车辆端已支持订阅 `/vehicle_status`（`yunle_msgs/msg/VehicleStatus`），通过当前认证控制租约回传驾驶端。无需修改底盘工作区。`configs/vehicle.lan.yaml` 和 `configs/vehicle.yaml` 已启用以下配置，其余配置默认关闭：
+
+```yaml
+feedback:
+  enabled: true
+  topic: /vehicle_status
+  wheel_speed_unit: m/s
+  send_hz: 10
+  stale_timeout_ms: 300
+```
+
+回传车速、转向角、左右轮速、档位、自动驾驶使能、驾驶模式和刹车状态。用户于 2026-11-24 确认车速 `cur_speed` 单位为 m/s，按原值传输与显示；转向角使用 °。左右轮速源单位单独配置，默认 m/s 原值；若源为 km/h，则除以 3.6 统一成 m/s。该配置不改变 `/cmd_vel` 的线速度 m/s 和角速度 rad/s。
+
+驾驶端将主要信息放在“车辆反馈”的“底盘实际状态”，轮速、模式和已确认指令值放在同组“诊断详情”。反馈挡位显示 D 前进（1）、N／停止（2）、R 倒退（3），未知值保留编码；驾驶模式继续显示原始编码，缺失字段显示 `--`。刹车状态和 N／停止不是车辆已停稳的物理确认。mock 控制器不会用目标指令伪造这些反馈。“驾驶端输入”独立显示本地采样，与车辆反馈相邻；完整说明见[驾驶端](../driving/README.md)。
+
+`drive_mode` 是底盘报告的当前控制模式，描述自动驾驶通道、遥控/PAD 或方向盘控制等控制来源；`shift_level` 则表示前进、停止或后退等档位，两者分别显示。`is_autodrive` 是独立的自动驾驶按钮状态，当前 `cmdvel_2_ecu` 使用它决定是否允许上位机指令下发。在本项目中，远程驾驶的 ROS 指令也使用上位机控制通道，不代表正在执行自主导航。
+
+模式编码尚有冲突：外部底盘 README 写 `1=遥控、2=Reservation、3=自动驾驶`，`chassis_driver/chassis_driver/include/Msg.h` 的反馈位注释写 `0=不影响、1=自动驾驶、2=PAD、3=方向盘`，解析实现仅提取原始 3 bit 数值。未获得匹配车型的协议或现场核对前，驾驶端保留原始值，不据此切换控制策略。
+
+以下步骤由操作者执行，本次开发未启动真实 ROS 节点或实车程序：
+
+1. 配套升级服务端、车辆端、驾驶端及共享包，注册修订为 `vehicle-status/2`。旧 `vehicle-status/1`（速度按 km/h）、`vehicle-window/1` / `video-bound/1` 版本会被拒绝，不能混用；回退时恢复配套旧版本和旧配置。
+2. 按上文准备 ROS 和底盘环境；已有驱动时查询即可，不重复启动。检查消息定义、发布者和一次反馈：
+
+   ```bash
+   source /opt/ros/humble/setup.bash
+   source /home/akun/workspace/Car_jetson/real_ws/install/setup.bash
+   ros2 interface show yunle_msgs/msg/VehicleStatus
+   ros2 topic info /vehicle_status --verbose --no-daemon
+   timeout 5s ros2 topic echo /vehicle_status yunle_msgs/msg/VehicleStatus --once --no-daemon
+   ```
+
+3. 依照上文启动车辆端。日志应出现 `ROS chassis feedback subscribed`。依赖缺失时先确认已加载正确工作区，不在本项目任务中修改或构建底盘包。
+4. 驾驶端在主画面和新鲜中立输入允许取得当前控制租约后显示反馈；无需非零油门。未建立租约时，本地 ROS 有消息也不会独立回传给驾驶端。
+5. 对照同一次现场查询和界面，检查车速、转向角、反馈编码、使能、刹车和诊断轮速；区分外设“所选挡位”与底盘“反馈挡位”。消息时间必须有效；时钟偏差超过预算、字段无效或数据过期时应显示未知/过期。
+
+源消息的 `header.stamp` 为零、已过期、在未来或重复时不更新快照；没有新样本不会给缓存值重打时间戳。默认车端有效期 300 ms，中继和驾驶端还会扣除采样年龄及预留时钟偏差；Qt 界面在定时检查时清除过期值。仅在整条消息层面判断新鲜度，轮速若被底盘驱动内部缓存且仍为有限数值，本项目无法独立确认其采样时刻。
+
+软件回归使用模拟 ROS、Qt offscreen 和仅绑定回环动态端口的 QUIC 测试，不连接实车：
+
+```bash
+.venv/bin/python scripts/test_vehicle_feedback.py
+```
+
+脚本使用现有 `.venv`，关闭 pytest 插件自动加载，将所有临时文件、缓存、日志和测试报告写入项目内 `.rd-runtime/feedback-tests/run-*`，不安装依赖、不修改系统网络配置。需要允许本机回环 socket。开发进度和提交记录见[开发计划](../../docs/vehicle-status-feedback-plan.zh-CN.md)。
+
 ## 摄像头启动排查
 
 使用 `configs/vehicle.yaml` 启动时，媒体进程同时写终端和 `logs/vehicle/media/app.log`（自动轮转）。在仓库根目录用 PowerShell 执行 `Get-Content .\logs\vehicle\media\app.log -Tail 80 -Wait` 可跟踪各路启动。

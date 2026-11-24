@@ -79,6 +79,10 @@ class MainWindow(QMainWindow):
         # WebRTC 连接状态标记（只有连接成功后才允许显示视频传输状态）
         self._webrtc_connected = False
         self._telemetry_at = None
+        self._vehicle_status_deadline = None
+        self._local_input_deadline = None
+        self._command_deadline = None
+        self._command_confirmed_once = False
         self.fb = FrameBuffer()
 
         # 登录数据
@@ -130,26 +134,52 @@ class MainWindow(QMainWindow):
         if generation == self._service_generation and self._services_running:
             callback(*args)
 
-    def _on_control_data_updated(
-        self, throttle: float, brake: float, steering: float, elapsed_ms: float
-    ):
+    def _on_control_data_updated(self, data):
         if self._services_running and self._control_panel:
+            if data["deadline"] <= time.monotonic():
+                self._on_control_confirmation_expired()
+                return
+            self._command_deadline = data["deadline"]
+            self._command_confirmed_once = True
+            sample = data["sample"]
             self._control_panel.set_command_status(
-                throttle, brake, steering, elapsed_ms
+                sample.throttle * 100, sample.brake * 100,
+                sample.steering * 100, data["elapsed_ms"],
             )
 
     def _on_control_confirmation_expired(self):
+        self._command_deadline = None
         if self._services_running and self._control_panel:
-            self._control_panel.clear_command_status()
+            self._control_panel.clear_command_status(
+                "确认已过期" if self._command_confirmed_once else "待确认"
+            )
 
     def _on_vehicle_status(self, data):
         if self._services_running and self._control_panel is not None:
+            if "status" in data:
+                if data["deadline"] <= time.monotonic():
+                    self._vehicle_status_deadline = None
+                    self._control_panel.clear_vehicle_status("反馈已过期")
+                    return
+                self._vehicle_status_deadline = data["deadline"]
+                self._control_panel.set_vehicle_status(data["status"])
+                return
             self._control_panel.set_measured_status(
                 data["linear_mps"], data["angular_radps"]
             )
             self._telemetry_at = time.monotonic()
 
     def _expire_telemetry(self):
+        now = time.monotonic()
+        if self._local_input_deadline is not None and now >= self._local_input_deadline:
+            self._on_local_input_changed(None)
+        if self._command_deadline is not None and now >= self._command_deadline:
+            self._on_control_confirmation_expired()
+        if (self._vehicle_status_deadline is not None
+                and time.monotonic() >= self._vehicle_status_deadline
+                and self._control_panel is not None):
+            self._control_panel.clear_vehicle_status("反馈已过期")
+            self._vehicle_status_deadline = None
         if (
             self._telemetry_at is not None
             and self._control_panel is not None
@@ -160,11 +190,19 @@ class MainWindow(QMainWindow):
             self._telemetry_at = None
 
     def _on_usb_status_changed(self, ok: bool, text: str):
+        if not ok:
+            self._local_input_deadline = None
         if self._services_running and self._control_panel:
             self._control_panel.set_connection_status("usb", ok, text)
 
     def _on_local_input_changed(self, state):
         if self._control_panel is not None:
+            timeout = self.settings.control.input_timeout_ms / 1000
+            if state is None or not state.sample.fresh(timeout):
+                state = None
+            self._local_input_deadline = (
+                state.sample.sampled_at + timeout if state is not None else None
+            )
             self._control_panel.set_local_input(state)
 
     def _on_quic_status_changed(self, ok: bool, text: str):
@@ -175,9 +213,13 @@ class MainWindow(QMainWindow):
 
     def _clear_feedback(self):
         self._telemetry_at = None
+        self._vehicle_status_deadline = None
+        self._command_deadline = None
+        self._command_confirmed_once = False
         if self._control_panel is not None:
             self._control_panel.clear_command_status()
             self._control_panel.clear_measured_status()
+            self._control_panel.clear_vehicle_status("反馈未接入或连接已断开")
 
     def _setup_ui(self):
         self.setWindowTitle(f"{APP_NAME} | {APP_NAME_EN}")

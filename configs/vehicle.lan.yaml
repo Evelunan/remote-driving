@@ -19,6 +19,12 @@ session: 1234
 room: "1234"
 components: [control,media]
 controller: ros2
+feedback:
+  enabled: true
+  topic: /vehicle_status
+  wheel_speed_unit: m/s
+  send_hz: 10
+  stale_timeout_ms: 300
 camera_fallback_source: null
 encoder_workers: null
 credentials:

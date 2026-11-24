@@ -10,7 +10,7 @@ logger = get_logger(__name__)
 
 
 class RCLpyCmdVelController(IController):
-    def __init__(self, max_linear=5.0, max_angular=2.0):
+    def __init__(self, max_linear=5.0, max_angular=2.0, *, feedback=None):
         target_velocity(0, 0, 0, max_linear, max_angular)
         self._owns_context = not rclpy.ok()
         if not rclpy.ok():
@@ -20,6 +20,17 @@ class RCLpyCmdVelController(IController):
         self._closed = False
         self.node = Node("cmd_vel_publisher")
         self.publisher = self.node.create_publisher(Twist, "/cmd_vel", 10)
+        self.feedback = None
+        if feedback is not None and feedback.enabled:
+            try:
+                from .ros2_vehicle_feedback import RosVehicleStatusSource
+
+                self.feedback = RosVehicleStatusSource(self.node, feedback)
+            except Exception:
+                self.node.destroy_node()
+                if self._owns_context and rclpy.ok():
+                    rclpy.shutdown()
+                raise
         logger.info("CmdVel controller initialized")
 
     def send_command(self, throttle, brake, steering):
@@ -48,7 +59,11 @@ class RCLpyCmdVelController(IController):
         try:
             self.request_safe_stop("controller shutdown")
         finally:
-            self.node.destroy_node()
-            if self._owns_context and rclpy.ok():
-                rclpy.shutdown()
+            try:
+                if self.feedback is not None:
+                    self.feedback.close()
+            finally:
+                self.node.destroy_node()
+                if self._owns_context and rclpy.ok():
+                    rclpy.shutdown()
         logger.info("Controller closed and resources cleaned up")

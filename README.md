@@ -31,6 +31,10 @@ docs/
 
 ## 开发与回归
 
+车辆底盘状态回传已接通 ROS 订阅、认证中继与驾驶端显示，软件模拟已验证，实车验收待执行。字段、单位、分阶段提交和测试隔离要求见[车辆状态回传开发计划](docs/vehicle-status-feedback-plan.zh-CN.md)，使用步骤见[车辆端状态反馈](apps/vehicle/README.md#ros2-底盘状态反馈)。
+
+驾驶界面将本地挡位、油门、制动和转向集中在“驾驶端输入”，将底盘实测、指令确认和诊断详情集中在相邻的“车辆反馈”。两组各自维护原始有效期，说明见[驾驶端](apps/driving/README.md)。相关隔离回归可运行 `.venv/bin/python scripts/test_vehicle_feedback.py`。
+
 ```bash
 # 目标机的 python3 --version 为 Python 3.10.12
 uv sync --all-packages --group dev --locked --python "$(command -v python3)"
