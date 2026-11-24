@@ -221,6 +221,40 @@ async def test_peer_failure_recovery_cannot_interrupt_replacement_or_explicit_cl
 
 
 @pytest.mark.asyncio
+async def test_disconnect_can_finish_when_inline_peer_removal_is_cancelled(monkeypatch):
+    receiver = WebRTCReceiver("room", ClientNetworkSettings(), CredentialSettings())
+    peer = await receiver._create_peer("vehicle")
+    transceiver = peer.pc.addTransceiver("video")
+    original_stop = transceiver.stop
+    entered, release = asyncio.Event(), asyncio.Event()
+    stops = 0
+
+    async def finish_transceiver():
+        nonlocal stops
+        stops += 1
+        entered.set()
+        await release.wait()
+        await original_stop()
+
+    monkeypatch.setattr(transceiver, "stop", finish_transceiver)
+    retiring = asyncio.create_task(receiver._on_peer_left({"id": "vehicle"}))
+    try:
+        await asyncio.wait_for(entered.wait(), timeout=2)
+        retiring.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await retiring
+        assert not receiver.peers and receiver._retired == {peer}
+    finally:
+        release.set()
+
+    # The session cancels inline signaling handlers before disconnecting.
+    # Its disconnect must join the in-progress peer close.
+    await asyncio.wait_for(receiver._disconnect(), timeout=2)
+    assert peer.pc.connectionState == "closed"
+    assert not receiver._retired and stops == 1
+
+
+@pytest.mark.asyncio
 async def test_late_decode_completion_cannot_publish_into_replacement_peer():
     import numpy as np
     from av import VideoFrame

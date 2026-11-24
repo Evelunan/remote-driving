@@ -42,4 +42,4 @@ PyQt6 需要可用显示环境。OpenCV 导入封装保留用户原有 Qt 插件
 
 主画面必须经过 Qt 新帧绘制、新鲜度与车辆身份/session 校验才能授权控制。过期、隐藏或来源更换撤销授权；恢复须新帧稳定、新采样回中和执行确认，详见 [画面与控制](../../docs/video-safety.zh-CN.md)。
 
-正式 GUI 从 B23 起将 `SIGINT`、`SIGTERM`转入窗口异步关闭流程，等待控制/媒体线程结束；重复信号不强行跳过清理。Python 信号处理器仅标记待退出，由 Qt 的 50ms 定时检查触发关闭，并在事件循环结束时恢复原处理器。此间隔不是实时上限：GUI/native 调用阻塞时仍可能延迟，进程管理器超时与远端控制监护继续承担故障兜底。依据 [Python 信号调度](https://docs.python.org/3.10/library/signal.html#execution-of-python-signal-handlers)与 [Qt 定时器](https://doc.qt.io/qt-6/qtimer.html)。
+关闭窗口、按 Ctrl+C 或发送 `SIGTERM`，会撤销本地控制授权并请求控制和媒体线程正常退出。正式进程开始关闭后有 5 秒清理时间。若仍未退出，程序向标准错误输出线程栈，以状态码 1 结束进程。重复关闭请求沿用同一个期限。退出会话和重连继续等待资源清理。远端控制监护继续承担断联保护。[Python 关闭超时诊断](https://docs.python.org/3.10/library/faulthandler.html#faulthandler.dump_traceback_later)

@@ -1,3 +1,5 @@
+import asyncio
+
 from aiortc import (
     RTCConfiguration,
     RTCPeerConnection,
@@ -12,6 +14,7 @@ class PeerConnectionManager:
         self.pc = RTCPeerConnection(RTCConfiguration(iceServers=ice_servers))
         self._on_ice_candidate = None
         self._sender_adapters = []
+        self._close_task = None
 
     def on_ice_candidate(self, callback):
         # The aiortc peers exchange full SDP after setLocalDescription completes.
@@ -64,6 +67,15 @@ class PeerConnectionManager:
         await self.pc.addIceCandidate(parsed)
 
     async def close(self):
+        if self._close_task is None:
+            # Cancelling aiortc's close can leave subsequent calls waiting
+            # forever for its internal close future to complete.
+            self._close_task = asyncio.create_task(
+                self._close_owned(), name="media-peer-transport-close"
+            )
+        await asyncio.shield(self._close_task)
+
+    async def _close_owned(self):
         try:
             await self.pc.close()
         finally:

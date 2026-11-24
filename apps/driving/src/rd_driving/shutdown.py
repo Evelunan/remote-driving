@@ -1,9 +1,42 @@
-"""Deliver process shutdown signals through the window's asynchronous close path."""
+"""Handle desktop process shutdown signals and bound final cleanup."""
 
+import faulthandler
+import os
 import signal
-from contextlib import contextmanager
+import sys
+from contextlib import ExitStack, contextmanager
 
 from PyQt6.QtCore import QTimer
+
+SHUTDOWN_GRACE_S = 5.0
+
+
+@contextmanager
+def shutdown_deadline():
+    """Arm the native watchdog after the window has revoked control."""
+    with ExitStack() as resources:
+        armed = False
+
+        def arm():
+            nonlocal armed
+            if armed:
+                return
+            try:
+                fd = sys.stderr.fileno()
+            except (AttributeError, OSError, ValueError):
+                fd = -1
+            if fd < 0:
+                fd = resources.enter_context(open(os.devnull, "wb")).fileno()
+            # A native worker or Qt teardown can stop servicing Python timers.
+            # The process watchdog can still dump the stacks and exit with status 1.
+            faulthandler.dump_traceback_later(SHUTDOWN_GRACE_S, file=fd, exit=True)
+            armed = True
+
+        try:
+            yield arm
+        finally:
+            if armed:
+                faulthandler.cancel_dump_traceback_later()
 
 
 @contextmanager

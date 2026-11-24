@@ -8,7 +8,7 @@ import sys
 import time
 from dataclasses import replace
 
-from PyQt6.QtCore import QTimer
+from PyQt6.QtCore import QTimer, pyqtSignal
 from PyQt6.QtGui import QFont
 from PyQt6.QtWidgets import (
     QApplication,
@@ -34,7 +34,7 @@ from rd_driving.infrastructure.workers import (
     WebRTCReceiverThread,
 )
 from rd_driving.infrastructure.workers.control_system_thread import STATUS_TEXT
-from rd_driving.shutdown import shutdown_signals
+from rd_driving.shutdown import shutdown_deadline, shutdown_signals
 from rd_driving.ui.widgets import LoginPage
 from rd_driving.ui.widgets.multi_video_widget import CAMERA_NAMES, MultiVideoWidget
 
@@ -43,6 +43,8 @@ logger = get_logger(__name__)
 
 class MainWindow(QMainWindow):
     """主窗口 - 包含登录页面和控制页面"""
+
+    _close_started = pyqtSignal()
 
     def __init__(
         self, session_id: int | None = None, room: str | None = None, *, settings=None
@@ -600,18 +602,27 @@ class MainWindow(QMainWindow):
         if self._pending_action == "close":
             return
         self._pending_action = action
-        if self._navbar is not None:
-            self._navbar.set_control_status(
-                "正在重新连接" if action == "restart" else "正在退出会话"
-            )
         self._media_restart_pending = False
         self._media_generation += 1
         self._services_running = False
         self._service_generation += 1
-        self.fb.clear()
         self.video_gate.invalidate("service_stopped")
+        if action == "close":
+            self._close_started.emit()
+        self.fb.clear()
+        for worker in (self._receiver_thread, self._control_thread):
+            if worker is not None:
+                worker.request_stop()
+        message = {
+            "close": "正在关闭驾驶端",
+            "restart": "正在重新连接",
+        }.get(action, "正在退出会话")
+        if self._navbar is not None:
+            self._navbar.set_control_status(message)
         self._clear_feedback()
         if self._control_panel is not None:
+            if action == "close":
+                self._multi_video_widget.show_message_all(message)
             self._control_panel.set_local_input(None)
         self._login_page.setEnabled(False)
         self._control_page.setEnabled(False)
@@ -619,9 +630,6 @@ class MainWindow(QMainWindow):
             timer = getattr(self, name, None)
             if timer is not None:
                 timer.stop()
-        for worker in (self._receiver_thread, self._control_thread):
-            if worker is not None:
-                worker.request_stop()
         self._shutdown_poll.start()
         self._finish_shutdown()
 
@@ -705,8 +713,9 @@ def run_gui(settings, *, connect=False):
         room=settings.room if connect else None,
         settings=settings,
     )
-    window.show()
-    with shutdown_signals(window):
+    with shutdown_deadline() as arm_deadline, shutdown_signals(window):
+        window._close_started.connect(arm_deadline)
+        window.show()
         QTimer.singleShot(0, lambda: logger.info("Driving GUI event loop responding"))
         return app.exec()
 
