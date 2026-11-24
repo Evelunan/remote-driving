@@ -17,6 +17,7 @@ TESTS = (
     "test_driving_usb_retry.py", "test_scoped_reconnect.py", "test_legacy_control_panel.py",
     "test_legacy_qt_signals.py", "test_client_entrypoints.py", "test_gui_shutdown_signals.py",
     "test_vehicle_shutdown.py", "test_control_supervisor.py", "test_input_freshness.py",
+    "test_grouped_control_panel.py", "test_legacy_input.py",
 )
 
 
