@@ -68,10 +68,10 @@ async def test_real_feedback_transport_keeps_units_and_never_repeats_stale_cache
         source.sample = replace(source.sample, revision=2)
         await asyncio.sleep(0.15)
         assert len(reports) == 1
-        source.sample = FeedbackSample(replace(status, speed_kmh=0, p_status=True),
+        source.sample = FeedbackSample(replace(status, speed_mps=0, p_status=True),
                                        time.time_ns() // 1_000_000, time.monotonic(), 3)
         await until(lambda: len(reports) == 2)
-        assert reports[-1][0].payload.speed_kmh == 0
+        assert reports[-1][0].payload.speed_mps == 0
         assert reports[-1][0].source_time_ms > original_timestamp
         assert reports[-1][0].payload.p_status is True
     finally:

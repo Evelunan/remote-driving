@@ -157,19 +157,19 @@ class ControlPanel(QFrame):
     def _setup_vehicle_status(self):
         self._vehicle_card = DataCard("底盘实际反馈")
         self._vehicle_stats = {
-            "speed_kmh": StatItem("车速", "km/h"),
+            "speed_mps": StatItem("车速", "m/s"),
             "steering_deg": StatItem("转向角", "°"),
             "shift_level": StatItem("反馈挡位（原始编码）"),
             "is_autodrive": StatItem("自动驾驶使能"),
             "p_status": StatItem("底盘刹车状态"),
-            "left_wheel_kmh": StatItem("左轮速度", "km/h"),
-            "right_wheel_kmh": StatItem("右轮速度", "km/h"),
+            "left_wheel_mps": StatItem("左轮速度", "m/s"),
+            "right_wheel_mps": StatItem("右轮速度", "m/s"),
             "drive_mode": StatItem("驾驶模式（原始编码）"),
         }
         main = QGridLayout()
         main.setColumnStretch(0, 1)
         main.setColumnStretch(1, 1)
-        for index, key in enumerate(("speed_kmh", "steering_deg", "shift_level",
+        for index, key in enumerate(("speed_mps", "steering_deg", "shift_level",
                                      "is_autodrive", "p_status")):
             main.addWidget(self._vehicle_stats[key], index // 2, index % 2)
         self._vehicle_card.add_layout(main)
@@ -182,7 +182,7 @@ class ControlPanel(QFrame):
         self._vehicle_details = QWidget()
         details = QGridLayout(self._vehicle_details)
         details.setContentsMargins(0, 0, 0, 0)
-        for index, key in enumerate(("left_wheel_kmh", "right_wheel_kmh", "drive_mode")):
+        for index, key in enumerate(("left_wheel_mps", "right_wheel_mps", "drive_mode")):
             details.addWidget(self._vehicle_stats[key], index // 2, index % 2)
         self._vehicle_details.setVisible(False)
         self._vehicle_details_button.toggled.connect(self._vehicle_details.setVisible)

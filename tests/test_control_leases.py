@@ -96,7 +96,7 @@ def execution(packet, status=ExecutionStatus.EXECUTED):
     return replace(packet, payload=Execution(status, packet.source_time_ms + 1))
 
 
-@pytest.mark.parametrize("revision", ["vehicle-window/1", "video-bound/1"])
+@pytest.mark.parametrize("revision", ["vehicle-window/1", "video-bound/1", "vehicle-status/1"])
 def test_old_revision_requires_coordinated_upgrade(setup, revision):
     registry, _, _, tokens = setup
     with pytest.raises(RpcError, match="protocol_upgrade_required"):

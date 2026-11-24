@@ -8,7 +8,7 @@ from uuid import UUID
 
 VERSION = 2
 ALPN = "rd-control/2"
-CONTROL_REVISION = "vehicle-status/1"
+CONTROL_REVISION = "vehicle-status/2"
 _HEADER = struct.Struct("!2sBBH16sIQ")
 
 
@@ -91,14 +91,15 @@ class Telemetry:
 class VehicleStatus:
     """Chassis feedback; None means unavailable, never a measured zero.
 
+    Vehicle and wheel speeds use m/s; steering angle uses degrees.
     Field order also defines validity-mask bits 0..7 on the wire.
     Gear and mode are raw chassis uint8 codes, without inferred mappings.
     """
 
-    speed_kmh: float | None = None
+    speed_mps: float | None = None
     steering_deg: float | None = None
-    left_wheel_kmh: float | None = None
-    right_wheel_kmh: float | None = None
+    left_wheel_mps: float | None = None
+    right_wheel_mps: float | None = None
     shift_level: int | None = None
     is_autodrive: bool | None = None
     drive_mode: int | None = None

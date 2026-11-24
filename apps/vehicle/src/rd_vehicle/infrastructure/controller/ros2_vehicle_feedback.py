@@ -29,7 +29,7 @@ class RosVehicleStatusSource(VehicleStatusBuffer):
                 self._executor.shutdown(timeout_sec=0.5)
             node.destroy_subscription(self._subscription)
             raise
-        logger.info("ROS chassis feedback subscribed topic=%s speed=km/h wheel_source=%s",
+        logger.info("ROS chassis feedback subscribed topic=%s speed=m/s wheel_source=%s",
                     settings.topic, settings.wheel_speed_unit)
 
     def _run(self):

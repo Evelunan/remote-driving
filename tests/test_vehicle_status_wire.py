@@ -13,12 +13,12 @@ def test_chassis_status_has_fixed_units_order_and_roundtrip():
     assert BASE.kind == Kind.VEHICLE_STATUS
     assert encoded[34:].hex() == "ff40600000c1480000404000004080000002010500"
     assert Packet.decode(encoded) == BASE
-    assert CONTROL_REVISION == "vehicle-status/1"
+    assert CONTROL_REVISION == "vehicle-status/2"
 
 
 @pytest.mark.parametrize("payload", [
     VehicleStatus(),
-    VehicleStatus(speed_kmh=0, is_autodrive=False, p_status=False),
+    VehicleStatus(speed_mps=0, is_autodrive=False, p_status=False),
     VehicleStatus(steering_deg=-27, shift_level=255, drive_mode=0),
 ])
 def test_missing_fields_survive_distinct_from_zero_and_false(payload):
@@ -27,8 +27,8 @@ def test_missing_fields_survive_distinct_from_zero_and_false(payload):
 
 
 @pytest.mark.parametrize("changes", [
-    {"speed_kmh": float("nan")}, {"steering_deg": float("inf")},
-    {"left_wheel_kmh": True}, {"right_wheel_kmh": 1e100},
+    {"speed_mps": float("nan")}, {"steering_deg": float("inf")},
+    {"left_wheel_mps": True}, {"right_wheel_mps": 1e100},
     {"shift_level": -1}, {"shift_level": 256}, {"drive_mode": True},
     {"is_autodrive": 1}, {"p_status": "false"},
 ])

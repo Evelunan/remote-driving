@@ -26,19 +26,21 @@ def message(ms=1_000_000, **changes):
     return SimpleNamespace(**(values | changes))
 
 
-def test_all_fields_and_independent_wheel_unit_mapping(clock):
-    for unit, factor in (("m/s", 3.6), ("km/h", 1.0)):
-        buffer = VehicleStatusBuffer(VehicleFeedbackSettings(wheel_speed_unit=unit))
-        assert buffer.receive(message())
-        sample = buffer.latest()
-        assert sample.source_time_ms == clock.ms
-        assert sample.received_at == clock.mono
-        assert sample.status.speed_kmh == 3.5
-        assert sample.status.steering_deg == -15.0
-        assert sample.status.left_wheel_kmh == factor
-        assert sample.status.right_wheel_kmh == -0.5 * factor
-        assert (sample.status.shift_level, sample.status.is_autodrive,
-                sample.status.drive_mode, sample.status.p_status) == (4, True, 7, False)
+@pytest.mark.parametrize("unit,left_input,right_input", [
+    ("m/s", 1.0, -0.5), ("km/h", 3.6, -1.8),
+])
+def test_all_fields_and_independent_wheel_unit_mapping(clock, unit, left_input, right_input):
+    buffer = VehicleStatusBuffer(VehicleFeedbackSettings(wheel_speed_unit=unit))
+    assert buffer.receive(message(left_wheel_speed=left_input, right_wheel_speed=right_input))
+    sample = buffer.latest()
+    assert sample.source_time_ms == clock.ms
+    assert sample.received_at == clock.mono
+    assert sample.status.speed_mps == 3.5
+    assert sample.status.steering_deg == -15.0
+    assert sample.status.left_wheel_mps == pytest.approx(1.0)
+    assert sample.status.right_wheel_mps == pytest.approx(-0.5)
+    assert (sample.status.shift_level, sample.status.is_autodrive,
+            sample.status.drive_mode, sample.status.p_status) == (4, True, 7, False)
 
 
 def test_invalid_fields_do_not_hide_other_measurements(clock):
@@ -47,8 +49,8 @@ def test_invalid_fields_do_not_hide_other_measurements(clock):
                                   right_wheel_speed=float("inf"), shift_level=256,
                                   is_autodrive=1, p_status="false"))
     status = buffer.latest().status
-    assert status.speed_kmh == 3.5 and status.steering_deg == -15
-    assert status.left_wheel_kmh is status.right_wheel_kmh is None
+    assert status.speed_mps == 3.5 and status.steering_deg == -15
+    assert status.left_wheel_mps is status.right_wheel_mps is None
     assert status.shift_level is status.is_autodrive is status.p_status is None
     status.validate()
 

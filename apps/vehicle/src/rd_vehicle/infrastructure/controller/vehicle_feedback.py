@@ -56,12 +56,12 @@ class VehicleStatusBuffer:
             return False
         if source_time_ms == 0:
             return False
-        scale = 3.6 if self.settings.wheel_speed_unit == "m/s" else 1.0
+        scale = 1.0 if self.settings.wheel_speed_unit == "m/s" else 1.0 / 3.6
         status = VehicleStatus(
-            speed_kmh=_number(getattr(message, "cur_speed", None)),
+            speed_mps=_number(getattr(message, "cur_speed", None)),
             steering_deg=_number(getattr(message, "cur_steer", None)),
-            left_wheel_kmh=_number(getattr(message, "left_wheel_speed", None), scale),
-            right_wheel_kmh=_number(getattr(message, "right_wheel_speed", None), scale),
+            left_wheel_mps=_number(getattr(message, "left_wheel_speed", None), scale),
+            right_wheel_mps=_number(getattr(message, "right_wheel_speed", None), scale),
             shift_level=_code(getattr(message, "shift_level", None)),
             is_autodrive=_flag(getattr(message, "is_autodrive", None)),
             drive_mode=_code(getattr(message, "drive_mode", None)),
