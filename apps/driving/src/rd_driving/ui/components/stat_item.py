@@ -10,8 +10,8 @@ from rd_driving.interfaces.ui import ITheme
 
 # 定义默认样式常量，避免魔法字符串散落在代码中
 DEFAULT_STYLES = {
-    "label": "color: #6E7681; font-size: 10px; text-transform: uppercase;",
-    "value": "color: #ECEFF4; font-size: 20px; font-weight: bold;",
+    "label": "color: #AABBC8; font-size: 11px;",
+    "value": "color: #ECEFF4; font-size: 17px; font-weight: 600;",
     "unit": "color: #8B949E; font-size: 11px;",
 }
 
@@ -80,7 +80,9 @@ class StatItem(QWidget):
             self._unit.deleteLater()  # 安全删除 Qt 对象
             self._unit = None
 
-    def apply_theme(self, theme: ITheme, *, prominent_label: bool = False) -> None:
+    def apply_theme(
+        self, theme: ITheme, *, prominent_label: bool = False, value_size: int = 17
+    ) -> None:
         """应用主题，动态更新颜色"""
         self._theme = theme
         
@@ -95,9 +97,9 @@ class StatItem(QWidget):
 
         # 更新样式：只替换颜色部分，保留字体大小等其他属性
         # 这里采用重新设置完整 styleSheet 的方式以确保覆盖之前的硬编码颜色
-        label_size = 12 if prominent_label else 10
-        self._label.setStyleSheet(f"color: {label_color}; font-size: {label_size}px; text-transform: uppercase;")
-        self._value.setStyleSheet(f"color: {value_color}; font-size: 20px; font-weight: bold;")
+        label_size = 12 if prominent_label else 11
+        self._label.setStyleSheet(f"color: {label_color}; font-size: {label_size}px;")
+        self._value.setStyleSheet(f"color: {value_color}; font-size: {value_size}px; font-weight: 600;")
         
         if self._unit:
             self._unit.setStyleSheet(f"color: {unit_color}; font-size: 11px;")
@@ -117,8 +119,9 @@ class StatItem(QWidget):
             else:
                 display_text = str(value)
         
-        self._value_text = display_text
-        self._value.setText(display_text)
+        if display_text != self._value_text:
+            self._value_text = display_text
+            self._value.setText(display_text)
 
     def get_value(self) -> str:
         return self._value_text

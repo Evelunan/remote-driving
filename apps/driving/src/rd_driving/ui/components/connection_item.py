@@ -7,7 +7,7 @@
 from html import escape
 from textwrap import wrap
 
-from PyQt6.QtCore import QEvent, Qt
+from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (
     QFrame,
     QHBoxLayout,
@@ -22,10 +22,9 @@ from .status_indicator import StatusIndicator
 
 # 默认样式常量 (作为主题加载前的兜底)
 DEFAULT_COLORS = {
-    "name": "#8B949E",
-    "status_online": "#3FB950",
-    "status_offline": "#6E7681",
-    "hover_bg": "rgba(255, 255, 255, 0.03)",  # 极淡的白色高光，适合深色模式
+    "name": "#CAD8E2",
+    "status_online": "#82D6AA",
+    "status_offline": "#AABBC8",
 }
 
 FONT_SIZES = {
@@ -47,15 +46,12 @@ class ConnectionItem(QFrame):
         # 配置 QFrame 基础属性
         self.setObjectName("ConnectionItem")
         self.setStyleSheet("QFrame#ConnectionItem { background: transparent; }")
-        # 确保启用鼠标事件以支持悬停效果
-        self.setMouseTracking(True)
-
         self._setup_ui()
 
     def _setup_ui(self):
         layout = QHBoxLayout(self)
-        layout.setContentsMargins(8, 6, 8, 6)  # 增加左右边距，使点击区域更舒适
-        layout.setSpacing(6)
+        layout.setContentsMargins(0, 2, 0, 2)
+        layout.setSpacing(8)
 
         # 1. 状态指示器 (小圆点)
         self._indicator = StatusIndicator(8)
@@ -71,7 +67,8 @@ class ConnectionItem(QFrame):
         layout.addWidget(self._name_label)
 
         # 3. 状态文字 (在线/离线)
-        self._status_label = QLabel()
+        self._status_label = QLabel(self._get_status_text(False, None))
+        self._status_label.setTextFormat(Qt.TextFormat.PlainText)
         self._status_label.setWordWrap(True)
         self._status_label.setSizePolicy(
             QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred
@@ -160,9 +157,22 @@ class ConnectionItem(QFrame):
 
         if self._action_button is not None:
             self._action_button.setStyleSheet(
-                theme.get_button_style()
-                + f"""
-                QPushButton {{ padding: 0px; border-radius: 8px; font-size: 12px; }}
+                f"""
+                QPushButton {{
+                    background: transparent;
+                    color: {theme.text_primary};
+                    border: 1px solid {theme.border};
+                    border-radius: 4px;
+                    padding: 0;
+                    font-size: 12px;
+                }}
+                QPushButton:hover, QPushButton:pressed {{
+                    background: {theme.bg_tertiary};
+                }}
+                QPushButton:focus {{ border-color: {theme.primary}; }}
+                QPushButton:disabled {{
+                    color: {theme.text_muted}; border-color: {theme.bg_tertiary};
+                }}
                 QToolTip {{
                     background-color: {theme.bg_secondary};
                     color: {theme.text_primary};
@@ -208,24 +218,3 @@ class ConnectionItem(QFrame):
 
     def get_widget(self) -> QWidget:
         return self
-
-    # --- 交互效果优化 ---
-
-    def enterEvent(self, event: QEvent) -> None:
-        """鼠标进入时的高亮效果"""
-        if self._theme and hasattr(self._theme, "bg_hover"):
-            # 如果主题定义了悬停背景色，优先使用
-            bg_color = self._theme.bg_hover
-        else:
-            # 默认悬停色 (半透明白/灰，适配深色模式)
-            bg_color = DEFAULT_COLORS["hover_bg"]
-
-        self.setStyleSheet(
-            f"QFrame#ConnectionItem {{ background-color: {bg_color}; border-radius: 6px; }}"
-        )
-        super().enterEvent(event)
-
-    def leaveEvent(self, event: QEvent) -> None:
-        """鼠标离开时恢复透明"""
-        self.setStyleSheet("QFrame#ConnectionItem { background: transparent; }")
-        super().leaveEvent(event)

@@ -22,16 +22,15 @@ class VideoDisplay(QWidget):
         self.setAttribute(Qt.WidgetAttribute.WA_OpaquePaintEvent)
         self.setMinimumSize(320, 180)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
-        self._view_label = view_label
         self.setAccessibleName(view_label)
         self._scaling_mode = scaling_mode
         self._debug_overlay = debug_overlay
         self._display_time = ""
         self._message = ""
-        self._background = QColor("#0D1117")
-        self._foreground = QColor("#6E7681")
+        self._background = QColor("#101820")
+        self._foreground = QColor("#A8BAC7")
         font = self.font()
-        font.setPixelSize(18)
+        font.setPixelSize(15)
         self.setFont(font)
 
         self._current_frame: np.ndarray | None = None
@@ -48,7 +47,7 @@ class VideoDisplay(QWidget):
 
     def apply_theme(self, theme: ITheme) -> None:
         self._background = QColor(theme.bg_primary)
-        self._foreground = QColor(theme.text_muted)
+        self._foreground = QColor(theme.text_secondary)
         font = self.font()
         family = theme.get_font_family()
         if family:
@@ -115,21 +114,6 @@ class VideoDisplay(QWidget):
                 painter.drawText(
                     12, self.height() - 12, "display: " + self._display_time
                 )
-        if self._view_label:
-            font = painter.font()
-            font.setPixelSize(14)
-            font.setBold(True)
-            painter.setFont(font)
-            metrics = painter.fontMetrics()
-            badge = QRect(
-                8,
-                8,
-                metrics.horizontalAdvance(self._view_label) + 14,
-                metrics.height() + 6,
-            )
-            painter.fillRect(badge, QColor("#17212B"))
-            painter.setPen(QColor("#FFD18B") if self._message else QColor("#FFFFFF"))
-            painter.drawText(badge, Qt.AlignmentFlag.AlignCenter, self._view_label)
         painter.end()
         if not self._image.isNull() and self._presented_id != self._last_frame_id:
             self._count_painted_frame()

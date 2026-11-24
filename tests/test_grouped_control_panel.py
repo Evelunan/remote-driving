@@ -14,8 +14,8 @@ def test_input_feedback_groups_and_readable_chassis_codes(legacy_python):
             panel.apply_theme(UIFactory.set_theme(theme))
             panel.show()
             app.processEvents()
-            assert [panel._layout.itemAt(i).widget()._title_text for i in range(3)] == [
-                '驾驶端输入', '车辆反馈', '系统连接']
+            assert [panel._layout.itemAt(i).widget()._title_text for i in range(4)] == [
+                '车辆反馈', '驾驶端输入', '指令确认', '系统连接']
             assert panel._scroll_area.widget() is panel._panel
             assert not panel._vehicle_details.isVisible()
             for code, label in ((1, 'D 前进（1）'), (2, 'N／停止（2）'),
@@ -30,17 +30,87 @@ def test_input_feedback_groups_and_readable_chassis_codes(legacy_python):
         assert panel._gear.get_value() == 'R 倒挡'
         assert {key: item.get_value() for key, item in panel._input_stats.items()} == {
             'throttle': '75', 'brake': '0', 'steering': '-25'}
-        # ACK and chassis fields belong to the feedback group, not local input.
+        # Confirmed commands and local input can hold different samples.
         panel.set_command_status(10, 0, 20, 35)
+        assert panel._vehicle_card.isAncestorOf(panel._vehicle_stats['speed_mps'])
         assert panel._input_card.isAncestorOf(panel._input_stats['throttle'])
-        assert panel._vehicle_card.isAncestorOf(panel._command_stats['throttle'])
-        assert panel._vehicle_card.isAncestorOf(panel._measurement_note)
+        assert panel._confirmation_card.isAncestorOf(panel._confirmation_state)
+        assert panel._confirmation_card.isAncestorOf(panel._command_stats['elapsed'])
+        assert panel._vehicle_details.isAncestorOf(panel._command_stats['throttle'])
+        assert panel._vehicle_details.isAncestorOf(panel._measurement_note)
         assert panel._input_stats['throttle'].get_value() == '75'
         panel._vehicle_details_button.click()
         assert panel._vehicle_details.isVisible()
         panel.set_local_input(None)
         assert all(item.get_value() == '--' for item in panel._input_stats.values())
         assert panel._confirmation_state.get_value() == '接口已确认'
+        panel.close()
+    """)
+
+
+def test_dashboard_sidebar_orders_metrics_connections_and_disclosures(legacy_python):
+    legacy_python("driving", """
+        import os
+        os.environ['QT_QPA_PLATFORM'] = 'offscreen'
+        from PyQt6.QtCore import QPoint, QRect
+        from PyQt6.QtWidgets import QApplication
+        from rd_driving.factories import UIFactory
+        from rd_driving.ui.widgets.control_panel import ControlPanel
+        app = QApplication([])
+        app.setStyle('Fusion')
+        panel = ControlPanel()
+        panel.resize(328, 652)
+
+        def bounds(widget, parent):
+            return QRect(widget.mapTo(parent, QPoint()), widget.size())
+
+        for theme in ('modern_glass', 'dark_tech'):
+            panel.apply_theme(UIFactory.set_theme(theme))
+            panel.show()
+            app.processEvents()
+            assert panel._camera_details.isHidden()
+            assert panel._vehicle_details.isHidden()
+
+            vehicle = panel._vehicle_card
+            stats = panel._vehicle_stats
+            speed, gear, steering = [
+                bounds(stats[key], vehicle)
+                for key in ('speed_mps', 'shift_level', 'steering_deg')
+            ]
+            brake, autodrive = [
+                bounds(stats[key], vehicle) for key in ('p_status', 'is_autodrive')
+            ]
+            assert speed.right() < gear.left() and gear.right() < steering.left()
+            assert max(speed.bottom(), gear.bottom(), steering.bottom()) < min(
+                brake.top(), autodrive.top()
+            )
+            assert brake.right() < autodrive.left()
+            assert abs(brake.width() - autodrive.width()) <= 1
+
+            connections = panel.get_connection_items()
+            expected = ('usb', 'quic', 'video', 'webrtc', 'signal')
+            assert tuple(connections) == expected
+            viewport = panel._scroll_area.viewport()
+            rows = [bounds(connections[key], viewport) for key in expected]
+            assert all(first.bottom() < second.top() for first, second in zip(rows, rows[1:]))
+            assert all(viewport.rect().contains(row) for row in rows)
+
+            diagnosis = bounds(panel._vehicle_details_button, viewport)
+            video_stats = bounds(panel._camera_details_button, viewport)
+            assert rows[-1].bottom() < diagnosis.top() == video_stats.top()
+            assert diagnosis.right() < video_stats.left()
+            assert viewport.rect().contains(diagnosis)
+            assert viewport.rect().contains(video_stats)
+
+        panel.set_camera_grid('front', 24, 1280, 720, 45)
+        panel.set_camera_grid('back', 0, 0, 0)
+        panel._camera_details_button.click()
+        assert panel._camera_details.isVisible()
+        assert [card._title_text for card in panel.camera_cards.values()] == ['前视', '后视', '左视', '右视']
+        assert [item.get_value() for item in panel.camera_data['front'].values()] == ['24', '1280×720', '45']
+        assert all(item.get_value() == '--' for item in panel.camera_data['back'].values())
+        panel._camera_details_button.click()
+        assert panel._camera_details.isHidden()
         panel.close()
     """)
 

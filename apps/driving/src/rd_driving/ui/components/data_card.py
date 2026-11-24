@@ -4,11 +4,9 @@
 卡片容器，用于分组显示内容。支持动态内容管理、主题切换及默认样式兜底。
 """
 
-from typing import Optional, List, Union
-from PyQt6.QtWidgets import QFrame, QVBoxLayout, QLabel, QLayout, QWidget
-from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QFont
+from typing import List, Optional, Union
 
+from PyQt6.QtWidgets import QFrame, QHBoxLayout, QLabel, QLayout, QVBoxLayout, QWidget
 from rd_driving.interfaces.ui import ITheme
 
 # 默认样式常量 (深色模式风格，作为主题加载前的兜底)
@@ -16,9 +14,9 @@ DEFAULT_STYLES = {
     "bg_color": "#161B22",       # 类似 GitHub Dark Dimmed 背景
     "border_color": "#30363D",   # 边框颜色
     "title_color": "#ECEFF4",    # 标题颜色
-    "radius": 10,
+    "radius": 6,
     "border_width": 1,
-    "font_size": 14,
+    "font_size": 15,
     "font_weight": 600,
     "margin": 16,
     "spacing": 12
@@ -58,10 +56,10 @@ class DataCard(QFrame):
             font-size: {DEFAULT_STYLES['font_size']}px;
             font-weight: {DEFAULT_STYLES['font_weight']};
         """)
-        # 标题通常不需要垂直拉伸，除非内容很少
-        self._title_label.setSizePolicy(self._title_label.sizePolicy().horizontalPolicy(), 
-                                        self._title_label.sizePolicy().verticalPolicy())
-        self._layout.addWidget(self._title_label)
+        self._header_layout = QHBoxLayout()
+        self._header_layout.setSpacing(8)
+        self._header_layout.addWidget(self._title_label, 1)
+        self._layout.addLayout(self._header_layout)
 
     def _apply_default_style(self):
         """应用默认兜底样式"""
@@ -91,15 +89,15 @@ class DataCard(QFrame):
                 #DataCard {{
                     background-color: {bg_color};
                     border: 1px solid {border_color};
-                    border-radius: 10px;
+                    border-radius: {DEFAULT_STYLES['radius']}px;
                 }}
             """)
 
             # 应用标题样式
             self._title_label.setStyleSheet(f"""
                 color: {title_color};
-                font-size: 14px;
-                font-weight: 600;
+                font-size: {DEFAULT_STYLES['font_size']}px;
+                font-weight: {DEFAULT_STYLES['font_weight']};
                 {font_rule}
             """)
 
@@ -117,6 +115,9 @@ class DataCard(QFrame):
         """设置或更新卡片标题"""
         self._title_text = title
         self._title_label.setText(title)
+
+    def add_header_widget(self, widget: QWidget) -> None:
+        self._header_layout.addWidget(widget)
 
     def add_widget(self, widget: QWidget) -> None:
         """
@@ -181,5 +182,3 @@ class DataCard(QFrame):
     def get_content_widgets(self) -> List[QWidget]:
         """获取当前内容组件列表的副本"""
         return list(self._content_widgets)
-    
-    

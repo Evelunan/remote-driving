@@ -1,8 +1,4 @@
-"""
-控制面板组件
-
-右侧控制面板，包含连接状态、车辆状态和实时数据
-"""
+"""驾驶工作台的输入、反馈和连接侧栏。"""
 
 from collections.abc import Callable
 
@@ -10,6 +6,7 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (
     QFrame,
     QGridLayout,
+    QHBoxLayout,
     QLabel,
     QPushButton,
     QScrollArea,
@@ -17,35 +14,32 @@ from PyQt6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
-from rd_driving.interfaces.ui import IConnectionItem, ITheme
 from rd_core.wire import VehicleStatus
+from rd_driving.interfaces.ui import IConnectionItem, ITheme
 
 from ..components import ConnectionItem, DataCard, StatItem
+from .multi_video_widget import CAMERA_NAMES, DEFAULT_LABELS
 
 
 class ControlPanel(QFrame):
-    """控制面板 - 使用 QFrame 包装 QScrollArea 确保高度一致"""
+    """将关键状态置于上方，将低频查看的统计与诊断放入折叠区域。"""
 
     def __init__(self):
         super().__init__()
-        self._theme: ITheme | None = None
         self._media_reconnect_callback: Callable | None = None
         self._control_reconnect_callback: Callable | None = None
         self._usb_connect_callback: Callable | None = None
 
-        self.setFixedWidth(300)
-        # 设置尺寸策略，让高度跟随父容器
+        self.setFixedWidth(328)
         self.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Expanding)
-
+        self.setObjectName("controlPanel")
+        self.setAccessibleName("驾驶数据与连接")
         self._setup_ui()
 
     def _setup_ui(self):
-        # 外层布局（加内边距）
         outer_layout = QVBoxLayout(self)
-        outer_layout.setContentsMargins(8, 8, 8, 8)
-        outer_layout.setSpacing(8)
+        outer_layout.setContentsMargins(0, 0, 0, 0)
 
-        # 内部滚动区域
         self._scroll_area = QScrollArea()
         self._scroll_area.setWidgetResizable(True)
         self._scroll_area.setHorizontalScrollBarPolicy(
@@ -54,32 +48,53 @@ class ControlPanel(QFrame):
         self._scroll_area.setVerticalScrollBarPolicy(
             Qt.ScrollBarPolicy.ScrollBarAsNeeded
         )
-        self._scroll_area.setStyleSheet(
-            "QScrollArea { border: none; background: transparent; }"
-        )
-        self._scroll_area.setSizePolicy(
-            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding
-        )
-        # 主面板
+        self._scroll_area.setFrameShape(QFrame.Shape.NoFrame)
         self._panel = QWidget()
-        self._panel.setStyleSheet("background: transparent;")
-
+        self._panel.setObjectName("controlPanelContent")
         self._layout = QVBoxLayout(self._panel)
-        self._layout.setContentsMargins(0, 0, 4, 0)
-        self._layout.setSpacing(16)
+        self._layout.setContentsMargins(0, 0, 3, 0)
+        self._layout.setSpacing(6)
 
-        self._setup_local_input()
         self._setup_vehicle_status()
+        self._setup_local_input()
+        self._setup_confirmation()
+        self._setup_connections()
+        self._setup_diagnostics()
+        self._layout.addStretch()
+        self._scroll_area.setWidget(self._panel)
+        outer_layout.addWidget(self._scroll_area)
 
-        # === 连接状态卡片 ===
-        self._conn_card = DataCard("系统连接")
+    @staticmethod
+    def _section(title):
+        card = DataCard(title)
+        card.set_margins(8)
+        card.set_spacing(4)
+        return card
 
+    @staticmethod
+    def _disclosure(label, content):
+        button = QPushButton(f"展开{label}")
+        button.setCheckable(True)
+        button.setMinimumHeight(30)
+        button.setCursor(Qt.CursorShape.PointingHandCursor)
+        content.hide()
+
+        def set_expanded(expanded):
+            content.setVisible(expanded)
+            button.setText(f"{'收起' if expanded else '展开'}{label}")
+
+        button.toggled.connect(set_expanded)
+        return button
+
+    def _setup_connections(self):
+        self._conn_card = self._section("系统连接")
+        self._conn_card.set_spacing(2)
         self._connections: dict[str, ConnectionItem] = {
-            "signal": ConnectionItem("信令服务器"),
-            "webrtc": ConnectionItem("WebRTC"),
-            "video": ConnectionItem("视频流"),
             "usb": ConnectionItem("控制设备"),
             "quic": ConnectionItem("数据通道"),
+            "video": ConnectionItem("视频流"),
+            "webrtc": ConnectionItem("WebRTC"),
+            "signal": ConnectionItem("信令服务器"),
         }
 
         for conn in self._connections.values():
@@ -105,50 +120,67 @@ class ControlPanel(QFrame):
 
         self._layout.addWidget(self._conn_card)
 
-        self.CAMERA_NAMES = ("front", "back", "left", "right")
+    def _setup_diagnostics(self):
+        self._setup_vehicle_diagnostics()
+        self._setup_camera_statistics()
 
+        actions = QHBoxLayout()
+        actions.setSpacing(6)
+        actions.addWidget(self._vehicle_details_button, 1)
+        actions.addWidget(self._camera_details_button, 1)
+        self._layout.addLayout(actions)
+        self._layout.addWidget(self._vehicle_details)
+        self._layout.addWidget(self._camera_details)
+
+    def _setup_camera_statistics(self):
+        self.CAMERA_NAMES = CAMERA_NAMES
+        self._camera_details = QWidget()
+        details = QVBoxLayout(self._camera_details)
+        details.setContentsMargins(0, 0, 0, 0)
+        details.setSpacing(6)
+        self._camera_details_button = self._disclosure("视频统计", self._camera_details)
         self.camera_cards: dict[str, DataCard] = {}
         self.camera_data: dict[str, dict[str, StatItem]] = {}
         for cam in self.CAMERA_NAMES:
             card, data = self._add_camera_card(cam)
             self.camera_cards[cam] = card
             self.camera_data[cam] = data
-            self._layout.addWidget(card)
-
-        # 弹性空间填充剩余高度
-        self._layout.addStretch(1)
-
-        self._scroll_area.setWidget(self._panel)
-        outer_layout.addWidget(self._scroll_area)
+            details.addWidget(card)
 
     def _setup_local_input(self):
-        self._input_card = DataCard("驾驶端输入")
+        self._input_card = self._section("驾驶端输入")
+        self._input_note = QLabel("输入：等待采样")
+        self._input_card.add_header_widget(self._input_note)
         self._gear = StatItem("所选挡位")
+        self._gear.setToolTip("所选挡位决定后续行驶方向。")
         self._input_stats = {
             "throttle": StatItem("油门输入", "%"),
             "brake": StatItem("制动输入", "%"),
             "steering": StatItem("转向输入", "%"),
         }
+        self._input_stats["brake"].setToolTip("制动输入转换为零速请求。")
         grid = QGridLayout()
+        grid.setHorizontalSpacing(10)
+        grid.setVerticalSpacing(4)
         grid.setColumnStretch(0, 1)
         grid.setColumnStretch(1, 1)
-        for index, widget in enumerate((self._gear, self._input_stats["steering"],
-                                        self._input_stats["throttle"], self._input_stats["brake"])):
+        metrics = (
+            self._gear,
+            self._input_stats["steering"],
+            self._input_stats["throttle"],
+            self._input_stats["brake"],
+        )
+        for index, widget in enumerate(metrics):
             grid.addWidget(widget, index // 2, index % 2)
         self._input_card.add_layout(grid)
-        self._input_note = QLabel("输入：等待采样")
-        self._input_card.add_widget(self._input_note)
-        self._input_hint = QLabel("所选挡位决定后续行驶方向；当前制动输入转换为零速请求。")
-        self._input_hint.setWordWrap(True)
-        self._input_card.add_widget(self._input_hint)
         self._layout.addWidget(self._input_card)
 
     def _setup_vehicle_status(self):
-        self._vehicle_card = DataCard("车辆反馈")
-        self._vehicle_heading = QLabel("底盘实际状态")
-        self._vehicle_card.add_widget(self._vehicle_heading)
+        self._vehicle_card = self._section("车辆反馈")
+        self._vehicle_note = QLabel()
+        self._vehicle_card.add_header_widget(self._vehicle_note)
         self._vehicle_stats = {
-            "speed_mps": StatItem("车速", "m/s"),
+            "speed_mps": StatItem("实际车速", "m/s"),
             "steering_deg": StatItem("转向角", "°"),
             "shift_level": StatItem("反馈挡位"),
             "is_autodrive": StatItem("自动驾驶使能"),
@@ -163,21 +195,21 @@ class ControlPanel(QFrame):
         self._vehicle_stats["p_status"].setToolTip(
             "底盘返回的 p_status；与驾驶端的制动输入分别显示。"
         )
-        main = QGridLayout()
-        main.setColumnStretch(0, 1)
-        main.setColumnStretch(1, 1)
-        main.addWidget(self._vehicle_stats["speed_mps"], 0, 0)
-        main.addWidget(self._vehicle_stats["steering_deg"], 0, 1)
-        main.addWidget(self._vehicle_stats["shift_level"], 1, 0, 1, 2)
-        main.addWidget(self._vehicle_stats["is_autodrive"], 2, 0)
-        main.addWidget(self._vehicle_stats["p_status"], 2, 1)
-        self._vehicle_card.add_layout(main)
-        self._vehicle_note = QLabel()
-        self._vehicle_note.setWordWrap(True)
-        self._vehicle_card.add_widget(self._vehicle_note)
-        self._confirmation_heading = QLabel("指令确认")
-        self._vehicle_card.add_widget(self._confirmation_heading)
-        self._confirmation_state = StatItem("接口确认")
+        for keys in (
+            ("speed_mps", "shift_level", "steering_deg"),
+            ("p_status", "is_autodrive"),
+        ):
+            row = QHBoxLayout()
+            row.setSpacing(10)
+            for key in keys:
+                row.addWidget(self._vehicle_stats[key], 1, Qt.AlignmentFlag.AlignTop)
+            self._vehicle_card.add_layout(row)
+        self.clear_vehicle_status()
+        self._layout.addWidget(self._vehicle_card)
+
+    def _setup_confirmation(self):
+        self._confirmation_card = self._section("指令确认")
+        self._confirmation_state = StatItem("接口状态")
         self._command_stats = {
             "throttle": StatItem("已确认油门（含方向）", "%"),
             "brake": StatItem("已确认制动输入", "%"),
@@ -185,33 +217,33 @@ class ControlPanel(QFrame):
             "elapsed": StatItem("采样至确认", "ms"),
         }
         confirmation = QGridLayout()
+        confirmation.setHorizontalSpacing(10)
         confirmation.setColumnStretch(0, 1)
         confirmation.setColumnStretch(1, 1)
         confirmation.addWidget(self._confirmation_state, 0, 0)
         confirmation.addWidget(self._command_stats["elapsed"], 0, 1)
-        self._vehicle_card.add_layout(confirmation)
-        self._confirmation_note = QLabel("接口调用完成，不代表底盘已执行或车辆已停稳。")
+        self._confirmation_card.add_layout(confirmation)
+        self._confirmation_note = QLabel("接口确认仅表示车端接口调用完成。")
+        self._confirmation_note.setToolTip("底盘实际状态和停车确认各有独立反馈。")
         self._confirmation_note.setWordWrap(True)
-        self._vehicle_card.add_widget(self._confirmation_note)
+        self._confirmation_card.add_widget(self._confirmation_note)
         self.clear_command_status()
-        self._vehicle_details_button = QPushButton("诊断详情")
-        self._vehicle_details_button.setCheckable(True)
-        self._vehicle_card.add_widget(self._vehicle_details_button)
+        self._layout.addWidget(self._confirmation_card)
+
+    def _setup_vehicle_diagnostics(self):
         self._vehicle_details = QWidget()
+        self._vehicle_details_button = self._disclosure("诊断详情", self._vehicle_details)
         details = QGridLayout(self._vehicle_details)
-        details.setContentsMargins(0, 0, 0, 0)
+        details.setContentsMargins(10, 6, 10, 6)
+        details.setHorizontalSpacing(10)
+        details.setVerticalSpacing(5)
         for index, key in enumerate(("left_wheel_mps", "right_wheel_mps", "drive_mode")):
             details.addWidget(self._vehicle_stats[key], index // 2, index % 2)
-        self._vehicle_details.setVisible(False)
-        self._vehicle_details_button.toggled.connect(self._vehicle_details.setVisible)
         for index, key in enumerate(("throttle", "brake", "steering")):
             details.addWidget(self._command_stats[key], 2 + index // 2, index % 2)
         self._measurement_note = QLabel("独立遥测：未接入；停车确认：未接入")
         self._measurement_note.setWordWrap(True)
         details.addWidget(self._measurement_note, 4, 0, 1, 2)
-        self._vehicle_card.add_widget(self._vehicle_details)
-        self.clear_vehicle_status()
-        self._layout.addWidget(self._vehicle_card)
 
     def set_vehicle_status(self, status: VehicleStatus):
         for key, item in self._vehicle_stats.items():
@@ -235,18 +267,18 @@ class ControlPanel(QFrame):
         self._vehicle_note.setText(reason)
 
     def _add_camera_card(self, key):
-        camera_card = DataCard(key)
+        camera_card = self._section(DEFAULT_LABELS[key])
         grid = QGridLayout()
-        grid.setSpacing(16)
+        grid.setHorizontalSpacing(8)
 
         data: dict[str, StatItem] = {
             "fps": StatItem("帧率", "FPS"),
             "resolution": StatItem("分辨率", ""),
-            "latency": StatItem("当前画面年龄", "ms"),
+            "latency": StatItem("画面年龄", "ms"),
         }
         grid.addWidget(data["fps"], 0, 0)
         grid.addWidget(data["resolution"], 0, 1)
-        grid.addWidget(data["latency"], 1, 0, 1, 2)
+        grid.addWidget(data["latency"], 0, 2)
         data["latency"].setToolTip("当前已绘制帧距车端采集的估算时间，两端通过 WebRTC 校时。")
         camera_card.add_layout(grid)
 
@@ -264,68 +296,65 @@ class ControlPanel(QFrame):
         return self
 
     def apply_theme(self, theme: ITheme) -> None:
-        self._theme = theme
-
-        # 外层 Frame 设置背景和圆角
-        self.setObjectName("controlPanel")
         self.setStyleSheet(
             f"""
-            #controlPanel {{
-                background-color: {theme.bg_secondary};
-                border: 1px solid {theme.border};
-                border-radius: 12px;
+            #controlPanel, #controlPanelContent {{
+                background-color: {theme.bg_primary};
             }}
-        """
+            """
         )
-
-        # 滚动条样式
         self._scroll_area.setStyleSheet(
             f"""
-            QScrollArea {{
-                border: none;
-                background: transparent;
-            }}
-            QScrollArea > QWidget > QWidget {{
-                background: transparent;
-            }}
+            QScrollArea {{ border: none; background-color: {theme.bg_primary}; }}
             {theme.get_scrollbar_style()}
-        """
+            """
         )
 
-        # 卡片样式
-        self._input_card.apply_theme(theme)
-        self._gear.apply_theme(theme, prominent_label=True)
+        for card in (
+            self._vehicle_card, self._input_card, self._confirmation_card, self._conn_card
+        ):
+            card.apply_theme(theme)
+        self._gear.apply_theme(theme, prominent_label=True, value_size=19)
         for item in self._input_stats.values():
-            item.apply_theme(theme, prominent_label=True)
-        self._input_note.setStyleSheet(f"color: {theme.text_secondary};")
-        self._input_hint.setStyleSheet(f"color: {theme.text_secondary};")
-        self._conn_card.apply_theme(theme)
-        self._vehicle_card.apply_theme(theme)
-        for label in (self._vehicle_heading, self._confirmation_heading):
-            label.setStyleSheet(f"color: {theme.text_primary}; font-weight: bold;")
-        for label in (self._vehicle_note, self._confirmation_note, self._measurement_note):
-            label.setStyleSheet(f"color: {theme.text_secondary};")
-        self._vehicle_details_button.setStyleSheet(
-            f"QPushButton {{ color: {theme.text_primary}; border: 1px solid {theme.border};"
-            " border-radius: 4px; padding: 4px; }"
-        )
-        for item in self._vehicle_stats.values():
-            item.apply_theme(theme)
+            item.apply_theme(theme, prominent_label=True, value_size=19)
+        for key, item in self._vehicle_stats.items():
+            if key == "speed_mps":
+                item.apply_theme(theme, prominent_label=True, value_size=25)
+            else:
+                item.apply_theme(theme, value_size=16)
+        for label in (
+            self._input_note, self._vehicle_note, self._confirmation_note, self._measurement_note
+        ):
+            label.setStyleSheet(f"color: {theme.text_secondary}; font-size: 12px;")
 
-        # 连接项样式
-        for conn in self._connections.values():
-            conn.apply_theme(theme)
-
-        self._confirmation_state.apply_theme(theme)
+        for button in (self._vehicle_details_button, self._camera_details_button):
+            button.setStyleSheet(
+                f"""
+                QPushButton {{
+                    background-color: {theme.bg_card};
+                    color: {theme.text_primary};
+                    border: 1px solid {theme.border};
+                    border-radius: 4px;
+                    padding: 0 10px;
+                    text-align: left;
+                    font-size: 12px;
+                }}
+                QPushButton:hover, QPushButton:checked {{
+                    background-color: {theme.bg_tertiary};
+                }}
+                QPushButton:focus {{ border-color: {theme.primary}; }}
+                """
+            )
+        self._confirmation_state.apply_theme(theme, value_size=16)
         for item in self._command_stats.values():
-            item.apply_theme(theme)
+            item.apply_theme(theme, value_size=16)
 
         for card in self.camera_cards.values():
             card.apply_theme(theme)
 
         for data in self.camera_data.values():
             for item in data.values():
-                item.apply_theme(theme)
+                item.apply_theme(theme, value_size=15)
 
     def get_connection_items(self) -> dict[str, IConnectionItem]:
         return self._connections
@@ -402,6 +431,7 @@ class ControlPanel(QFrame):
 
     def set_camera_grid(self, key, fps, w, h, latency_ms=None):
         data = self.camera_data[key]
-        data["fps"].set_value(fps)
-        data["resolution"].set_value(f"{w}×{h}")
-        data["latency"].set_value(latency_ms)
+        has_frame = w > 0 and h > 0
+        data["fps"].set_value(fps if has_frame and fps else None)
+        data["resolution"].set_value(f"{w}×{h}" if has_frame else None)
+        data["latency"].set_value(latency_ms if has_frame else None)
