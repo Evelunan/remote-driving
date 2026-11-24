@@ -341,3 +341,110 @@ def test_gui_settings_and_login_close_without_uninitialized_thread(legacy_python
         assert window._closing_ready
     """,
     )
+
+
+def test_session_selection_keeps_field_feedback_and_keyboard_flow(legacy_python):
+    legacy_python(
+        "driving",
+        """
+        import os
+        os.environ["QT_QPA_PLATFORM"] = "offscreen"
+        from PyQt6.QtCore import Qt
+        from PyQt6.QtTest import QTest
+        from PyQt6.QtWidgets import QApplication, QFrame
+        from rd_core.settings import DrivingSettings
+        from rd_driving.factories import UIFactory
+        from rd_driving.ui.widgets import LoginPage
+
+        app = QApplication([])
+        for name in ("modern_glass", "dark_tech"):
+            page = LoginPage(
+                UIFactory.set_theme(name),
+                settings=DrivingSettings(session=0, room="configured-room"),
+            )
+            page.show()
+            card = page.findChild(QFrame, "sessionForm")
+            for width, height in ((1200, 750), (1920, 1080)):
+                page.resize(width, height)
+                app.processEvents()
+                assert page.rect().contains(card.geometry())
+                assert card.width() == 480
+                assert abs(card.geometry().center().x() - page.rect().center().x()) <= 1
+                assert page._login_btn.isVisible()
+
+            room, session = page._room_input, page._session_input
+            submissions = []
+            page.login_success.connect(submissions.append)
+            assert (room.text(), session.text()) == ("configured-room", "0")
+            assert page._fake_login_btn is None
+            room.setFocus()
+            QTest.keyClick(room, Qt.Key.Key_Tab)
+            assert session.hasFocus()
+            QTest.keyClick(session, Qt.Key.Key_Tab)
+            assert page._login_btn.hasFocus()
+            room.setFocus()
+            QTest.keyClick(room, Qt.Key.Key_Return)
+            assert session.hasFocus()
+
+            room.setText("r" * 129)
+            QTest.keyClick(session, Qt.Key.Key_Return)
+            assert room.hasFocus()
+            assert "128" in room.accessibleDescription()
+            room.selectAll()
+            QTest.keyClicks(room, "selected-room")
+            assert room.accessibleDescription() == "用于接收摄像头画面"
+
+            session.setText("65536")
+            QTest.keyClick(room, Qt.Key.Key_Return)
+            QTest.keyClick(session, Qt.Key.Key_Return)
+            assert session.hasFocus()
+            assert "0–65535" in session.accessibleDescription()
+            assert not submissions
+
+            session.selectAll()
+            QTest.keyClicks(session, "65535")
+            QTest.keyClick(session, Qt.Key.Key_Return)
+            assert submissions == [{"session_id": 65535, "room": "selected-room"}]
+            assert "正在连接" in page._status_label.text()
+            page.reset_status()
+            assert not page._status_label.text()
+            assert (room.text(), session.text()) == ("selected-room", "65535")
+            page.close()
+        """,
+    )
+
+
+def test_session_selection_debug_action_uses_configured_values(legacy_python):
+    legacy_python(
+        "driving",
+        """
+        import os
+        os.environ["QT_QPA_PLATFORM"] = "offscreen"
+        from PyQt6.QtTest import QTest
+        from PyQt6.QtWidgets import QApplication
+        from rd_core.settings import DrivingSettings, UISettings
+        from rd_driving.factories import UIFactory
+        from rd_driving.ui.widgets import LoginPage
+
+        app = QApplication([])
+        page = LoginPage(
+            UIFactory.set_theme("dark_tech"),
+            settings=DrivingSettings(session=0, room="debug-room", ui=UISettings(debug=True)),
+        )
+        page.show()
+        page._room_input.setText("edited-room")
+        page._session_input.setText("12")
+        submissions = []
+        page.login_success.connect(submissions.append)
+        page._fake_login_btn.click()
+        assert not page._fake_login_btn.isEnabled()
+        assert not page._login_btn.isEnabled()
+        page._fake_login_btn.click()
+        QTest.qWait(400)
+        assert submissions == [{"session_id": 0, "room": "debug-room"}]
+        assert page._login_btn.isEnabled()
+        page.reset_status()
+        assert (page._room_input.text(), page._session_input.text()) == ("edited-room", "12")
+        assert not page._status_label.text()
+        """,
+    )

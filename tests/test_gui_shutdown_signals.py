@@ -38,6 +38,11 @@ def test_formal_gui_signals_wait_for_workers_and_restore_handlers(
         module.ControlSystemThread = Worker
         module.WebRTCReceiverThread = Worker
         original = module.MainWindow
+
+        def request_shutdown():
+            # os.kill with these signals would terminate a Windows process.
+            signal.raise_signal(signal.{number})
+
         class ObservedWindow(original):
             def __init__(self, *args, **kwargs):
                 super().__init__(*args, **kwargs)
@@ -45,10 +50,10 @@ def test_formal_gui_signals_wait_for_workers_and_restore_handlers(
                 self.tick = QTimer(self)
                 self.tick.timeout.connect(lambda: ticks.append(time.monotonic()))
                 self.tick.start(5)
-                QTimer.singleShot(25, lambda: os.kill(os.getpid(), signal.{number}))
+                QTimer.singleShot(25, request_shutdown)
                 if {connected!r}:
-                    QTimer.singleShot(85, lambda: os.kill(os.getpid(), signal.{number}))
-                    QTimer.singleShot(135, lambda: os.kill(os.getpid(), signal.{number}))
+                    QTimer.singleShot(85, request_shutdown)
+                    QTimer.singleShot(135, request_shutdown)
         module.MainWindow = ObservedWindow
         prior = {{n: signal.getsignal(n) for n in (signal.SIGINT,signal.SIGTERM)}}
         assert module.run_gui(DrivingSettings(), connect={connected!r}) == 0

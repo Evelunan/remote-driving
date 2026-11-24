@@ -6,6 +6,7 @@
 
 import platform
 from abc import ABC
+
 from rd_driving.interfaces.ui import ITheme
 
 
@@ -21,7 +22,22 @@ def get_system_font() -> str:
 
 
 class BaseTheme(ITheme, ABC):
-    """主题基类 - 提供通用实现"""
+    """驾驶台与会话页共用的哑光表面和状态色。"""
+
+    bg_primary = "#101820"
+    bg_secondary = "#18242E"
+    bg_tertiary = "#23323E"
+    bg_card = bg_secondary
+    text_primary = "#EDF4F8"
+    text_secondary = "#CAD8E2"
+    text_muted = "#AABBC8"
+    border = "#405463"
+    success = "#82D6AA"
+    warning = "#F5CB80"
+    error = "#FF9B94"
+    online = success
+    danger = error
+    danger_dark = "#EB807B"
 
     def __init__(self):
         self._font_family = get_system_font()
@@ -35,7 +51,7 @@ class BaseTheme(ITheme, ABC):
             QFrame {{
                 background-color: {self.bg_card};
                 border: 1px solid {self.border};
-                border-radius: 10px;
+                border-radius: 6px;
             }}
         """
 
@@ -44,19 +60,50 @@ class BaseTheme(ITheme, ABC):
         return f"""
             QPushButton {{
                 background-color: {self.primary};
-                color: white;
-                border: none;
+                color: {self.bg_primary};
+                border: 2px solid transparent;
                 border-radius: 6px;
                 font-size: 13px;
-                font-weight: 500;
+                font-weight: 600;
                 font-family: {self._font_family};
                 padding: 8px 16px;
             }}
             QPushButton:hover {{
-                background-color: {self.primary_dark};
+                background-color: {self.primary_glow};
             }}
             QPushButton:pressed {{
-                background-color: {self.primary};
+                background-color: {self.primary_dark};
+            }}
+            QPushButton:focus {{
+                border-color: {self.bg_primary};
+            }}
+            QPushButton:disabled {{
+                background-color: {self.bg_tertiary};
+                color: {self.text_muted};
+            }}
+        """
+
+    def get_secondary_button_style(self) -> str:
+        return f"""
+            QPushButton {{
+                background: {self.bg_tertiary};
+                color: {self.text_primary};
+                border: 1px solid {self.border};
+                border-radius: 5px;
+                font-size: 13px;
+                padding: 6px 14px;
+            }}
+            QPushButton:hover {{
+                border-color: {self.text_muted};
+            }}
+            QPushButton:pressed {{
+                background: {self.bg_primary};
+            }}
+            QPushButton:focus {{
+                border-color: {self.primary};
+            }}
+            QPushButton:disabled {{
+                color: {self.text_muted};
             }}
         """
 
@@ -78,13 +125,16 @@ class BaseTheme(ITheme, ABC):
             }}
             QScrollBar:vertical {{
                 background: {self.bg_secondary};
-                width: 6px;
-                border-radius: 3px;
+                width: 8px;
+                border-radius: 4px;
             }}
             QScrollBar::handle:vertical {{
                 background: {self.border};
-                border-radius: 3px;
-                min-height: 20px;
+                border-radius: 4px;
+                min-height: 24px;
+            }}
+            QScrollBar::handle:vertical:hover {{
+                background: {self.text_muted};
             }}
             QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{
                 height: 0;
@@ -92,11 +142,4 @@ class BaseTheme(ITheme, ABC):
         """
 
     def get_glass_effect_style(self) -> str:
-        """默认玻璃效果样式 - 子类可重写"""
-        return f"""
-            QFrame {{
-                background-color: rgba(22, 27, 34, 0.85);
-                border: 1px solid rgba(48, 54, 61, 0.6);
-                border-radius: 12px;
-            }}
-        """
+        return self.get_card_style()

@@ -175,24 +175,42 @@ def test_layout_switch_preserves_displays_and_presentation_evidence(legacy_pytho
         r"""
         import os
         os.environ["QT_QPA_PLATFORM"] = "offscreen"
+        import time
         from unittest.mock import Mock
         import numpy as np
-        from PyQt6.QtWidgets import QApplication
+        from PyQt6.QtWidgets import QApplication, QLabel
+        from rd_core.video_safety import VideoSource
         from rd_driving.infrastructure.video.frame_buffer import FrameBuffer
+        from rd_driving.ui.themes import ModernGlassTheme
         from rd_driving.ui.widgets.multi_video_widget import MultiVideoWidget
         app = QApplication([])
         cache, gate = FrameBuffer(), Mock()
-        widget = MultiVideoWidget(cache, video_gate=gate, stale_frame_ms=5000)
-        widget.resize(1200, 720)
+        widget = MultiVideoWidget(
+            cache, video_gate=gate, stale_frame_ms=5000, primary_view="right"
+        )
+        widget.apply_theme(ModernGlassTheme())
+        widget.resize(800, 640)
         widget.show()
         app.processEvents()
         displays = {name: widget.get_display(name) for name in cache.positions}
         parents = {name: panel.parentWidget() for name, panel in displays.items()}
+        primary = parents["right"]
+        assert widget.size().width() == 800
+        assert primary.y() < parents["left"].y()
+        assert parents["left"].x() < parents["back"].x() < parents["front"].x()
+        assert 0.7 < primary.height() / widget.height() < 0.8
+        assert all(widget.rect().contains(tile.geometry()) for tile in parents.values())
+        for panel in displays.values():
+            assert "等待" in panel.accessibleDescription()
         pixels = np.zeros((180, 320, 3), np.uint8)
+        sources = {name: VideoSource("vehicle", 1, name) for name in displays}
         for name in displays:
-            cache.put(name, pixels)
+            cache.put(name, pixels, source=sources[name])
         app.processEvents()
         app.processEvents()
+        widget.resize(1190, 780)
+        app.processEvents()
+        assert gate.observe.call_count == 1
         for index, mode in enumerate(("grid", "front_dominant") * 3, start=1):
             widget.set_layout(mode)
             app.processEvents()
@@ -201,14 +219,26 @@ def test_layout_switch_preserves_displays_and_presentation_evidence(legacy_pytho
                 assert panel is widget.get_display(name) and panel.isVisible()
                 label = {"front": "前视", "back": "后视", "left": "左视", "right": "右视"}[name]
                 assert panel.accessibleName() == label and not panel.accessibleDescription()
-                assert panel.grab().toImage().pixelColor(9, 9).name() == "#17212b"
                 assert panel.parentWidget() is parents[name]
+                title = parents[name].findChild(QLabel, "cameraTitle")
+                assert title.text() == label and title.geometry().bottom() < panel.y()
+                marker = parents[name].findChild(QLabel, "primaryCameraMarker")
+                assert (marker is not None) == (name == "right")
+                if marker is not None:
+                    assert marker.text() == "主画面" and marker.geometry().bottom() < panel.y()
                 assert panel._last_frame_id == index
-                cache.put(name, pixels)
-            assert (parents["front"].width() > 1.5 * parents["left"].width()) == (mode == "front_dominant")
+                cache.put(name, pixels, source=sources[name])
+            assert (primary.width() > 1.5 * parents["left"].width()) == (mode == "front_dominant")
             app.processEvents()
             app.processEvents()
             assert gate.observe.call_count == index + 1
+            assert gate.observe.call_args.args[2] == sources["right"]
+        cache.put("right", pixels, received_at=time.monotonic() - 10)
+        widget.check_expiry()
+        assert "已过期" in displays["right"].accessibleDescription()
+        assert displays["right"]._image.isNull()
+        assert displays["front"].isVisible() and not displays["front"]._image.isNull()
+        gate.invalidate.assert_called_once_with("picture_unavailable")
         widget.close()
     """,
     )

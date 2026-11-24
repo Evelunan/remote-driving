@@ -33,8 +33,10 @@ from rd_driving.infrastructure.workers import (
     SignalBridge,
     WebRTCReceiverThread,
 )
+from rd_driving.infrastructure.workers.control_system_thread import STATUS_TEXT
 from rd_driving.shutdown import shutdown_signals
-from rd_driving.ui.widgets import LoginPage, MultiVideoWidget
+from rd_driving.ui.widgets import LoginPage
+from rd_driving.ui.widgets.multi_video_widget import CAMERA_NAMES, MultiVideoWidget
 
 logger = get_logger(__name__)
 
@@ -207,7 +209,17 @@ class MainWindow(QMainWindow):
 
     def _on_quic_status_changed(self, ok: bool, text: str):
         if self._services_running and self._control_panel:
-            self._control_panel.set_connection_status("quic", ok, text)
+            connection_text = STATUS_TEXT["registered"] if ok else text
+            self._control_panel.set_connection_status("quic", ok, connection_text)
+            if self._navbar is not None:
+                tone = "waiting"
+                if ok and text == STATUS_TEXT["active"]:
+                    tone = "active"
+                elif text == STATUS_TEXT["waiting_video"] or (
+                    not ok and text != STATUS_TEXT["connecting"]
+                ):
+                    tone = "blocked"
+                self._navbar.set_control_status(text, tone=tone)
             if not ok:
                 self._clear_feedback()
 
@@ -279,15 +291,16 @@ class MainWindow(QMainWindow):
         self._navbar = UIFactory.create_navbar()
 
         self._navbar.set_room(self._room)
-        self._navbar.add_action("退出登录", self._logout, style="secondary")
+        self._navbar.set_session(self._session_id)
+        self._navbar.add_action("退出会话", self._logout, style="secondary")
         layout.addWidget(self._navbar.get_widget())
 
         # 内容区 - 使用 QFrame 作为容器确保子组件等高
         content = QFrame()
         content.setStyleSheet("background: transparent; border: none;")
         content_layout = QHBoxLayout(content)
-        content_layout.setContentsMargins(20, 20, 20, 20)
-        content_layout.setSpacing(20)
+        content_layout.setContentsMargins(16, 12, 16, 12)
+        content_layout.setSpacing(12)
 
         self._multi_video_widget = MultiVideoWidget(
             self.fb,
@@ -296,6 +309,7 @@ class MainWindow(QMainWindow):
             video_gate=self.video_gate,
             primary_view=self.settings.video.primary_view,
         )
+        self._multi_video_widget.apply_theme(self._theme)
         self._control_panel = UIFactory.create_control_panel()
         self._control_panel.set_media_reconnect_callback(self._reconnect_media)
         self._control_panel.set_control_reconnect_callback(self._reconnect_control)
@@ -312,7 +326,7 @@ class MainWindow(QMainWindow):
     def _create_footer(self) -> QFrame:
         footer = QFrame()
         footer.setObjectName("appFooter")
-        footer.setFixedHeight(32)
+        footer.setFixedHeight(28)
         footer.setStyleSheet(
             f"""
             #appFooter {{
@@ -323,11 +337,11 @@ class MainWindow(QMainWindow):
         """
         )
         layout = QHBoxLayout(footer)
-        layout.setContentsMargins(20, 0, 20, 0)
+        layout.setContentsMargins(16, 0, 16, 0)
 
         version_label = QLabel(f"v{VERSION}")
         version_label.setStyleSheet(
-            f"color: {self._theme.text_muted}; font-size: 11px; border: none;"
+            f"color: {self._theme.text_muted}; font-size: 12px; border: none;"
         )
         layout.addWidget(version_label)
 
@@ -335,7 +349,7 @@ class MainWindow(QMainWindow):
 
         self._time_label = QLabel()
         self._time_label.setStyleSheet(
-            f"color: {self._theme.text_muted}; font-size: 11px; border: none;"
+            f"color: {self._theme.text_muted}; font-size: 12px; border: none;"
         )
         layout.addWidget(self._time_label)
 
@@ -373,16 +387,15 @@ class MainWindow(QMainWindow):
         ):
             return
 
-        CAMERA_NAMES = ["front", "back", "left", "right"]
         for key in CAMERA_NAMES:
             display = self._multi_video_widget.get_display(key)
             if display is None:
                 continue
             fps = display.get_fps()
             w, h = display.get_resolution()
-            self._control_panel.set_camera_grid(
-                key, fps, w, h, display.get_latency_ms()
-            )
+            latency_ms = display.get_latency_ms()
+            self._multi_video_widget.set_camera_stats(key, fps, latency_ms)
+            self._control_panel.set_camera_grid(key, fps, w, h, latency_ms)
 
         if self._webrtc_connected:
             front = self.fb.get(self.settings.video.primary_view)
@@ -409,6 +422,7 @@ class MainWindow(QMainWindow):
         self._setup_signals()
         self._webrtc_connected = False
         try:
+            self._navbar.set_control_status(STATUS_TEXT["connecting"])
             self._control_panel.set_connection_status("usb", False, "连接中")
             self._start_video()
             self._start_control()
@@ -495,8 +509,7 @@ class MainWindow(QMainWindow):
             return False
         if not self._control_thread.request_control_reconnect():
             return False
-        self._clear_feedback()
-        self._control_panel.set_connection_status("quic", False, "连接中")
+        self._on_quic_status_changed(False, STATUS_TEXT["connecting"])
         return True
 
     def _start_control(self):
@@ -587,6 +600,10 @@ class MainWindow(QMainWindow):
         if self._pending_action == "close":
             return
         self._pending_action = action
+        if self._navbar is not None:
+            self._navbar.set_control_status(
+                "正在重新连接" if action == "restart" else "正在退出会话"
+            )
         self._media_restart_pending = False
         self._media_generation += 1
         self._services_running = False
@@ -664,6 +681,7 @@ class MainWindow(QMainWindow):
             self._stacked_widget.addWidget(self._control_page)
 
             # 切回登录页面
+            self._login_page.reset_status()
             self._stacked_widget.setCurrentIndex(0)
             logger.info("已返回登录页面")
         except RuntimeError as exc:
