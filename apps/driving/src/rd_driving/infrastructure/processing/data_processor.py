@@ -1,4 +1,5 @@
-from typing import Dict, NamedTuple
+from dataclasses import dataclass
+from typing import Dict
 from rd_core.samples import RawInput, ControlInput
 from rd_driving.interfaces import IDataProcessor, IAnalogCalculator, IMessageQueue
 from rd_driving.infrastructure.device import InputConfigManager, InputType
@@ -8,9 +9,16 @@ from rd_core.logging import get_logger
 logger = get_logger(__name__)
 
 
-class LocalInputState(NamedTuple):
+@dataclass(frozen=True)
+class LocalInputState:
+    """Local direction and processed input; unrelated to vehicle acknowledgements."""
+
     reverse: bool
-    braking: bool
+    sample: ControlInput
+
+    @property
+    def braking(self) -> bool:
+        return self.sample.brake > 0
 
 
 class DataProcessor(IDataProcessor):
@@ -28,7 +36,7 @@ class DataProcessor(IDataProcessor):
     def local_input_state(self, timeout_s: float) -> LocalInputState | None:
         if self._latest is None or not self._latest.fresh(timeout_s):
             return None
-        return LocalInputState(self._reverse, self._latest.brake > 0)
+        return LocalInputState(self._reverse, self._latest)
 
     async def process(self, sample: RawInput) -> None:
         data = sample.data

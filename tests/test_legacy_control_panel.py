@@ -25,6 +25,8 @@ def test_local_gear_visible_without_vehicle_feedback(legacy_python):
         from PyQt6.QtWidgets import QApplication
         from rd_driving.main_window import MainWindow
         from rd_driving.infrastructure.processing.data_processor import LocalInputState
+        from rd_core.samples import ControlInput
+        import time
 
         app = QApplication([])
         window = MainWindow()
@@ -34,14 +36,17 @@ def test_local_gear_visible_without_vehicle_feedback(legacy_python):
         panel = window._control_panel
         def displayed():
             return panel._gear.get_value(), panel._braking.get_value()
+        def state(reverse, braking):
+            return LocalInputState(reverse, ControlInput(0, int(braking), 0,
+                                   time.monotonic(), time.time_ns() // 1_000_000))
 
         assert displayed() == ('--', '--')
-        window._bridge.local_input_changed.emit(LocalInputState(False, False))
+        window._bridge.local_input_changed.emit(state(False, False))
         assert displayed() == ('D 前进挡', '未触发')
-        window._bridge.local_input_changed.emit(LocalInputState(True, True))
+        window._bridge.local_input_changed.emit(state(True, True))
         window._bridge.control_confirmation_expired.emit()
         assert displayed() == ('R 倒挡', '已触发')
-        window._bridge.local_input_changed.emit(LocalInputState(True, False))
+        window._bridge.local_input_changed.emit(state(True, False))
         assert displayed() == ('R 倒挡', '未触发')
         window._bridge.usb_status_changed.emit(False, '未连接')
         assert displayed() == ('--', '--')

@@ -90,7 +90,10 @@ class DrivingInputService:
 
         async def process_input(sample):
             await processor.process(sample)
-            self._update_local_input(processor)
+            # Commands retain every gear pulse; Qt only receives the latest snapshot
+            # on the display tick. Invalid input is cleared immediately.
+            if sample.data is None or len(sample.data) < 5:
+                self._update_local_input(processor)
 
         device.set_data_callback(process_input)
         try:
@@ -100,7 +103,7 @@ class DrivingInputService:
                     await device.connect()
                     self._usb_status(True, "已连接")
                     while device.is_connected():
-                        await asyncio.sleep(0.1)
+                        await asyncio.sleep(0.05)
                         self._update_local_input(processor)
                 except (ConnectionError, OSError) as exc:
                     logger.warning(
