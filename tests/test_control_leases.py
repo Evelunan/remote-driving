@@ -26,6 +26,7 @@ class Peer:
         self.registry = registry
         self.datagrams, self.events = [], []
         self.closed = False
+        self.discarded = 0
         self.datagram_error = None
         self.prepare_gate = None
         self.preparations = []
@@ -47,6 +48,9 @@ class Peer:
         if self.closed:
             raise ConnectionError
         self.events.append((method, params))
+
+    def discard_pending_datagrams(self):
+        self.discarded += 1
 
     def close(self, **kwargs):
         self.closed = True
@@ -379,9 +383,11 @@ async def test_release_checks_owner_and_epoch_and_execution_failure_revokes(setu
     old = await registry.acquire(peers["driver"])
     with pytest.raises(RpcError, match="lease_owner_required"):
         registry.release(peers["other"], {"epoch": old["epoch"]})
+    assert peers["vehicle"].discarded == 0
     assert registry.release(peers["driver"], {"epoch": old["epoch"]}) == {
         "revoked": True
     }
+    assert peers["vehicle"].discarded == 1
     new = await registry.acquire(peers["driver"])
     assert old["epoch"] != new["epoch"]
     assert registry.release(peers["driver"], {"epoch": old["epoch"]}) == {
@@ -397,6 +403,7 @@ async def test_release_checks_owner_and_epoch_and_execution_failure_revokes(setu
         peers["vehicle"], execution(packet, ExecutionStatus.REJECTED).encode()
     )
     assert not registry.leases
+    assert peers["vehicle"].discarded == 2
     assert peers["driver"].events[-1][1]["reason"] == "execution_failed"
 
 

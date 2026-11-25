@@ -230,8 +230,10 @@ async def test_congested_datagram_and_notification_queues_are_bounded():
     assert list(protocol._quic._datagrams_pending) == [b"vehicle status"]
     assert protocol.send_datagram(b"control")
     assert list(protocol._quic._datagrams_pending) == [b"control"]
+    protocol.discard_pending_datagrams()
     for _ in range(8):
         protocol.notify("event", {})
+    assert not protocol._quic._datagrams_pending
     with pytest.raises(RpcError, match="backpressure"):
         protocol.notify("event", {})
     assert len(protocol._quic._streams) == 8

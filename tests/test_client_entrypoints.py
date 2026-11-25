@@ -262,6 +262,8 @@ async def test_formal_vehicle_runtime_and_driving_input_execute_configured_value
                 await asyncio.sleep(0.01)
 
     try:
+        await until(lambda: inputs.client.connection is not None and len(frames) == 2)
+        assert inputs.client.request_start_control()
         await until(lambda: inputs.client.armed and len(frames) == 2)
         assert frames == {"front": (64, 96, 3), "back": (48, 64, 3)}
         assert [camera.fps for camera in created] == [20, 40]

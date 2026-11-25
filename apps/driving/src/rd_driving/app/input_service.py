@@ -135,6 +135,19 @@ class DrivingInputService:
         self._control_task.cancel()
         return True
 
+    def request_start_control(self):
+        return self.client.request_start_control()
+
+    def request_stop_control(self):
+        return self.client.request_stop_control()
+
+    def pause_control_for_video(self):
+        return self.client.pause_control_for_video()
+
+    def apply_control_request(self, action):
+        if not action(self):
+            self._control_status(self._control_state, self._control_detail)
+
     async def _control(self):
         try:
             while True:

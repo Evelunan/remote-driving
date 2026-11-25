@@ -2,7 +2,7 @@
 
 from collections.abc import Callable
 
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtWidgets import (
     QFrame,
     QGridLayout,
@@ -24,11 +24,15 @@ from .multi_video_widget import CAMERA_NAMES, DEFAULT_LABELS
 class ControlPanel(QFrame):
     """将关键状态置于上方，将低频查看的统计与诊断放入折叠区域。"""
 
+    video_toggle_requested = pyqtSignal()
+    control_toggle_requested = pyqtSignal()
+
     def __init__(self):
         super().__init__()
         self._media_reconnect_callback: Callable | None = None
         self._control_reconnect_callback: Callable | None = None
         self._usb_connect_callback: Callable | None = None
+        self._video_requested = False
 
         self.setFixedWidth(328)
         self.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Expanding)
@@ -53,7 +57,7 @@ class ControlPanel(QFrame):
         self._panel.setObjectName("controlPanelContent")
         self._layout = QVBoxLayout(self._panel)
         self._layout.setContentsMargins(0, 0, 3, 0)
-        self._layout.setSpacing(6)
+        self._layout.setSpacing(5)
 
         self._setup_vehicle_status()
         self._setup_local_input()
@@ -67,7 +71,7 @@ class ControlPanel(QFrame):
     @staticmethod
     def _section(title):
         card = DataCard(title)
-        card.set_margins(8)
+        card.set_margins(6)
         card.set_spacing(4)
         return card
 
@@ -93,6 +97,7 @@ class ControlPanel(QFrame):
             "usb": ConnectionItem("控制设备"),
             "quic": ConnectionItem("数据通道"),
             "video": ConnectionItem("视频流"),
+            "control": ConnectionItem("行驶授权"),
             "webrtc": ConnectionItem("WebRTC"),
             "signal": ConnectionItem("信令服务器"),
         }
@@ -115,8 +120,18 @@ class ControlPanel(QFrame):
         self._action_buttons["quic"] = self._connections["quic"].add_action(
             "重连",
             self._on_control_reconnect,
-            "重连数据通道并申请控制权；保留设备和视频连接",
+            "重连车辆状态的数据通道；保留设备和视频连接",
         )
+        self._action_buttons["video"] = self._connections["video"].add_action(
+            "连接视频", self.video_toggle_requested.emit, "开启或关闭车辆视频",
+        )
+        self._action_buttons["control"] = self._connections["control"].add_action(
+            "开始控制", self.control_toggle_requested.emit, "开启、恢复或停止行驶控制",
+        )
+        self.set_connection_status("video", False, "未连接")
+        self.set_connection_status("control", False, "未开启")
+        self.set_media_reconnecting(False)
+        self.set_control_action("开始控制", enabled=False)
 
         self._layout.addWidget(self._conn_card)
 
@@ -362,9 +377,19 @@ class ControlPanel(QFrame):
     def set_media_reconnect_callback(self, callback: Callable) -> None:
         self._media_reconnect_callback = callback
 
+    def set_video_requested(self, requested, *, busy=False):
+        self._video_requested = requested
+        self._connections["video"].set_action_text("断开视频" if requested else "连接视频")
+        self._action_buttons["video"].setEnabled(not busy or requested)
+        self.set_media_reconnecting(busy)
+
     def set_media_reconnecting(self, busy):
         for name in ("signal", "webrtc"):
-            self._action_buttons[name].setEnabled(not busy)
+            self._action_buttons[name].setEnabled(self._video_requested and not busy)
+
+    def set_control_action(self, text, *, enabled=True):
+        self._connections["control"].set_action_text(text)
+        self._action_buttons["control"].setEnabled(enabled)
 
     def _on_media_reconnect(self):
         if self._media_reconnect_callback:

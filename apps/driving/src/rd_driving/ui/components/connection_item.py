@@ -50,7 +50,7 @@ class ConnectionItem(QFrame):
 
     def _setup_ui(self):
         layout = QHBoxLayout(self)
-        layout.setContentsMargins(0, 2, 0, 2)
+        layout.setContentsMargins(0, 1, 0, 1)
         layout.setSpacing(8)
 
         # 1. 状态指示器 (小圆点)
@@ -82,7 +82,7 @@ class ConnectionItem(QFrame):
         layout.addWidget(self._status_label, 1)
 
         self._action_slot = QWidget(self)
-        self._action_slot.setFixedSize(44, 28)
+        self._action_slot.setFixedSize(64, 28)
         action_layout = QHBoxLayout(self._action_slot)
         action_layout.setContentsMargins(0, 0, 0, 0)
         action_layout.setSpacing(0)
@@ -90,17 +90,21 @@ class ConnectionItem(QFrame):
 
     def add_action(self, text, callback, tooltip):
         button = self._action_button = QPushButton(text)
-        button.setFixedSize(44, 28)
+        button.setFixedSize(self._action_slot.size())
         button.setCursor(Qt.CursorShape.PointingHandCursor)
         lines = [line for part in tooltip.split("；") for line in wrap(part, width=18)]
         button.setToolTip(
             "<qt>" + "<br>".join(f"<nobr>{escape(line)}</nobr>" for line in lines) + "</qt>"
         )
         button.setAccessibleDescription(tooltip)
-        button.setAccessibleName(f"{self._name_text}：{text}")
+        self.set_action_text(text)
         button.clicked.connect(callback)
         self._action_slot.layout().addWidget(button)
         return button
+
+    def set_action_text(self, text):
+        self._action_button.setText(text)
+        self._action_button.setAccessibleName(f"{self._name_text}：{text}")
 
     def _get_status_text(self, online: bool, custom_text: str | None) -> str:
         """获取状态显示文本"""

@@ -22,6 +22,10 @@ def send_latest_datagram(protocol, data, *, best_effort):
     return True
 
 
+def discard_pending_datagrams(protocol):
+    protocol._quic._datagrams_pending.clear()
+
+
 def has_stream_capacity(protocol, limit):
     # Include streams waiting for transport ACKs, not just application futures.
     return len(protocol._quic._streams) < limit

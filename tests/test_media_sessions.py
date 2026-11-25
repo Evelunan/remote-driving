@@ -351,7 +351,7 @@ def test_qt_media_stop_is_nonblocking_and_not_connected_before_join(legacy_pytho
     )
 
 
-def test_window_reconnect_waits_for_old_workers_without_blocking_gui(legacy_python):
+def test_window_disconnects_video_without_restarting_other_workers(legacy_python):
     legacy_python(
         "driving",
         """
@@ -377,29 +377,37 @@ def test_window_reconnect_waits_for_old_workers_without_blocking_gui(legacy_pyth
                 time.sleep(0.15)
             def request_stop(self):
                 self.stop.set()
+            def pause_control_for_video(self):
+                return True
         module.ControlSystemThread = Worker
         module.WebRTCReceiverThread = Worker
         window = module.MainWindow(session_id="42", room="video")
         window.show()
+        assert window._receiver_thread is None
+        panel = window._control_panel
+        panel._action_buttons['video'].click()
         old_video, old_control = window._receiver_thread, window._control_thread
         ticks = []
         timer = QTimer()
         timer.timeout.connect(lambda: ticks.append(time.monotonic()))
         timer.start(10)
         started = time.monotonic()
-        window._reconnect()
+        panel._action_buttons['video'].click()
         assert time.monotonic() - started < 0.1
         assert window._receiver_thread is old_video
         deadline = time.monotonic() + 3
         while window._receiver_thread is old_video and time.monotonic() < deadline:
             app.processEvents()
             time.sleep(0.005)
-        assert not old_video.isRunning() and not old_control.isRunning()
-        assert window._receiver_thread is not old_video
+        assert not old_video.isRunning() and old_control.isRunning()
+        assert window._receiver_thread is None
         assert len(ticks) >= 3
         old_video.args[0]._on_frame("front", np.ones((24, 32, 3), dtype=np.uint8), None)
         assert window.fb.get("front").frame is None
+        assert panel._action_buttons['video'].text() == '连接视频'
+        panel._action_buttons['video'].click()
         active = (window._receiver_thread, window._control_thread)
+        assert active[0] is not old_video and active[1] is old_control
         window.close()
         while any(worker.isRunning() for worker in active) and time.monotonic() < deadline:
             app.processEvents()

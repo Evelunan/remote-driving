@@ -40,6 +40,11 @@ from rd_driving.ui.widgets.multi_video_widget import CAMERA_NAMES, MultiVideoWid
 
 logger = get_logger(__name__)
 
+CONTROL_IN_PROGRESS = {
+    "starting", "waiting_device", "waiting_input", "waiting_neutral",
+    "waiting_video", "waiting_execution", "active",
+}
+
 
 class MainWindow(QMainWindow):
     """主窗口 - 包含登录页面和控制页面"""
@@ -65,7 +70,11 @@ class MainWindow(QMainWindow):
         self._control_thread = None
         self._service_generation = 0
         self._media_generation = 0
+        self._video_requested = False
         self._media_restart_pending = False
+        self._quic_online = False
+        self._control_state = "idle"
+        self._control_action_pending = False
         self._pending_action = None
         self._closing_ready = False
         self._shutdown_poll = QTimer(self)
@@ -141,6 +150,14 @@ class MainWindow(QMainWindow):
 
     def _on_control_data_updated(self, data):
         if self._services_running and self._control_panel:
+            picture = self.video_gate.snapshot()
+            if (
+                not self._quic_online
+                or self._control_state != "active"
+                or not picture.ready
+                or data["picture_revision"] != picture.revision
+            ):
+                return
             if data["deadline"] <= time.monotonic():
                 self._on_control_confirmation_expired()
                 return
@@ -212,23 +229,61 @@ class MainWindow(QMainWindow):
 
     def _on_quic_status_changed(self, ok: bool, text: str):
         if self._services_running and self._control_panel:
+            self._quic_online = ok
             self._control_panel.set_connection_status("quic", ok, text)
+            self._refresh_control_action()
             if not ok:
                 self._clear_feedback()
 
     def _on_control_status_changed(self, state: str, text: str):
         if not self._services_running:
             return
+        if state == "active" and (not self._quic_online or not self.video_gate.snapshot().ready):
+            return
+        self._control_state = state
+        self._control_action_pending = False
+        self._refresh_control_action()
+        if self._control_panel is not None:
+            self._control_panel.set_connection_status("control", state == "active", text)
         if self._navbar is not None:
             tone = "waiting"
             if state == "active":
                 tone = "active"
-            elif state in {"waiting_video", "video_unavailable", "revoked", "error",
+            elif state in {"paused", "video_unavailable", "revoked", "lease_busy",
                            "video_vehicle_mismatch", "disconnected"}:
                 tone = "blocked"
             self._navbar.set_control_status(text, tone=tone)
         if state != "active":
             self._clear_lease_feedback()
+
+    def _refresh_control_action(self):
+        if self._control_panel is None:
+            return
+        state = self._control_state
+        enabled = self._quic_online and state != "stopping" and not self._control_action_pending
+        if state in CONTROL_IN_PROGRESS or state == "stopping":
+            text = "停止控制"
+        elif state in {"idle", "disconnected"}:
+            text = "开始控制"
+        else:
+            text = "恢复控制"
+            picture = self.video_gate.snapshot()
+            enabled = enabled and picture.ready and picture.source.session == int(self._session_id)
+        self._control_panel.set_control_action(text, enabled=enabled)
+
+    def _toggle_control(self):
+        worker = self._control_thread
+        if worker is None or not self._services_running or not self._quic_online:
+            return
+        if self._control_state in CONTROL_IN_PROGRESS:
+            accepted = worker.request_stop_control()
+        elif self._control_state != "stopping":
+            accepted = worker.request_start_control()
+        else:
+            return
+        if accepted:
+            self._control_action_pending = True
+            self._refresh_control_action()
 
     def _clear_lease_feedback(self):
         self._telemetry_at = None
@@ -285,7 +340,7 @@ class MainWindow(QMainWindow):
         self._switch_to_control_page()
 
     def _switch_to_control_page(self):
-        """切换到控制页面并启动服务"""
+        """进入工作台并启动只读状态连接与本地输入预览。"""
         self._setup_control_page()
         self._setup_timers()
         self._services_running = True
@@ -322,6 +377,8 @@ class MainWindow(QMainWindow):
         )
         self._multi_video_widget.apply_theme(self._theme)
         self._control_panel = UIFactory.create_control_panel()
+        self._control_panel.video_toggle_requested.connect(self._toggle_video)
+        self._control_panel.control_toggle_requested.connect(self._toggle_control)
         self._control_panel.set_media_reconnect_callback(self._reconnect_media)
         self._control_panel.set_control_reconnect_callback(self._reconnect_control)
         self._control_panel.set_usb_connect_callback(self._connect_usb)
@@ -416,6 +473,7 @@ class MainWindow(QMainWindow):
             self._control_panel.set_connection_status(
                 "video", fresh, "传输中" if fresh else "主画面已过期"
             )
+        self._refresh_control_action()
 
     def _connect_usb(self):
         if self._services_running and self._control_thread is not None:
@@ -432,11 +490,14 @@ class MainWindow(QMainWindow):
         self.video_gate.invalidate("service_restarted")
         self._setup_signals()
         self._webrtc_connected = False
+        self._quic_online = False
+        self._video_requested = False
         try:
-            self._navbar.set_control_status(STATUS_TEXT["connecting"])
+            self._on_control_status_changed("idle", STATUS_TEXT["idle"])
+            self._on_quic_status_changed(False, STATUS_TEXT["connecting"])
             self._control_panel.set_connection_status("usb", False, "连接中")
-            self._start_video()
-            self._start_control()
+            self._multi_video_widget.show_message_all("视频未连接")
+            self._start_session_worker()
         except Exception as exc:  # noqa: BLE001 - GUI boundary rolls back partial startup
             logger.error("服务启动失败 (%s)", type(exc).__name__)
             self._request_shutdown("logout")
@@ -485,31 +546,61 @@ class MainWindow(QMainWindow):
         self._receiver_thread.start()
 
     def _media_signal(self, generation, callback, *args):
-        if generation == self._media_generation and self._services_running:
+        if generation == self._media_generation and self._services_running and self._video_requested:
             callback(*args)
+
+    def _toggle_video(self):
+        if not self._services_running or self._pending_action:
+            return
+        if self._video_requested:
+            self._video_requested = False
+            self._media_restart_pending = False
+            self._stop_media("video_disconnected", reconnecting=False)
+        elif self._receiver_thread is None:
+            self._video_requested = True
+            self._open_requested_video()
+
+    def _open_requested_video(self):
+        self._control_panel.set_video_requested(True, busy=True)
+        self._control_panel.set_connection_status("video", False, "等待画面")
+        self._control_panel.set_connection_status("signal", False, "连接中")
+        try:
+            self._start_video()
+        except Exception as exc:  # noqa: BLE001 - isolate video startup from the session
+            logger.error("视频启动失败 (%s)", type(exc).__name__)
+            self._video_requested = False
+            self._stop_media("video_start_failed", reconnecting=False)
+            self._control_panel.set_connection_status("video", False, "连接失败")
 
     def _reconnect_media(self):
         if (
             not self._services_running
             or self._pending_action
+            or not self._video_requested
             or self._media_restart_pending
         ):
             return False
         self._media_restart_pending = True
+        self._stop_media("media_restarted", reconnecting=True)
+        return True
+
+    def _stop_media(self, reason, *, reconnecting):
         self._media_generation += 1
         self.fb.clear()
-        self.video_gate.invalidate("media_restarted")
+        text = "等待画面" if reconnecting else "视频未连接"
+        self._multi_video_widget.show_message_all(text, reason=reason)
+        if self._control_thread is not None:
+            self._control_thread.pause_control_for_video()
         self._clear_lease_feedback()
         self._webrtc_connected = False
-        self._control_panel.set_media_reconnecting(True)
+        self._control_panel.set_video_requested(self._video_requested, busy=True)
         for name in ("signal", "webrtc"):
-            self._control_panel.set_connection_status(name, False, "重连中")
-        self._control_panel.set_connection_status("video", False, "等待画面")
+            self._control_panel.set_connection_status(name, False, "重连中" if reconnecting else "未连接")
+        self._control_panel.set_connection_status("video", False, text)
         if self._receiver_thread is not None:
             self._receiver_thread.request_stop()
         self._shutdown_poll.start()
         self._finish_shutdown()
-        return True
 
     def _reconnect_control(self):
         if (
@@ -523,7 +614,7 @@ class MainWindow(QMainWindow):
         self._on_quic_status_changed(False, STATUS_TEXT["connecting"])
         return True
 
-    def _start_control(self):
+    def _start_session_worker(self):
         self._control_thread = ControlSystemThread(
             self._bridge,
             replace(self.settings, session=int(self._session_id), room=self._room),
@@ -531,10 +622,6 @@ class MainWindow(QMainWindow):
         )
         self._control_thread.finished.connect(self._finish_shutdown)
         self._control_thread.start()
-
-    def _reconnect(self):
-        if self._services_running and self._pending_action is None:
-            self._request_shutdown("restart")
 
     def _on_video_conn(self, connected: bool):
         if not self._services_running or self._control_panel is None:
@@ -611,6 +698,8 @@ class MainWindow(QMainWindow):
         if self._pending_action == "close":
             return
         self._pending_action = action
+        self._video_requested = False
+        self._quic_online = False
         self._media_restart_pending = False
         self._media_generation += 1
         self._services_running = False
@@ -624,7 +713,6 @@ class MainWindow(QMainWindow):
                 worker.request_stop()
         message = {
             "close": "正在关闭驾驶端",
-            "restart": "正在重新连接",
         }.get(action, "正在退出会话")
         if self._navbar is not None:
             self._navbar.set_control_status(message)
@@ -644,20 +732,20 @@ class MainWindow(QMainWindow):
 
     def _finish_shutdown(self):
         if self._pending_action is None:
-            if self._media_restart_pending and (
-                self._receiver_thread is None or not self._receiver_thread.isRunning()
-            ):
-                self._shutdown_poll.stop()
-                self._receiver_thread = None
+            if self._receiver_thread is not None and self._receiver_thread.isRunning():
+                return
+            self._shutdown_poll.stop()
+            if self._media_restart_pending:
                 self._media_restart_pending = False
-                try:
-                    self._start_video()
-                except Exception as exc:  # noqa: BLE001 - isolate GUI restart failures
-                    logger.error("Media restart failed (%s)", type(exc).__name__)
-                    self._control_panel.set_connection_status(
-                        "signal", False, "重连失败"
-                    )
-                    self._control_panel.set_media_reconnecting(False)
+                self._receiver_thread = None
+                self._open_requested_video()
+            elif self._receiver_thread is not None or not self._video_requested:
+                self._receiver_thread = None
+                if self._video_requested:
+                    self._video_requested = False
+                    self._stop_media("media_worker_exited", reconnecting=False)
+                elif self._control_panel is not None:
+                    self._control_panel.set_video_requested(False)
             return
         if any(
             worker is not None and worker.isRunning()
@@ -670,11 +758,6 @@ class MainWindow(QMainWindow):
         if action == "close":
             self._closing_ready = True
             QTimer.singleShot(0, self.close)
-        elif action == "restart":
-            self._control_page.setEnabled(True)
-            self._setup_timers()
-            self._services_running = True
-            self._start_services()
         else:
             self._finish_logout()
             self._login_page.setEnabled(True)

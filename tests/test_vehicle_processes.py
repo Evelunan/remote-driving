@@ -257,6 +257,8 @@ async def test_spawned_control_and_media_execute_receive_video_and_clean_up(
         asyncio.create_task(job) for job in (client.run(), receiver.start(), produce())
     ]
     try:
+        await until(lambda: client.connection is not None, group_task)
+        assert client.request_start_control()
         await until(lambda: client.armed and frames, group_task, timeout=12)
         assert frames[-1] == ("front", (64, 96, 3))
         axis = 0.2

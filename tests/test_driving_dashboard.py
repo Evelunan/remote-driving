@@ -61,7 +61,9 @@ def test_dashboard_control_status_tracks_worker_and_clears_on_logout(legacy_pyth
         """
         import os
         os.environ["QT_QPA_PLATFORM"] = "offscreen"
+        import time
         from PyQt6.QtWidgets import QApplication
+        from rd_core.video_safety import VideoSource
         from rd_driving.infrastructure.workers.control_system_thread import STATUS_TEXT
         from rd_driving.main_window import MainWindow
 
@@ -87,8 +89,11 @@ def test_dashboard_control_status_tracks_worker_and_clears_on_logout(legacy_pyth
         channel = window._control_panel.get_connection_items()["quic"]
         signal = window._bridge.control_status_changed
         window._bridge.quic_status_changed.emit(True, STATUS_TEXT["registered"])
+        window.video_gate.recovery_s = 0
+        observed = time.monotonic()
+        window.video_gate.observe(1, observed, VideoSource('vehicle', 42, 'peer'), captured_at=observed)
         for state, tone in (
-            ("registered", "waiting"),
+            ("idle", "waiting"),
             ("waiting_input", "waiting"),
             ("waiting_neutral", "waiting"),
             ("waiting_execution", "waiting"),

@@ -14,15 +14,20 @@ logger = get_logger(__name__)
 STATUS_TEXT = {
     "connecting": "连接中",
     "registered": "已认证",
+    "idle": "控制未开启",
+    "starting": "正在启动控制",
+    "stopping": "正在释放控制权",
+    "paused": "控制已暂停",
     "waiting_device": "等待控制设备",
     "waiting_input": "等待设备输入",
     "waiting_neutral": "请将控制输入归零",
-    "waiting_video": "主画面不可用，控制已禁止",
-    "video_unavailable": "主画面失效，控制已撤销",
+    "waiting_video": "等待实时主画面",
+    "video_unavailable": "主画面失效，控制已暂停",
     "video_vehicle_mismatch": "画面与控制车辆不匹配",
     "waiting_execution": "等待中立执行确认",
     "active": "控制已授权",
     "revoked": "控制授权已撤销",
+    "lease_busy": "车辆已被其他驾驶端控制",
     "error": "连接或授权失败",
     "disconnected": "离线",
 }
@@ -57,13 +62,15 @@ class ControlSystemThread(QThread):
 
     def _execution(self, sample, execution, elapsed_ms):
         budget_ms = self.settings.control.command_timeout_ms
-        connection = getattr(getattr(self.service, "client", None), "connection", None)
+        client = self.service.client if self.service is not None else None
+        connection = client.connection if client is not None else None
         if connection is not None:
             budget_ms = min(budget_ms, connection.max_control_age_ms)
         self._safe_emit("control_data_updated", {
             "sample": sample,
             "elapsed_ms": float(elapsed_ms),
             "deadline": sample.sampled_at + budget_ms / 1000,
+            "picture_revision": client.lease_picture_revision if client is not None else None,
         })
 
     def _telemetry(self, packet):
@@ -153,6 +160,29 @@ class ControlSystemThread(QThread):
     def _request_control_reconnect(self):
         if not self._stop_requested.is_set() and self.service is not None:
             self.service.request_control_reconnect()
+
+    def request_start_control(self):
+        return self._dispatch_control_request(DrivingInputService.request_start_control)
+
+    def request_stop_control(self):
+        return self._dispatch_control_request(DrivingInputService.request_stop_control)
+
+    def pause_control_for_video(self):
+        return self._dispatch_control_request(DrivingInputService.pause_control_for_video)
+
+    def _dispatch_control_request(self, action):
+        loop = self._loop
+        if self._stop_requested.is_set() or loop is None or self.service is None:
+            return False
+        try:
+            loop.call_soon_threadsafe(self._apply_control_request, action)
+        except RuntimeError:
+            return False
+        return True
+
+    def _apply_control_request(self, action):
+        if not self._stop_requested.is_set() and self.service is not None:
+            self.service.apply_control_request(action)
 
     def _cancel(self):
         task, self._main_task = self._main_task, None

@@ -166,6 +166,7 @@ class Registry:
         if lease is None or epoch is not None and lease.epoch != epoch:
             return False
         del self.leases[session]
+        lease.vehicle.discard_pending_datagrams()
         for peer in (lease.vehicle, lease.driver):
             self._notify(
                 peer, "lease_revoked", {"epoch": str(lease.epoch), "reason": reason}
