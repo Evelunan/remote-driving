@@ -102,9 +102,9 @@ feedback:
 
 `send_hz` 为回传频率上限，范围 `(0, 50]`；没有新样本时不重复发送。`stale_timeout_ms` 为车端快照的有效时间，范围 `(0, 10000]`。源消息时间必须有效、递增且未过期；零时间、未来时间和旧样本不作为新反馈。NaN/Inf 或非法字段分别标为未知，合法零值与 false 保留。
 
-回传还受中继 `max_control_age_ms` / `max_clock_skew_ms` 约束；配置有效期应大于时钟偏差预算。驾驶端以其 `control.command_timeout_ms` 和中继年龄上限的较小值扣除原始采样年龄，得到剩余显示时间，跨 Qt 排队也不刷新期限。未获得当前控制租约时不转发状态，状态包本身不续租。
+回传还受中继 `max_control_age_ms` / `max_clock_skew_ms` 约束。配置有效期应大于时钟偏差预算。驾驶端以其 `control.command_timeout_ms` 和中继年龄上限的较小值扣除原始采样年龄，得到剩余显示时间，跨 Qt 排队也不刷新期限。中继向获准注册同一车辆会话的驾驶端转发底盘状态。状态回传在控制授权前后均可使用，租约仍只由有效的控制样本续期。
 
-三应用与共享包须配套升级至注册修订 `vehicle-status/2`；包括按 km/h 解释状态的 `vehicle-status/1` 在内的旧版会收到 `protocol_upgrade_required`。用户操作及验收步骤见[车辆端状态反馈](../apps/vehicle/README.md#ros2-底盘状态反馈)。
+三应用与共享包须配套升级至注册修订 `vehicle-status/3`。按 km/h 解释状态的 `vehicle-status/1` 以及依赖租约接收状态的 `vehicle-status/2` 会收到 `protocol_upgrade_required`。用户操作及验收步骤见[车辆端状态反馈](../apps/vehicle/README.md#ros2-底盘状态反馈)。
 
 ### 摄像头不足时复用画面
 

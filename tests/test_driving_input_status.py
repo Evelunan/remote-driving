@@ -122,15 +122,19 @@ def test_input_status_text_and_online_indicator(legacy_python):
         bridge = SignalBridge()
         worker = ControlSystemThread(bridge, DrivingSettings())
         received = []
+        control = []
         bridge.quic_status_changed.connect(lambda *args: received.append(args))
+        bridge.control_status_changed.connect(lambda *args: control.append(args))
+        worker._connection_status(True, 'registered')
         for state, text in [
             ('waiting_device', '等待控制设备'),
             ('waiting_input', '等待设备输入'),
             ('waiting_neutral', '请将控制输入归零'),
         ]:
             worker._status(state)
-            assert received[-1] == (True, text)
-        worker._status('error', 'protocol_upgrade_required')
+            assert control[-1] == (state, text)
+            assert received[-1] == (True, '已认证')
+        worker._connection_status(False, 'protocol_upgrade_required')
         assert received[-1] == (False, '控制协议不兼容，请同步升级')
     """,
     )

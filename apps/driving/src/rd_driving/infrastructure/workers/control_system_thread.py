@@ -42,24 +42,18 @@ class ControlSystemThread(QThread):
             getattr(self._bridge, signal_name).emit(*args)
 
     def _status(self, state, detail=""):
-        online = state in {
-            "registered",
-            "waiting_device",
-            "waiting_input",
-            "waiting_neutral",
-            "waiting_video",
-            "waiting_execution",
-            "active",
-        }
+        self._safe_emit("control_status_changed", state, STATUS_TEXT.get(state, "状态未知"))
+        if state != "active":
+            self._safe_emit("control_confirmation_expired")
+
+    def _connection_status(self, online, detail=""):
         self._safe_emit(
             "quic_status_changed",
             online,
             "控制协议不兼容，请同步升级"
             if detail == "protocol_upgrade_required"
-            else STATUS_TEXT.get(state, "状态未知"),
+            else STATUS_TEXT.get(detail, STATUS_TEXT["disconnected"]),
         )
-        if state != "active":
-            self._safe_emit("control_confirmation_expired")
 
     def _execution(self, sample, execution, elapsed_ms):
         budget_ms = self.settings.control.command_timeout_ms
@@ -99,6 +93,7 @@ class ControlSystemThread(QThread):
             on_usb=lambda *args: self._safe_emit("usb_status_changed", *args),
             on_local_input=lambda state: self._safe_emit("local_input_changed", state),
             on_status=self._status,
+            on_connection_status=self._connection_status,
             on_execution=self._execution,
             on_telemetry=self._telemetry,
             on_vehicle_status=self._vehicle_status,
@@ -117,6 +112,7 @@ class ControlSystemThread(QThread):
         except Exception as exc:  # noqa: BLE001 - thread boundary, sanitized diagnostics
             logger.error("Control worker failed (%s)", type(exc).__name__)
         finally:
+            self._connection_status(False, "disconnected")
             self._status("disconnected")
             self._loop = self._main_task = None
 

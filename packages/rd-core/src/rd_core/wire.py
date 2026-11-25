@@ -8,7 +8,7 @@ from uuid import UUID
 
 VERSION = 2
 ALPN = "rd-control/2"
-CONTROL_REVISION = "vehicle-status/2"
+CONTROL_REVISION = "vehicle-status/3"
 _HEADER = struct.Struct("!2sBBH16sIQ")
 
 
@@ -147,6 +147,8 @@ _LAYOUTS = {
 
 @dataclass(frozen=True)
 class Packet:
+    """The epoch field holds a QUIC status stream for VehicleStatus, a lease otherwise."""
+
     session: int
     epoch: UUID
     seq: int
@@ -165,7 +167,7 @@ class Packet:
         _uint(self.seq, 32, "sequence")
         _uint(self.source_time_ms, 64, "source timestamp")
         if not isinstance(self.epoch, UUID) or self.epoch.int == 0:
-            raise ValueError("lease epoch must be a nonzero UUID")
+            raise ValueError("packet epoch must be a nonzero UUID")
         kind = self.kind
         self.payload.validate()
         fields = tuple(vars(self.payload).values())

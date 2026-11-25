@@ -121,6 +121,7 @@ class MainWindow(QMainWindow):
             (self._bridge.usb_status_changed, self._on_usb_status_changed),
             (self._bridge.local_input_changed, self._on_local_input_changed),
             (self._bridge.quic_status_changed, self._on_quic_status_changed),
+            (self._bridge.control_status_changed, self._on_control_status_changed),
             (self._bridge.control_data_updated, self._on_control_data_updated),
             (
                 self._bridge.control_confirmation_expired,
@@ -211,28 +212,36 @@ class MainWindow(QMainWindow):
 
     def _on_quic_status_changed(self, ok: bool, text: str):
         if self._services_running and self._control_panel:
-            connection_text = STATUS_TEXT["registered"] if ok else text
-            self._control_panel.set_connection_status("quic", ok, connection_text)
-            if self._navbar is not None:
-                tone = "waiting"
-                if ok and text == STATUS_TEXT["active"]:
-                    tone = "active"
-                elif text == STATUS_TEXT["waiting_video"] or (
-                    not ok and text != STATUS_TEXT["connecting"]
-                ):
-                    tone = "blocked"
-                self._navbar.set_control_status(text, tone=tone)
+            self._control_panel.set_connection_status("quic", ok, text)
             if not ok:
                 self._clear_feedback()
 
-    def _clear_feedback(self):
+    def _on_control_status_changed(self, state: str, text: str):
+        if not self._services_running:
+            return
+        if self._navbar is not None:
+            tone = "waiting"
+            if state == "active":
+                tone = "active"
+            elif state in {"waiting_video", "video_unavailable", "revoked", "error",
+                           "video_vehicle_mismatch", "disconnected"}:
+                tone = "blocked"
+            self._navbar.set_control_status(text, tone=tone)
+        if state != "active":
+            self._clear_lease_feedback()
+
+    def _clear_lease_feedback(self):
         self._telemetry_at = None
-        self._vehicle_status_deadline = None
         self._command_deadline = None
         self._command_confirmed_once = False
         if self._control_panel is not None:
             self._control_panel.clear_command_status()
             self._control_panel.clear_measured_status()
+
+    def _clear_feedback(self):
+        self._clear_lease_feedback()
+        self._vehicle_status_deadline = None
+        if self._control_panel is not None:
             self._control_panel.clear_vehicle_status("反馈未接入或连接已断开")
 
     def _setup_ui(self):
@@ -490,7 +499,7 @@ class MainWindow(QMainWindow):
         self._media_generation += 1
         self.fb.clear()
         self.video_gate.invalidate("media_restarted")
-        self._clear_feedback()
+        self._clear_lease_feedback()
         self._webrtc_connected = False
         self._control_panel.set_media_reconnecting(True)
         for name in ("signal", "webrtc"):

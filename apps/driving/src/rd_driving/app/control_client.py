@@ -35,6 +35,7 @@ class DrivingControlClient:
         samples,
         *,
         on_status=None,
+        on_connection_status=None,
         on_execution=None,
         on_telemetry=None,
         on_vehicle_status=None,
@@ -53,6 +54,7 @@ class DrivingControlClient:
             on_telemetry,
         )
         self.latest = None
+        self.on_connection_status = on_connection_status
         self.on_vehicle_status = on_vehicle_status
         self.connection = None
         self.epoch = None
@@ -70,6 +72,14 @@ class DrivingControlClient:
         self._tx_log = SampledControlLog(logger)
         self._ack_log = SampledControlLog(logger)
         self.state = "disconnected"
+        self._connection_status = (False, "")
+
+    def _report_connection(self, online, detail=""):
+        status = (online, detail)
+        if status != self._connection_status:
+            self._connection_status = status
+            if self.on_connection_status is not None:
+                self.on_connection_status(*status)
 
     def _status(self, state, detail=""):
         if self.state != state:
@@ -113,6 +123,7 @@ class DrivingControlClient:
         if generation is self._generation:
             self.epoch = None
             self.armed = False
+            self._report_connection(False, "disconnected")
             self._status("disconnected")
 
     def _event(self, generation, method, params):
@@ -133,21 +144,18 @@ class DrivingControlClient:
             self._status("revoked", str(params["reason"])[:64])
 
     def _datagram(self, generation, data):
-        if (
-            generation is not self._generation
-            or self.connection is None
-            or self.epoch is None
-        ):
+        if generation is not self._generation or self.connection is None:
             return
         try:
             packet = Packet.decode(data)
         except (ValueError, ConnectionError):
             return
-        if (
-            packet.session != self.settings.session
-            or packet.epoch != self.epoch
-            or not self._lease_picture_valid()
-        ):
+        if packet.session != self.settings.session:
+            return
+        if isinstance(packet.payload, VehicleStatus):
+            self._receive_vehicle_status(packet)
+            return
+        if packet.epoch != self.epoch or not self._lease_picture_valid():
             return
         if isinstance(packet.payload, Window):
             if is_newer(packet.seq, self._last_window):
@@ -216,22 +224,27 @@ class DrivingControlClient:
                 return
             self._last_telemetry = packet.seq
             self.on_telemetry(packet)
-        elif (isinstance(packet.payload, VehicleStatus)
-              and self.on_vehicle_status is not None
-              and is_newer(packet.seq, self._last_vehicle_status)):
-            try:
-                budget = min(self.connection.max_control_age_ms,
-                             self.settings.control.command_timeout_ms)
-                age = conservative_age_ms(
-                    packet.source_time_ms, time.time_ns() // 1_000_000,
-                    max_age_ms=budget,
-                    clock_skew_ms=self.connection.max_clock_skew_ms,
-                )
-            except ValueError:
-                return
-            self._last_vehicle_status = packet.seq
-            # Carry the remaining original budget across Qt's queued delivery.
-            self.on_vehicle_status(packet, time.monotonic() + (budget - age) / 1000)
+
+    def _receive_vehicle_status(self, packet):
+        if (
+            packet.epoch != self.connection.status_stream
+            or self.on_vehicle_status is None
+            or not is_newer(packet.seq, self._last_vehicle_status)
+        ):
+            return
+        budget = min(self.connection.max_control_age_ms,
+                     self.settings.control.command_timeout_ms)
+        try:
+            age = conservative_age_ms(
+                packet.source_time_ms, time.time_ns() // 1_000_000,
+                max_age_ms=budget,
+                clock_skew_ms=self.connection.max_clock_skew_ms,
+            )
+        except ValueError:
+            return
+        self._last_vehicle_status = packet.seq
+        # Carry the remaining original budget across Qt's queued delivery.
+        self.on_vehicle_status(packet, time.monotonic() + (budget - age) / 1000)
 
     async def _release(self):
         epoch, self.epoch = self.epoch, None
@@ -302,7 +315,6 @@ class DrivingControlClient:
         self._last_window = None
         self._sent.clear()
         self._seq, self._last_ack, self._last_telemetry = 0, None, None
-        self._last_vehicle_status = None
         self._last_execution = time.monotonic()
         period = 1 / self.settings.control.send_hz
         next_tick = time.monotonic()
@@ -360,6 +372,7 @@ class DrivingControlClient:
             while True:
                 generation = self._generation = object()
                 try:
+                    self._report_connection(False, "connecting")
                     self._status("connecting")
                     async with registered_connection(
                         self.settings.network,
@@ -379,12 +392,17 @@ class DrivingControlClient:
                         ),
                     ) as connection:
                         self.connection = connection
+                        self._last_vehicle_status = None
+                        self._report_connection(True, "registered")
                         try:
                             self._status("registered")
                             await self._send_session()
                         finally:
                             await self._release()
                 except (ConnectionError, OSError, TimeoutError, RpcError) as error:
+                    self._report_connection(
+                        False, error.code if isinstance(error, RpcError) else "disconnected"
+                    )
                     self._status(
                         "video_vehicle_mismatch"
                         if isinstance(error, RpcError)
@@ -408,10 +426,13 @@ class DrivingControlClient:
                     self.connection = None
                     self.epoch = None
                     self.armed = False
+                    if self._connection_status[0]:
+                        self._report_connection(False, "disconnected")
                 await asyncio.sleep(self.settings.network.reconnect_delay_s)
         finally:
             self._generation = None
             collector.cancel()
             await asyncio.gather(collector, return_exceptions=True)
             self.latest = None
+            self._report_connection(False, "disconnected")
             self._status("disconnected")

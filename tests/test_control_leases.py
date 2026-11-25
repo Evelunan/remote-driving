@@ -2,6 +2,7 @@ import asyncio
 import time
 from dataclasses import replace
 from types import SimpleNamespace
+from uuid import UUID
 
 import pytest
 from rd_core.auth import AuthProvider
@@ -25,6 +26,7 @@ class Peer:
         self.registry = registry
         self.datagrams, self.events = [], []
         self.closed = False
+        self.datagram_error = None
         self.prepare_gate = None
         self.preparations = []
 
@@ -35,8 +37,11 @@ class Peer:
             await self.prepare_gate.wait()
         return {"ready": True, "epoch": params["epoch"]}
 
-    def send_datagram(self, data):
+    def send_datagram(self, data, *, best_effort=False):
+        if self.datagram_error is not None:
+            raise self.datagram_error
         self.datagrams.append(Packet.decode(data))
+        return True
 
     def notify(self, method, params):
         if self.closed:
@@ -56,12 +61,13 @@ def setup(monkeypatch):
         SimpleNamespace(monotonic=lambda: clock.mono, time=lambda: clock.wall),
     )
     records = [
-        PrincipalSettings(name, role, name.upper(), (42,), ("video",))
-        for name, role in (
-            ("vehicle", "vehicle"),
-            ("driver", "driving"),
-            ("other", "driving"),
-            ("viewer", "viewer"),
+        PrincipalSettings(name, role, name.upper(), (session,), ("video",))
+        for name, role, session in (
+            ("vehicle", "vehicle", 42),
+            ("driver", "driving", 42),
+            ("other", "driving", 42),
+            ("outside", "driving", 99),
+            ("viewer", "viewer", 42),
         )
     ]
     tokens = {record.token_env: record.id + "x" * 40 for record in records}
@@ -69,14 +75,14 @@ def setup(monkeypatch):
         AuthProvider(AuthSettings(tuple(records)), environ=tokens), RelaySettings()
     )
     peers = {record.id: Peer(registry) for record in records}
-    for record in records[:3]:
+    for record in records[:-1]:
         registry.register(
             peers[record.id],
             {
                 "revision": CONTROL_REVISION,
                 "token": tokens[record.token_env],
                 "role": record.role,
-                "session": 42,
+                "session": record.sessions[0],
             },
         )
     return registry, peers, clock, tokens
@@ -96,7 +102,9 @@ def execution(packet, status=ExecutionStatus.EXECUTED):
     return replace(packet, payload=Execution(status, packet.source_time_ms + 1))
 
 
-@pytest.mark.parametrize("revision", ["vehicle-window/1", "video-bound/1", "vehicle-status/1"])
+@pytest.mark.parametrize(
+    "revision", ["vehicle-window/1", "video-bound/1", "vehicle-status/1", "vehicle-status/2"]
+)
 def test_old_revision_requires_coordinated_upgrade(setup, revision):
     registry, _, _, tokens = setup
     with pytest.raises(RpcError, match="protocol_upgrade_required"):
@@ -108,65 +116,105 @@ def test_old_revision_requires_coordinated_upgrade(setup, revision):
 
 @pytest.mark.asyncio
 async def test_chassis_feedback_reaches_driver_without_renewing_control(setup, monkeypatch):
-    from rd_core.settings import DrivingSettings, VehicleSettings
-    from rd_driving.app.control_client import DrivingControlClient
+    from rd_core.settings import VehicleSettings
     from rd_vehicle.application.control_client import VehicleControlClient
     from rd_vehicle.infrastructure.controller.vehicle_feedback import FeedbackSample
 
     registry, peers, clock, _ = setup
-    await registry.acquire(peers["driver"])
-    lease = registry.leases[42]
-    clock_api = SimpleNamespace(monotonic=lambda: clock.mono,
-                               time_ns=lambda: int(clock.wall * 1_000_000_000))
+    clock_api = SimpleNamespace(time_ns=lambda: int(clock.wall * 1_000_000_000))
     monkeypatch.setattr("rd_vehicle.application.control_client.time", clock_api)
-    monkeypatch.setattr("rd_driving.app.control_client.time", clock_api)
-    reports = []
-    driver = DrivingControlClient(DrivingSettings(session=42), None,
-                                 on_vehicle_status=lambda *args: reports.append(args))
-    driver.epoch = lease.epoch
-    driver._generation = object()
-    monkeypatch.setattr(driver, "_lease_picture_valid", lambda: True)
-    limits = dict(max_control_age_ms=300, max_clock_skew_ms=50)
-    driver.connection = SimpleNamespace(**limits)
-    sent = []
-    def deliver(data):
-        sent.append(data)
-        driver._datagram(driver._generation, data)
-    peers["driver"].send_datagram = deliver
     status = VehicleStatus(3.5, -12.5, 3.0, None, 2, True, 7, False)
     source = SimpleNamespace(sample=FeedbackSample(status, int(clock.wall * 1000), clock.mono, 1))
     source.latest = lambda: source.sample
     vehicle = VehicleControlClient(VehicleSettings(session=42), SimpleNamespace(feedback=source))
-    vehicle.epoch = lease.epoch
-    vehicle.connection = SimpleNamespace(protocol=SimpleNamespace(
-        rpc_ready=True, send_datagram=lambda data: registry.route(peers["vehicle"], data)), **limits)
-    deadline = lease.deadline
+    vehicle_peer = peers["vehicle"]
+
+    def deliver(data, *, best_effort):
+        assert best_effort
+        return registry.route(vehicle_peer, data)
+
+    vehicle.connection = SimpleNamespace(
+        protocol=SimpleNamespace(rpc_ready=True, send_datagram=deliver),
+        status_stream=registry.bindings[vehicle_peer].status_stream,
+        max_control_age_ms=300,
+        max_clock_skew_ms=50,
+    )
+    for name in ("driver", "other"):
+        assert not peers[name].datagrams
     assert vehicle._publish_feedback()
-    assert reports[0][0].payload == status
-    assert reports[0][1] == pytest.approx(clock.mono + 0.25)
-    assert lease.deadline == deadline
-    assert not vehicle._publish_feedback()  # Cached samples never gain new sequence/time.
-    packet = Packet.decode(sent[-1])
-    assert not registry.route(peers["driver"], packet.encode())
-    assert not registry.route(peers["vehicle"], packet.encode())
-    assert not registry.route(peers["vehicle"], replace(packet, seq=1, session=43).encode())
-    assert not registry.route(peers["vehicle"], replace(packet, seq=1,
-                              source_time_ms=packet.source_time_ms - 300).encode())
-    # The receiver also rejects stale, duplicate, future and wrong-generation data.
-    for invalid in (packet, replace(packet, seq=2, source_time_ms=packet.source_time_ms-300),
-                    replace(packet, seq=2, source_time_ms=packet.source_time_ms+100)):
-        driver._datagram(driver._generation, invalid.encode())
-    driver._datagram(object(), replace(packet, seq=2).encode())
-    assert len(reports) == 1
+    assert not registry.leases
+    for name in ("driver", "other"):
+        receiver = peers[name]
+        assert receiver.datagrams == [Packet(
+            42, registry.bindings[receiver].status_stream, 0,
+            source.sample.source_time_ms, status,
+        )]
+    assert not peers["outside"].datagrams
+    assert not peers["viewer"].datagrams
+    assert not vehicle._publish_feedback()
+
+    await registry.acquire(peers["driver"])
+    lease = registry.leases[42]
+    deadline = lease.deadline
     clock.wall += 0.1
-    clock.mono += 0.1
     source.sample = replace(source.sample, source_time_ms=int(clock.wall*1000), revision=2)
     assert vehicle._publish_feedback()
-    assert reports[-1][0].seq == 1 and len(reports) == 2
     assert lease.deadline == deadline
-    clock.wall += 0.3
-    source.sample = replace(source.sample, revision=3)
+    assert registry.release(peers["driver"], {"epoch": str(lease.epoch)}) == {"revoked": True}
     assert not vehicle._publish_feedback()
+    clock.wall += 0.1
+    source.sample = replace(source.sample, source_time_ms=int(clock.wall*1000), revision=3)
+    assert vehicle._publish_feedback()
+    assert [packet.seq for packet in peers["driver"].datagrams] == [0, 1, 2]
+    assert [packet.seq for packet in peers["other"].datagrams] == [0, 1, 2]
+    clock.wall += 0.3
+    source.sample = replace(source.sample, revision=4)
+    assert not vehicle._publish_feedback()
+
+
+@pytest.mark.asyncio
+async def test_status_route_rejects_stale_or_unbound_sources_and_preserves_observers(setup):
+    registry, peers, clock, tokens = setup
+    vehicle, driver, other = (peers[name] for name in ("vehicle", "driver", "other"))
+    await registry.acquire(driver)
+    lease = registry.leases[42]
+    timestamp = int(clock.wall * 1000)
+    packet = Packet(42, registry.bindings[vehicle].status_stream, 0, timestamp, VehicleStatus(2))
+    for sender, invalid in (
+        (driver, replace(packet, epoch=registry.bindings[driver].status_stream)),
+        (peers["viewer"], packet),
+        (vehicle, replace(packet, epoch=lease.epoch)),
+        (vehicle, replace(packet, session=99)),
+        (vehicle, replace(packet, source_time_ms=timestamp - 300)),
+        (vehicle, replace(packet, source_time_ms=timestamp + 100)),
+    ):
+        assert not registry.route(sender, invalid.encode())
+    driver.datagram_error = ConnectionError()
+    assert registry.route(vehicle, packet.encode())
+    assert registry.leases[42] is lease
+    assert other.datagrams[-1].seq == 0
+    assert not driver.datagrams
+    assert not registry.route(vehicle, packet.encode())
+
+    driver.datagram_error = None
+    driver_binding = registry.bindings[driver]
+    driver_binding.principal = replace(driver_binding.principal, expires_at=1)
+    assert registry.route(vehicle, replace(packet, seq=1).encode())
+    assert not driver.datagrams
+    assert other.datagrams[-1].seq == 1
+
+    registry.unregister(vehicle)
+    replacement = Peer(registry)
+    result = registry.register(replacement, {
+        "token": tokens["VEHICLE"], "role": "vehicle", "session": 42,
+        "revision": CONTROL_REVISION,
+    })
+    assert not registry.route(vehicle, replace(packet, seq=2).encode())
+    assert not registry.route(replacement, replace(packet, seq=2).encode())
+    assert registry.route(replacement, replace(packet, epoch=UUID(result["status_stream"])).encode())
+    observed = other.datagrams[-1]
+    assert observed.epoch == registry.bindings[other].status_stream
+    assert observed.seq == 2 and observed.source_time_ms == timestamp
 
 
 def test_registration_checks_identity_role_scope_and_duplicate_vehicle(setup):

@@ -51,17 +51,21 @@ async def test_real_feedback_transport_keeps_units_and_never_repeats_stale_cache
     driver = DrivingControlClient(driving_settings, inputs.queue,
                                   video_gate=inputs.video_gate,
                                   on_vehicle_status=lambda *args: reports.append(args))
-    tasks = [asyncio.create_task(vehicle.run()), asyncio.create_task(inputs.run()),
-             asyncio.create_task(driver.run())]
+    tasks = [asyncio.create_task(vehicle.run()), asyncio.create_task(driver.run())]
     try:
-        await until(lambda: driver.armed)
+        await until(lambda: driver.connection is not None and vehicle.connection is not None)
+        assert driver.epoch is None
         source.sample = FeedbackSample(status, time.time_ns() // 1_000_000,
                                        time.monotonic(), 1)
         await until(lambda: len(reports) == 1)
         packet, deadline = reports[0]
         assert packet.payload == status
         assert time.monotonic() < deadline <= time.monotonic() + 0.3
+        assert packet.epoch == driver.connection.status_stream
+        assert driver.epoch is None
         original_timestamp = packet.source_time_ms
+        tasks.append(asyncio.create_task(inputs.run()))
+        await until(lambda: driver.armed)
         await asyncio.sleep(0.35)
         assert len(reports) == 1 and driver.armed
         # Changing a revision without a new source timestamp cannot renew freshness.

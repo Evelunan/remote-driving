@@ -113,12 +113,12 @@ class RpcProtocol(QuicConnectionProtocol):
         stream_id = self._new_stream(unidirectional=True)
         self._send(stream_id, {"type": "event", "method": method, "params": params})
 
-    def send_datagram(self, data):
+    def send_datagram(self, data, *, best_effort=False):
         self._ensure_ready()
         if not 0 < len(data) <= self.max_datagram_bytes:
             raise ValueError("datagram exceeds configured limit")
-        # Discard an unsent stale datagram when congestion prevents transmission.
-        send_latest_datagram(self, data)
+        # Optional status reports cannot replace an unsent control datagram.
+        return send_latest_datagram(self, data, best_effort=best_effort)
 
     def _discard_buffer(self, stream_id):
         self._buffers.pop(stream_id, None)

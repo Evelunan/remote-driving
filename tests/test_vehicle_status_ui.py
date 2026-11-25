@@ -63,6 +63,9 @@ def test_feedback_bridge_original_deadline_disconnect_and_generation(legacy_pyth
         panel = window._control_panel
         assert panel._vehicle_stats['speed_mps'].get_value() == '3.5'
         assert window._vehicle_status_deadline == deadline
+        window._on_control_status_changed('revoked', '控制授权已撤销')
+        assert panel._vehicle_stats['speed_mps'].get_value() == '3.5'
+        assert window._vehicle_status_deadline == deadline
         window._vehicle_status_deadline = time.monotonic() - 1
         window._expire_telemetry()
         assert panel._vehicle_stats['speed_mps'].get_value() == '--'

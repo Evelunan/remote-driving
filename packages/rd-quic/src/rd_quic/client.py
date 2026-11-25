@@ -1,9 +1,11 @@
 """Verified client connection and revision-checked registration."""
 
 import asyncio
+import math
 import ssl
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
+from uuid import UUID
 
 from aioquic.asyncio import connect
 from aioquic.quic.configuration import QuicConfiguration
@@ -46,6 +48,25 @@ class ControlConnection:
     protocol: RpcProtocol
     max_control_age_ms: int
     max_clock_skew_ms: int
+    status_stream: UUID
+
+
+async def _keepalive(protocol, interval_s):
+    while protocol.rpc_ready:
+        await asyncio.sleep(interval_s)
+        if not protocol.rpc_ready:
+            return
+        try:
+            await protocol.request("clock", {})
+        except RpcError as error:
+            if error.code in {"stream_backpressure", "too_many_requests"}:
+                # Pending reliable traffic already keeps the connection active.
+                continue
+            break
+        except (ConnectionError, TimeoutError):
+            break
+    if protocol.rpc_ready:
+        protocol.close(error_code=0x103, reason_phrase="keepalive_failed")
 
 
 @asynccontextmanager
@@ -90,6 +111,7 @@ async def registered_connection(
     )
     entered = False
     handshake = None
+    keepalive = None
     try:
         async with async_timeout(network.register_timeout_s):
             await manager.__aenter__()
@@ -118,6 +140,19 @@ async def registered_connection(
             )
             if type(age) is not int or type(skew) is not int or not 0 <= skew < age:
                 raise RpcError("invalid_server_limits")
+            idle_timeout = result.get("idle_timeout_s")
+            if (
+                type(idle_timeout) not in (int, float)
+                or not math.isfinite(idle_timeout)
+                or idle_timeout <= 0
+            ):
+                raise RpcError("invalid_server_limits")
+            try:
+                status_stream = UUID(result["status_stream"])
+            except (KeyError, ValueError, TypeError, AttributeError):
+                raise RpcError("invalid_status_stream") from None
+            if status_stream.int == 0:
+                raise RpcError("invalid_status_stream")
             age = min(age, control.command_timeout_ms)
         logger.info(
             "Control relay registered role=%s session=%s relay=%s:%s revision=%s",
@@ -127,8 +162,12 @@ async def registered_connection(
             network.quic_port,
             revision,
         )
+        keepalive = asyncio.create_task(
+            _keepalive(protocol, min(network.idle_timeout_s, idle_timeout) / 3),
+            name="rd-quic-keepalive",
+        )
         try:
-            yield ControlConnection(protocol, age, skew)
+            yield ControlConnection(protocol, age, skew, status_stream)
         finally:
             logger.info("Control relay session ended role=%s session=%s", role, session)
     finally:
@@ -136,6 +175,9 @@ async def registered_connection(
             if protocol is not None:
                 await protocol.shutdown()
         finally:
+            if keepalive is not None:
+                keepalive.cancel()
+                await asyncio.gather(keepalive, return_exceptions=True)
             if handshake is not None:
                 if not handshake.done():
                     handshake.cancel()
