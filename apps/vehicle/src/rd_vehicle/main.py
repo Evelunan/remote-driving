@@ -153,27 +153,64 @@ async def start_streaming(
     from rd_vehicle.application.multi_camera_manager import MultiCameraManager
     from rd_vehicle.infrastructure.streams.webrtc_streamer import WebRTCStreamer
 
+    viewers_present = False
+    demand_revision = capture_revision = 0
+    demand_changed = asyncio.Event()
+
+    def on_viewers_changed(present):
+        nonlocal viewers_present, demand_revision
+        viewers_present = present
+        demand_revision += 1
+        if not present and capture_health is not None:
+            capture_health.update(False)
+        demand_changed.set()
+
+    def on_capture_health(healthy):
+        capture_health.update(
+            healthy and viewers_present and capture_revision == demand_revision
+        )
+
     streamer = WebRTCStreamer(
         settings.room,
         settings.network,
         settings.credentials,
         session=settings.session,
         encoder_workers=settings.encoder_workers,
+        on_viewers_changed=on_viewers_changed,
     )
     manager = MultiCameraManager(
         streamer,
         video_policy=settings.video,
         on_fault=on_fault,
-        on_capture_health=capture_health.update if capture_health is not None else None,
+        on_capture_health=on_capture_health if capture_health is not None else None,
     )
+
+    async def capture():
+        try:
+            await manager.start()
+            await manager.wait()
+        finally:
+            await manager.stop()
+
     try:
         _configure_cameras(manager, settings, camera_factory or _create_camera)
-        await manager.start()
         if on_started is not None:
             on_started()
         async with TaskGroup() as tasks:
             tasks.create_task(streamer.start())
-            tasks.create_task(manager.wait())
+            active_capture = None
+            while True:
+                await demand_changed.wait()
+                if active_capture is not None:
+                    active_capture.cancel()
+                    await manager.stop()
+                    await asyncio.wait({active_capture})
+                    active_capture = None
+                # Read the latest demand after all previous handles are released.
+                demand_changed.clear()
+                if viewers_present:
+                    capture_revision = demand_revision
+                    active_capture = tasks.create_task(capture(), name="video-capture")
     finally:
         try:
             await manager.stop()

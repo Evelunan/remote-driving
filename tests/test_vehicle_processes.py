@@ -137,7 +137,7 @@ async def until(predicate, task, timeout=6):
 
 
 @pytest.mark.asyncio
-async def test_media_first_heartbeat_waits_for_camera_start(
+async def test_media_heartbeat_continues_without_opening_camera(
     tmp_path, local_tls, monkeypatch
 ):
     from rd_vehicle.infrastructure.cameras import TestCamera
@@ -148,31 +148,153 @@ async def test_media_first_heartbeat_waits_for_camera_start(
         cameras=(CameraSettings("front", "synthetic", 96, 64, 20),),
         camera_fallback_source="front",
     )
-    opening, release = threading.Event(), threading.Event()
+    opened = []
 
-    def slow_open(self):
-        opening.set()
-        assert release.wait(5)
-
-    monkeypatch.setattr(TestCamera, "_open", slow_open)
+    monkeypatch.setattr(
+        TestCamera, "_open", lambda self: opened.append(self.camera_name)
+    )
     parent, child = socket.socketpair()
     with parent, child:
         parent.setblocking(False)
         child.setblocking(False)
         task = asyncio.create_task(_component_lifetime(settings, child, runner=None))
         try:
-            await until(opening.is_set, task)
             loop = asyncio.get_running_loop()
-            with pytest.raises(asyncio.TimeoutError):
-                await asyncio.wait_for(
-                    loop.sock_recv(parent, 8), settings.processes.heartbeat_timeout_s
-                )
-            release.set()
-            assert await asyncio.wait_for(loop.sock_recv(parent, 8), 1)
+            for _ in range(3):
+                assert await asyncio.wait_for(loop.sock_recv(parent, 8), 1)
+            assert not opened
         finally:
-            release.set()
             parent.shutdown(socket.SHUT_WR)
             await asyncio.wait_for(task, 5)
+
+
+@pytest.mark.asyncio
+async def test_media_captures_only_while_authenticated_viewers_are_in_the_room(
+    runtime_factory, local_tls, tmp_path, monkeypatch
+):
+    import aioice.ice
+    from rd_driving.infrastructure.video.webrtc_reciver import WebRTCReceiver
+    from rd_vehicle.application.capture_health import CaptureHealth
+    from rd_vehicle.infrastructure.cameras import TestCamera
+    from rd_vehicle.main import run
+
+    monkeypatch.setattr(
+        aioice.ice, "get_host_addresses", lambda **kwargs: ["127.0.0.1"]
+    )
+    build, _ = runtime_factory
+    server = build(("signaling",), signaling_options={"max_peers_per_room": 3})
+    await server.start()
+    signaling = server.services["signaling"]
+    port = signaling._server.sockets[0].getsockname()[1]
+    settings = configuration(tmp_path, local_tls, monkeypatch)
+    network = replace(settings.network, signaling_url=f"wss://127.0.0.1:{port}")
+    settings = replace(
+        settings,
+        components=("media",),
+        session=42,
+        room="video",
+        network=network,
+        credentials=CredentialSettings("TEST_VEHICLE"),
+        cameras=(CameraSettings("front", "synthetic", 96, 64, 30),),
+    )
+    operations = []
+    closing, release = threading.Event(), threading.Event()
+
+    class ObservedCamera(TestCamera):
+        def _open(self):
+            super()._open()
+            operations.append("open")
+
+        def _close(self):
+            if not closing.is_set():
+                closing.set()
+                assert release.wait(5)
+            super()._close()
+            operations.append("close")
+
+    def camera_factory(camera):
+        return ObservedCamera(camera.width, camera.height, camera.fps, camera.name)
+
+    capture_health, stop = CaptureHealth(), asyncio.Event()
+    vehicle = asyncio.create_task(
+        run(
+            settings, stop, camera_factory=camera_factory, capture_health=capture_health
+        )
+    )
+    receivers = []
+
+    def connect(token_env):
+        frames = []
+        receiver = WebRTCReceiver("video", network, CredentialSettings(token_env))
+        receiver.on_frame(lambda name, frame, source: frames.append(name))
+        receivers.append((receiver, asyncio.create_task(receiver.start())))
+        return receiver, frames
+
+    try:
+        await until(lambda: len(signaling.manager.peers) == 1, vehicle)
+        publisher = next(iter(signaling.manager.peers))
+        assert not operations and capture_health.permit() is None
+
+        driver, driver_frames = connect("TEST_DRIVER")
+        await until(lambda: len(driver_frames) >= 3, vehicle)
+        first_permit = capture_health.permit()
+        assert first_permit is not None
+
+        viewer, viewer_frames = connect("TEST_VIEWER")
+        await until(lambda: len(viewer_frames) >= 3, vehicle)
+        await driver.close()
+        await until(lambda: len(signaling.manager.peers) == 2, vehicle)
+        count = len(viewer_frames)
+        await until(lambda: len(viewer_frames) > count + 2, vehicle)
+        assert operations == ["open"] and capture_health.permit() == first_permit
+
+        await viewer.close()
+        await until(closing.is_set, vehicle)
+        assert list(signaling.manager.peers) == [publisher]
+        assert capture_health.permit() is None
+
+        reconnected, reconnected_frames = connect("TEST_DRIVER")
+        await until(
+            lambda: any(
+                peer.pc.connectionState == "connected"
+                for peer in reconnected.peers.values()
+            ),
+            vehicle,
+        )
+        assert operations == ["open"] and not reconnected_frames
+        release.set()
+        await until(lambda: len(reconnected_frames) >= 3, vehicle)
+        assert operations == ["open", "close", "open"]
+        second_permit = capture_health.permit()
+        assert second_permit not in (None, first_permit)
+
+        await signaling.manager.peers[publisher].websocket.close(
+            1012, "test disconnect"
+        )
+        await until(lambda: publisher not in signaling.manager.peers, vehicle)
+        frames_before_reconnect = len(reconnected_frames)
+        await until(
+            lambda: len(reconnected_frames) > frames_before_reconnect + 2,
+            vehicle,
+        )
+        assert operations == ["open", "close", "open", "close", "open"]
+        assert capture_health.permit() not in (None, second_permit)
+    finally:
+        release.set()
+        stop.set()
+        try:
+            await asyncio.gather(*(receiver.close() for receiver, _ in receivers))
+            results = await asyncio.gather(
+                *(task for _, task in receivers), return_exceptions=True
+            )
+            assert all(
+                result is None or isinstance(result, asyncio.CancelledError)
+                for result in results
+            )
+            await asyncio.wait_for(vehicle, 5)
+        finally:
+            await server.stop()
+    assert operations == ["open", "close", "open", "close", "open", "close"]
 
 
 @pytest.mark.asyncio

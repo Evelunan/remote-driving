@@ -22,7 +22,7 @@ uv run --package rd-vehicle rd-vehicle --config configs/vehicle.mock.yaml --comp
 
 摄像头不足时，可设置 `camera_fallback_source: front`：有显式 source 的视角照常采集，缺少 source 或未列出的视角复用 front，补齐四路测试画面。源设备只打开一次，复制帧保留原始采集时间；真实设备故障仍报错。[单摄像头示例](../../configs/vehicle.single-camera.yaml) 使用模拟底盘，需按实际设备修改前摄像头路径。
 
-媒体发布携带配置中的 session 并接受服务端授权校验；主相机超时会在设备清理前报告故障，使父进程先停止控制。`video` 配置与驾驶端策略见 [画面与控制](../../docs/video-safety.zh-CN.md)。
+媒体进程启动后连接认证信令房间，使用配置中的 session 表明车辆身份。首位有权限的驾驶端或观看端加入视频房间时打开摄像头。多个观看端共享同一组采集，最后一位离开或车端信令断开时停止采集并释放设备。主相机超时会撤销可用画面许可并触发隔离重试。`video` 配置与驾驶端策略见 [画面与控制](../../docs/video-safety.zh-CN.md)。
 
 ## ROS2 控制器与底盘启动
 
@@ -87,7 +87,7 @@ rd-vehicle → /cmd_vel（geometry_msgs/msg/Twist）
 
 4. **终端四：启用车辆端的 ROS2 控制器。**
 
-   先通过环境提供有效的 `RD_VEHICLE_TOKEN`，并核对配置的服务地址、CA、session、room、相机路径和运动限值。以下命令使用现场局域网配置，同时启动 ROS2 控制与四路视频。[车辆端局域网配置](../../configs/vehicle.lan.yaml)
+   先通过环境提供有效的 `RD_VEHICLE_TOKEN`，并核对配置的服务地址、CA、session、room、相机路径和运动限值。以下命令使用现场局域网配置，同时启动 ROS2 控制组件和媒体服务。驾驶端选择「连接视频」后，车辆才开始采集并发送四路视频。[车辆端局域网配置](../../configs/vehicle.lan.yaml)
 
    ```bash
    source /opt/ros/humble/setup.bash
@@ -161,6 +161,6 @@ feedback:
 
 ## 摄像头启动排查
 
-使用 `configs/vehicle.yaml` 启动时，媒体进程同时写终端和 `logs/vehicle/media/app.log`（自动轮转）。在仓库根目录用 PowerShell 执行 `Get-Content .\logs\vehicle\media\app.log -Tail 80 -Wait` 可跟踪各路启动。
+使用 `configs/vehicle.yaml` 启动时，媒体进程同时写终端和 `logs/vehicle/media/app.log`（自动轮转）。先从驾驶端连接视频，再在仓库根目录用 PowerShell 执行 `Get-Content .\logs\vehicle\media\app.log -Tail 80 -Wait` 跟踪各路启动。
 
-按视角名对照：`opening` 给出设备索引、后端和请求模式；`opened` 给出驱动报告的协商参数；`receiving frames` 才表示读到画面。`isOpened=False` 表示驱动未打开该设备，`open timed out` 表示打开超时，`returned no frame` 表示设备已打开但没有读到画面。任一设备打开失败仍会触发整体清理；已成功的设备随后关闭是预期行为。
+按视角名对照 `opening` 中的设备索引、后端和请求模式，再确认 `opened` 中的协商参数。看到 `receiving frames` 后才有采集结果。`isOpened=False` 表示驱动未打开该设备，`open timed out` 表示打开超时，`returned no frame` 表示设备已打开但没有读到画面。故障摄像头会单独重试，正常的视角可继续传输。

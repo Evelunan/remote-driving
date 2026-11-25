@@ -43,6 +43,7 @@ class MultiCameraManager:
     ):
         self.cameras = []
         self.streamer = streamer
+        self._views_frozen = False
         self._running = False
         self._workers = []
         self._notifications = []
@@ -66,7 +67,7 @@ class MultiCameraManager:
         self._register_view(name, self._camera_by_view[source], encoding)
 
     def _register_view(self, name, camera, encoding):
-        if self._running or self._stop_task is not None:
+        if self._views_frozen:
             raise RuntimeError("cannot add camera after start")
         if name in self._camera_by_view:
             raise ValueError("duplicate camera name")
@@ -86,10 +87,19 @@ class MultiCameraManager:
             self.streamer.invalidate_frame(name)
 
     async def start(self):
-        if self._running or self._stop_task is not None:
-            raise RuntimeError("camera manager is single-use")
+        if self._running or (
+            self._stop_task is not None and not self._stop_task.done()
+        ):
+            raise RuntimeError("previous camera capture has not stopped")
         if not self.cameras:
             raise RuntimeError("at least one camera is required")
+        if self._stop_task is not None:
+            self._stop_task.result()
+            self._stop_task = None
+        self._workers.clear()
+        self._notifications.clear()
+        self._failed.clear()
+        self._views_frozen = True
         self._running = True
         loop = asyncio.get_running_loop()
         for cam in self.cameras:
@@ -292,8 +302,11 @@ class MultiCameraManager:
         if self._on_capture_health is not None:
             self._on_capture_health(False)
         self._running = False
+        if not self._views_frozen:
+            return
         for cam in self.cameras:
             cam.set_on_frame(None)
+            self._invalidate_camera(cam)
         for notification in self._notifications:
             notification.close()
         # Opening is bounded by each adapter. Do not close a handle while its
@@ -306,8 +319,6 @@ class MultiCameraManager:
             *(asyncio.to_thread(cam.stop_capture) for cam in self.cameras),
             return_exceptions=True,
         )
-        for cam in self.cameras:
-            self._invalidate_camera(cam)
         errors = [result for result in results if isinstance(result, Exception)]
         if errors:
             raise ExceptionGroup("camera cleanup failed", errors)
