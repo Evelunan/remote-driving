@@ -27,6 +27,8 @@ ui:
   frame_interval_ms: 16
   stats_interval_ms: 1000
   debug: false
+# VP8 的 RTP 包到齐即送解码；设为 false 可用默认组帧方式做对照。
+low_latency_vp8: true
 video:
   primary_view: front
   stale_frame_ms: 500
