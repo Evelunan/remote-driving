@@ -134,7 +134,6 @@ class VehicleControlClient:
         except (RuntimeError, ValueError):
             raise RpcError("device_not_ready") from None
         self.epoch, self._last_seq = epoch, None
-        self._feedback_seq, self._last_feedback_sample = 0, None
         self._lease_ttl_s = params["lease_ttl_ms"] / 1000
         self._lease_deadline = time.monotonic() + self._lease_ttl_s
         self._status("waiting_neutral")
@@ -260,7 +259,7 @@ class VehicleControlClient:
 
     def _publish_feedback(self):
         source = getattr(self.controller, "feedback", None)
-        if (source is None or self.epoch is None or self.connection is None
+        if (source is None or self.connection is None
                 or not self.connection.protocol.rpc_ready):
             return False
         sample = source.latest()
@@ -273,9 +272,15 @@ class VehicleControlClient:
                                self.connection.max_control_age_ms),
                 clock_skew_ms=self.connection.max_clock_skew_ms,
             )
-            packet = Packet(self.settings.session, self.epoch, self._feedback_seq,
-                            sample.source_time_ms, sample.status)
-            self.connection.protocol.send_datagram(packet.encode())
+            packet = Packet(
+                self.settings.session,
+                self.connection.status_stream,
+                self._feedback_seq,
+                sample.source_time_ms,
+                sample.status,
+            )
+            if not self.connection.protocol.send_datagram(packet.encode(), best_effort=True):
+                return False
         except (ConnectionError, ValueError):
             return False
         self._last_feedback_sample = sample.revision
@@ -356,6 +361,7 @@ class VehicleControlClient:
                         on_disconnect=disconnected,
                     ) as connection:
                         self.connection = connection
+                        self._feedback_seq, self._last_feedback_sample = 0, None
                         watch = asyncio.create_task(
                             self._watch(), name="vehicle-control-watch"
                         )

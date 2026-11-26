@@ -587,6 +587,65 @@ async def test_streamer_peer_replacement_and_stop_during_listen():
 
 
 @pytest.mark.asyncio
+async def test_viewer_leaving_cancels_offer_without_waiting_for_ice(
+    runtime_factory, local_tls, monkeypatch
+):
+    from rd_webrtc.peer import PeerConnectionManager
+    from rd_webrtc.signaling import SignalingClient
+
+    build, _ = runtime_factory
+    runtime = build(("signaling",))
+    await runtime.start()
+    service = runtime.services["signaling"]
+    port = service._server.sockets[0].getsockname()[1]
+    network = ClientNetworkSettings(
+        signaling_url=f"wss://127.0.0.1:{port}", signaling_ca_file=local_tls[0]
+    )
+    demand = []
+    streamer = WebRTCStreamer(
+        "video",
+        network,
+        CredentialSettings("TEST_VEHICLE"),
+        session=42,
+        on_viewers_changed=demand.append,
+    )
+    streamer.register_video_track("front")
+    viewer = SignalingClient(network, CredentialSettings("TEST_VIEWER"))
+    joined, gathering, offer_cancelled = (asyncio.Event() for _ in range(3))
+
+    def on_status(status, _):
+        if status == "joined":
+            joined.set()
+
+    async def blocked_offer(self):
+        gathering.set()
+        try:
+            await asyncio.Future()
+        finally:
+            offer_cancelled.set()
+
+    streamer.set_status_callback(on_status)
+    monkeypatch.setattr(PeerConnectionManager, "create_offer", blocked_offer)
+    task = asyncio.create_task(streamer.start())
+    try:
+        await asyncio.wait_for(joined.wait(), 2)
+        publisher_id = streamer.my_id
+        await viewer.connect()
+        await viewer.join("video")
+        await asyncio.wait_for(gathering.wait(), 2)
+        assert demand == [True]
+        await viewer.close()
+        await asyncio.wait_for(offer_cancelled.wait(), 2)
+        assert demand == [True, False]
+        assert streamer.my_id == publisher_id and not streamer.peers
+    finally:
+        await viewer.close()
+        await streamer.close()
+        await asyncio.gather(task, return_exceptions=True)
+        await runtime.stop()
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize("broken_view", ["front", "back"])
 async def test_isolated_camera_reopens_without_interrupting_healthy_track(broken_view):
     from rd_core.settings import VideoSafetySettings

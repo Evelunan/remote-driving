@@ -25,7 +25,7 @@ TLS QUIC 的 ALPN 固定为 `rd-control/2`；完成握手后才处理业务消�
 | version | 1 | 2 |
 | kind | 1 | 下表消息类型 |
 | session | 2 | 车辆控制会话编号，不能代替身份认证 |
-| epoch | 16 | 服务端分配的非零租约 UUID |
+| epoch | 16 | 服务端分配的非零 UUID。车辆状态使用连接的状态流 UUID，其余消息使用租约 UUID |
 | seq | 4 | 当前代次内的 uint32 序号，严格判断更新与回绕 |
 | source_time_ms | 8 | 原始采样时间，Unix 毫秒；重复发送缓存样本时不得刷新 |
 
@@ -42,7 +42,7 @@ TLS QUIC 的 ALPN 固定为 `rd-control/2`；完成握手后才处理业务消�
 
 速度字段名为 `speed_mps`、`left_wheel_mps` 和 `right_wheel_mps`，单位固定为 m/s。`vehicle-status/2` 修正了旧 `vehicle-status/1` 的 km/h 约定；虽然 Datagram 长度和字段顺序相同，两种语义不能混用，注册时严格校验修订。
 
-精确匹配类型与长度，拒绝额外字节、未知版本、空 epoch、非法枚举、NaN/Inf 与越界值。固定向量和边界回归见 `tests/test_v2_wire.py`。Datagram 不保证送达，拥塞时同一连接只保留一个尚未发送的最新 Datagram；可靠注册、租约和停车请求不能依赖它保证送达。
+精确匹配类型与长度，拒绝额外字节、未知版本、空 epoch、非法枚举、NaN/Inf 与越界值。固定向量和边界回归见 `tests/test_v2_wire.py`。Datagram 不保证送达。拥塞时每条连接只保留一个待发 Datagram，车辆状态只在队列空闲时进入，控制类 Datagram 可替换待发项。可靠注册、租约和停车请求使用可靠流。
 
 ## 新鲜度与代次约束
 
@@ -54,9 +54,11 @@ TLS QUIC 的 ALPN 固定为 `rd-control/2`；完成握手后才处理业务消�
 
 ## 已实现的中继业务
 
-三端和共享包须配套升级到注册修订 `vehicle-status/2`。ALPN 保持 `rd-control/2`。旧版 `video-bound/1`、`vehicle-window/1` 和 `vehicle-status/1` 注册会收到 `protocol_upgrade_required`。
+三端和共享包须配套升级到注册修订 `vehicle-status/3`。ALPN 保持 `rd-control/2`。旧版 `video-bound/1`、`vehicle-window/1`、`vehicle-status/1` 和 `vehicle-status/2` 注册会收到 `protocol_upgrade_required`。
 
-注册 RPC 为 `register(token, role, session, revision)`；令牌确定身份，申报的角色必须与服务端配置相符。只有 driving/vehicle 角色可注册控制 session，viewer 即使拥有视频房间权限也不能控制。车端绑定独占，冲突连接不能覆盖已有绑定；同一连接不能二次注册切换身份。
+注册 RPC 为 `register(token, role, session, revision)`。令牌确定身份，申报的角色必须与服务端配置相符。只有 driving/vehicle 角色可注册对应 session。车端绑定独占，冲突连接不能覆盖已有绑定，同一连接不能二次注册切换身份。注册响应包含连接专用的 `status_stream` 和中继的 `idle_timeout_s`。已注册客户端以双方配置中较短空闲超时的三分之一为间隔调用 `clock({})` 保活。
+
+成功注册的 driving 连接自动订阅该 session 的 `VEHICLE_STATUS`。中继只接收当前已认证车辆连接、同 session、同状态流 UUID 且时间与序号有效的底盘状态。转发时写入每个订阅者的状态流 UUID 和独立序号，保留原始采样时间，即使车辆重连也可以继续按序接收。车辆状态回传和控制租约相互独立，状态转发失败只影响当前样本。接收端仍需检查状态流、采样时效及更新次序。
 
 `acquire({})` 仅供已注册 driving 连接调用。服务端先预占 session，生成 UUID epoch，再可靠调用车端 `prepare_lease`，参数为 session、epoch、lease_ttl_ms、max_control_age_ms、max_clock_skew_ms。车端须返回 `{ready: true, epoch: <相同值>}`。准备失败、超时、连接关闭或申请取消都会撤销预占；旧准备响应不能撤销后来取得的新租约。
 

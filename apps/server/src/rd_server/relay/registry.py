@@ -14,16 +14,20 @@ from rd_core.wire import (
     Execution,
     ExecutionStatus,
     Packet,
+    VehicleStatus,
     Window,
     conservative_age_ms,
 )
 from rd_quic.framing import RpcError
 
 
-@dataclass(frozen=True)
+@dataclass
 class Binding:
     principal: Principal
     session: int
+    status_stream: UUID
+    last_status_seq: int | None = None
+    next_status_seq: int = 0
 
 
 @dataclass
@@ -48,6 +52,7 @@ class Registry:
         self.auth, self.settings = auth, settings
         self.bindings = {}
         self.vehicles = {}
+        self.status_receivers = {}
         self.leases = {}
 
     def register(self, peer, params):
@@ -73,7 +78,9 @@ class Registry:
             if session in self.vehicles:
                 raise RpcError("vehicle_already_connected")
             self.vehicles[session] = peer
-        self.bindings[peer] = Binding(principal, session)
+        else:
+            self.status_receivers.setdefault(session, set()).add(peer)
+        binding = self.bindings[peer] = Binding(principal, session, uuid4())
         return {
             "revision": CONTROL_REVISION,
             "principal": principal.id,
@@ -82,6 +89,8 @@ class Registry:
             "server_time_ms": int(time.time() * 1000),
             "max_control_age_ms": self.settings.max_control_age_ms,
             "max_clock_skew_ms": self.settings.max_clock_skew_ms,
+            "idle_timeout_s": self.settings.idle_timeout_s,
+            "status_stream": str(binding.status_stream),
         }
 
     def _binding(self, peer, role=None):
@@ -157,6 +166,7 @@ class Registry:
         if lease is None or epoch is not None and lease.epoch != epoch:
             return False
         del self.leases[session]
+        lease.vehicle.discard_pending_datagrams()
         for peer in (lease.vehicle, lease.driver):
             self._notify(
                 peer, "lease_revoked", {"epoch": str(lease.epoch), "reason": reason}
@@ -180,6 +190,11 @@ class Registry:
             return
         if self.vehicles.get(binding.session) is peer:
             del self.vehicles[binding.session]
+        if binding.principal.role == "driving":
+            receivers = self.status_receivers[binding.session]
+            receivers.discard(peer)
+            if not receivers:
+                del self.status_receivers[binding.session]
         lease = self.leases.get(binding.session)
         if lease is not None and (lease.driver is peer or lease.vehicle is peer):
             self.revoke(binding.session, "connection_closed", epoch=lease.epoch)
@@ -196,12 +211,51 @@ class Registry:
             if now >= lease.deadline:
                 self.revoke(session, "lease_expired", epoch=lease.epoch)
 
+    def _route_status(self, peer, binding, packet):
+        if (
+            self.vehicles.get(binding.session) is not peer
+            or packet.session != binding.session
+            or packet.epoch != binding.status_stream
+            or not is_newer(packet.seq, binding.last_status_seq)
+        ):
+            return False
+        try:
+            conservative_age_ms(
+                packet.source_time_ms,
+                int(time.time() * 1000),
+                max_age_ms=self.settings.max_control_age_ms,
+                clock_skew_ms=self.settings.max_clock_skew_ms,
+            )
+        except ValueError:
+            return False
+        binding.last_status_seq = packet.seq
+        forwarded = False
+        for target in tuple(self.status_receivers.get(binding.session, ())):
+            try:
+                receiver = self._binding(target, "driving")
+                report = Packet(
+                    binding.session,
+                    receiver.status_stream,
+                    receiver.next_status_seq,
+                    packet.source_time_ms,
+                    packet.payload,
+                )
+                if target.send_datagram(report.encode(), best_effort=True):
+                    receiver.next_status_seq = (receiver.next_status_seq + 1) & 0xFFFFFFFF
+                    forwarded = True
+            except (ConnectionError, ValueError, RpcError):
+                # An unavailable observer or status queue does not revoke control.
+                continue
+        return forwarded
+
     def route(self, peer, data):
         try:
             binding = self._binding(peer)
             packet = Packet.decode(data)
         except (ValueError, RpcError):
             return False
+        if isinstance(packet.payload, VehicleStatus):
+            return self._route_status(peer, binding, packet)
         lease = self.leases.get(binding.session)
         if lease is not None and time.monotonic() >= lease.deadline:
             self.revoke(binding.session, "lease_expired", epoch=lease.epoch)
@@ -287,3 +341,4 @@ class Registry:
             self.revoke(session, "server_shutdown")
         self.bindings.clear()
         self.vehicles.clear()
+        self.status_receivers.clear()

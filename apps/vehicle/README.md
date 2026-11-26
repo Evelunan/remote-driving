@@ -22,7 +22,7 @@ uv run --package rd-vehicle rd-vehicle --config configs/vehicle.mock.yaml --comp
 
 摄像头不足时，可设置 `camera_fallback_source: front`：有显式 source 的视角照常采集，缺少 source 或未列出的视角复用 front，补齐四路测试画面。源设备只打开一次，复制帧保留原始采集时间；真实设备故障仍报错。[单摄像头示例](../../configs/vehicle.single-camera.yaml) 使用模拟底盘，需按实际设备修改前摄像头路径。
 
-媒体发布携带配置中的 session 并接受服务端授权校验；主相机超时会在设备清理前报告故障，使父进程先停止控制。`video` 配置与驾驶端策略见 [画面与控制](../../docs/video-safety.zh-CN.md)。
+媒体进程启动后连接认证信令房间，使用配置中的 session 表明车辆身份。首位有权限的驾驶端或观看端加入视频房间时打开摄像头。多个观看端共享同一组采集，最后一位离开或车端信令断开时停止采集并释放设备。主相机超时会撤销可用画面许可并触发隔离重试。`video` 配置与驾驶端策略见 [画面与控制](../../docs/video-safety.zh-CN.md)。
 
 ## ROS2 控制器与底盘启动
 
@@ -87,7 +87,7 @@ rd-vehicle → /cmd_vel（geometry_msgs/msg/Twist）
 
 4. **终端四：启用车辆端的 ROS2 控制器。**
 
-   先通过环境提供有效的 `RD_VEHICLE_TOKEN`，并核对配置的服务地址、CA、session、room、相机路径和运动限值。以下命令使用现场局域网配置，同时启动 ROS2 控制与四路视频。[车辆端局域网配置](../../configs/vehicle.lan.yaml)
+   先通过环境提供有效的 `RD_VEHICLE_TOKEN`，并核对配置的服务地址、CA、session、room、相机路径和运动限值。以下命令使用现场局域网配置，同时启动 ROS2 控制组件和媒体服务。驾驶端选择「连接视频」后，车辆才开始采集并发送四路视频。[车辆端局域网配置](../../configs/vehicle.lan.yaml)
 
    ```bash
    source /opt/ros/humble/setup.bash
@@ -113,7 +113,7 @@ ros2 topic info /ecu --verbose --no-daemon
 
 ## ROS2 底盘状态反馈
 
-车辆端已支持订阅 `/vehicle_status`（`yunle_msgs/msg/VehicleStatus`），通过当前认证控制租约回传驾驶端。无需修改底盘工作区。`configs/vehicle.lan.yaml` 和 `configs/vehicle.yaml` 已启用以下配置，其余配置默认关闭：
+车辆端支持订阅 `/vehicle_status`（`yunle_msgs/msg/VehicleStatus`），经 QUIC 中继回传给获准查看同一车辆会话的驾驶端。只读状态订阅在 QUIC 注册后生效，可在取得控制租约前和释放后接收。`configs/vehicle.lan.yaml` 和 `configs/vehicle.yaml` 已启用以下配置，其余配置默认关闭：
 
 ```yaml
 feedback:
@@ -134,7 +134,7 @@ feedback:
 
 以下步骤由操作者执行，本次开发未启动真实 ROS 节点或实车程序：
 
-1. 配套升级服务端、车辆端、驾驶端及共享包，注册修订为 `vehicle-status/2`。旧 `vehicle-status/1`（速度按 km/h）、`vehicle-window/1` / `video-bound/1` 版本会被拒绝，不能混用；回退时恢复配套旧版本和旧配置。
+1. 配套升级服务端、车辆端、驾驶端及共享包，注册修订为 `vehicle-status/3`。旧注册修订会收到 `protocol_upgrade_required`，包括按租约发送状态的 `vehicle-status/2`。回退时恢复配套旧版本和旧配置。
 2. 按上文准备 ROS 和底盘环境；已有驱动时查询即可，不重复启动。检查消息定义、发布者和一次反馈：
 
    ```bash
@@ -146,7 +146,7 @@ feedback:
    ```
 
 3. 依照上文启动车辆端。日志应出现 `ROS chassis feedback subscribed`。依赖缺失时先确认已加载正确工作区，不在本项目任务中修改或构建底盘包。
-4. 驾驶端在主画面和新鲜中立输入允许取得当前控制租约后显示反馈；无需非零油门。未建立租约时，本地 ROS 有消息也不会独立回传给驾驶端。
+4. 驾驶端注册目标车辆会话后检查底盘状态是否实时更新。分别在取得租约前和释放租约后确认反馈仍然更新。该验收可以在车辆静止时进行。
 5. 对照同一次现场查询和界面，检查车速、转向角、反馈编码、使能、刹车和诊断轮速；区分外设“所选挡位”与底盘“反馈挡位”。消息时间必须有效；时钟偏差超过预算、字段无效或数据过期时应显示未知/过期。
 
 源消息的 `header.stamp` 为零、已过期、在未来或重复时不更新快照；没有新样本不会给缓存值重打时间戳。默认车端有效期 300 ms，中继和驾驶端还会扣除采样年龄及预留时钟偏差；Qt 界面在定时检查时清除过期值。仅在整条消息层面判断新鲜度，轮速若被底盘驱动内部缓存且仍为有限数值，本项目无法独立确认其采样时刻。
@@ -161,6 +161,6 @@ feedback:
 
 ## 摄像头启动排查
 
-使用 `configs/vehicle.yaml` 启动时，媒体进程同时写终端和 `logs/vehicle/media/app.log`（自动轮转）。在仓库根目录用 PowerShell 执行 `Get-Content .\logs\vehicle\media\app.log -Tail 80 -Wait` 可跟踪各路启动。
+使用 `configs/vehicle.yaml` 启动时，媒体进程同时写终端和 `logs/vehicle/media/app.log`（自动轮转）。先从驾驶端连接视频，再在仓库根目录用 PowerShell 执行 `Get-Content .\logs\vehicle\media\app.log -Tail 80 -Wait` 跟踪各路启动。
 
-按视角名对照：`opening` 给出设备索引、后端和请求模式；`opened` 给出驱动报告的协商参数；`receiving frames` 才表示读到画面。`isOpened=False` 表示驱动未打开该设备，`open timed out` 表示打开超时，`returned no frame` 表示设备已打开但没有读到画面。任一设备打开失败仍会触发整体清理；已成功的设备随后关闭是预期行为。
+按视角名对照 `opening` 中的设备索引、后端和请求模式，再确认 `opened` 中的协商参数。看到 `receiving frames` 后才有采集结果。`isOpened=False` 表示驱动未打开该设备，`open timed out` 表示打开超时，`returned no frame` 表示设备已打开但没有读到画面。故障摄像头会单独重试，正常的视角可继续传输。

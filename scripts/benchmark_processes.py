@@ -251,6 +251,8 @@ async def run_case(args, probe, cache, gate, stop):
                 asyncio.create_task(job)
                 for job in (receiver.start(), driver.run(), inputs())
             ]
+            await until(lambda: vehicle.session in relay.registry.vehicles)
+            await until(driver.request_start_control)
             await until(lambda: painted(started, publisher_id()) and driver.armed)
             report["startup_ready_ms"] = (time.monotonic() - started) * 1000
             monitoring = asyncio.create_task(monitor())
@@ -292,6 +294,7 @@ async def run_case(args, probe, cache, gate, stop):
             report["reconnect_all_views_painted_ms"] = (
                 time.monotonic() - reconnect
             ) * 1000
+            await until(driver.request_start_control)
             await until(lambda: driver.armed and driver.epoch != old_epoch)
             report["reconnect_new_control_epoch_ms"] = (
                 time.monotonic() - reconnect

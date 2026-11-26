@@ -171,6 +171,8 @@ async def simulate(directory, motion_seconds):
         asyncio.create_task(driver.run()),
     ]
     try:
+        await wait_for(lambda: vehicle.connection is not None)
+        await wait_for(driver.request_start_control)
         await wait_for(lambda: driver.armed)
         first_epoch = driver.epoch
         current.update(throttle=0.5, steering=0.25)
@@ -183,6 +185,7 @@ async def simulate(directory, motion_seconds):
         )
         stop_delay_ms = (time.monotonic() - lost_at) * 1000
         current.update(enabled=True, throttle=0.0, steering=0.0)
+        await wait_for(driver.request_start_control)
         await wait_for(lambda: driver.armed and driver.epoch != first_epoch)
         report = {
             "scope": "loopback TLS QUIC and in-memory actuator; no hardware",

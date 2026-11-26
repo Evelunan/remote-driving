@@ -10,6 +10,7 @@ import pytest
 from aioquic.asyncio import connect
 from aioquic.quic.configuration import QuicConfiguration
 from rd_core.async_compat import async_timeout
+from rd_core.settings import ClientNetworkSettings, ControlSettings, CredentialSettings
 from rd_core.wire import (
     ALPN,
     CONTROL_REVISION,
@@ -19,6 +20,7 @@ from rd_core.wire import (
     Packet,
     Window,
 )
+from rd_quic.client import registered_connection
 from rd_quic.framing import RpcError
 from rd_quic.protocol import RpcProtocol
 from websockets.asyncio.client import connect as ws_connect
@@ -68,6 +70,8 @@ async def test_real_authenticated_registration_exclusive_lease_and_recovery(
                         },
                     )
                     assert result["principal"] == name
+                    assert UUID(result["status_stream"]).int != 0
+                    assert result["idle_timeout_s"] == relay.settings.idle_timeout_s
                 return peer
 
             unauthorized = await client()
@@ -89,16 +93,17 @@ async def test_real_authenticated_registration_exclusive_lease_and_recovery(
                     "register",
                     {"token": tokens["driver"], "role": "driving", "session": 42},
                 )
-            with pytest.raises(RpcError, match="protocol_upgrade_required"):
-                await unauthorized.request(
-                    "register",
-                    {
-                        "token": tokens["driver"],
-                        "role": "driving",
-                        "session": 42,
-                        "revision": "video-bound/1",
-                    },
-                )
+            for revision in ("video-bound/1", "vehicle-status/2"):
+                with pytest.raises(RpcError, match="protocol_upgrade_required"):
+                    await unauthorized.request(
+                        "register",
+                        {
+                            "token": tokens["driver"],
+                            "role": "driving",
+                            "session": 42,
+                            "revision": revision,
+                        },
+                    )
             viewer = await client()
             with pytest.raises(RpcError, match="role_denied"):
                 await viewer.request(
@@ -242,6 +247,60 @@ async def test_registration_deadline_and_incompatible_alpn(runtime_factory, loca
     finally:
         await runtime.stop()
     assert not relay.registry.bindings and not relay.registration_deadlines
+
+
+@pytest.mark.asyncio
+async def test_registered_quic_stays_connected_without_status_or_control(
+    runtime_factory, local_tls, monkeypatch
+):
+    build, _ = runtime_factory
+    runtime = build(idle_timeout_s=0.5)
+    relay = runtime.services["relay"]
+    clock_peers = set()
+    handle_request = relay._request
+
+    async def observe_requests(protocol, method, params):
+        if method == "clock":
+            clock_peers.add(protocol)
+        return await handle_request(protocol, method, params)
+
+    monkeypatch.setattr(relay, "_request", observe_requests)
+    await runtime.start()
+    try:
+        network = ClientNetworkSettings(
+            quic_host="127.0.0.1",
+            quic_port=relay.listener._transport.get_extra_info("sockname")[1],
+            quic_server_name="localhost",
+            quic_ca_file=local_tls[0],
+            idle_timeout_s=2,
+        )
+        async with AsyncExitStack() as connections:
+            async def register(role, token_env):
+                return await connections.enter_async_context(
+                    registered_connection(
+                        network,
+                        CredentialSettings(token_env),
+                        ControlSettings(),
+                        session=42,
+                        role=role,
+                        revision=CONTROL_REVISION,
+                    )
+                )
+
+            vehicle = await register("vehicle", "TEST_VEHICLE")
+            driver = await register("driving", "TEST_DRIVER")
+            assert vehicle.status_stream != driver.status_stream
+            bindings = set(relay.registry.bindings)
+            await asyncio.sleep(1.25)
+            assert vehicle.protocol.rpc_ready and driver.protocol.rpc_ready
+            assert set(relay.registry.bindings) == bindings
+            assert clock_peers == bindings
+            assert not relay.registry.leases
+    finally:
+        await runtime.stop()
+    assert not [
+        task for task in asyncio.all_tasks() if task.get_name() == "rd-quic-keepalive"
+    ]
 
 
 @pytest.mark.asyncio

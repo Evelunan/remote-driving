@@ -61,7 +61,9 @@ def test_dashboard_control_status_tracks_worker_and_clears_on_logout(legacy_pyth
         """
         import os
         os.environ["QT_QPA_PLATFORM"] = "offscreen"
+        import time
         from PyQt6.QtWidgets import QApplication
+        from rd_core.video_safety import VideoSource
         from rd_driving.infrastructure.workers.control_system_thread import STATUS_TEXT
         from rd_driving.main_window import MainWindow
 
@@ -85,23 +87,27 @@ def test_dashboard_control_status_tracks_worker_and_clears_on_logout(legacy_pyth
         worker = window._control_thread = Worker()
         navbar = window._navbar
         channel = window._control_panel.get_connection_items()["quic"]
-        signal = window._bridge.quic_status_changed
-        for state, online, tone in (
-            ("registered", True, "waiting"),
-            ("waiting_input", True, "waiting"),
-            ("waiting_neutral", True, "waiting"),
-            ("waiting_execution", True, "waiting"),
-            ("active", True, "active"),
-            ("video_unavailable", False, "blocked"),
-            ("active", True, "active"),
+        signal = window._bridge.control_status_changed
+        window._bridge.quic_status_changed.emit(True, STATUS_TEXT["registered"])
+        window.video_gate.recovery_s = 0
+        observed = time.monotonic()
+        window.video_gate.observe(1, observed, VideoSource('vehicle', 42, 'peer'), captured_at=observed)
+        for state, tone in (
+            ("idle", "waiting"),
+            ("waiting_input", "waiting"),
+            ("waiting_neutral", "waiting"),
+            ("waiting_execution", "waiting"),
+            ("active", "active"),
+            ("video_unavailable", "blocked"),
+            ("active", "active"),
         ):
             text = STATUS_TEXT[state]
-            signal.emit(online, text)
+            signal.emit(state, text)
             assert navbar._control_status.text() == text
             assert navbar._control_tone == tone
             assert (window._theme.success in navbar._control_field.styleSheet()) == (tone == "active")
-            assert channel.is_online() == online
-            assert channel._status_label.text() == (STATUS_TEXT["registered"] if online else text)
+            assert channel.is_online()
+            assert channel._status_label.text() == STATUS_TEXT["registered"]
 
         login = window._login_page
         login._room_input.setText("saved-room")
@@ -109,7 +115,7 @@ def test_dashboard_control_status_tracks_worker_and_clears_on_logout(legacy_pyth
         navbar._actions["退出会话"].click()
         assert worker.stop_requested
         assert navbar._control_status.text() == "正在退出会话"
-        signal.emit(True, STATUS_TEXT["active"])
+        signal.emit("active", STATUS_TEXT["active"])
         assert navbar._control_status.text() == "正在退出会话"
         worker.running = False
         window._finish_shutdown()

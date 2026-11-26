@@ -37,6 +37,7 @@ async def test_wait_reason_matches_device_sample_and_video(
     permit = SimpleNamespace(
         ready=video_ready,
         ready_at=now - 0.02,
+        revision=1,
         source=SimpleNamespace(session=42),
     )
     client.video_gate = SimpleNamespace(snapshot=lambda: permit)
@@ -44,6 +45,8 @@ async def test_wait_reason_matches_device_sample_and_video(
         protocol=SimpleNamespace(rpc_ready=True),
         clock=SimpleNamespace(check=lambda: None),
     )
+    assert service.request_start_control()
+    assert await statuses.get() == "starting"
     if sample_kind != "missing":
         client.latest = ControlInput(
             throttle=0.5 if sample_kind == "throttle" else 0,
@@ -51,11 +54,11 @@ async def test_wait_reason_matches_device_sample_and_video(
             steering=0.5 if sample_kind == "steering" else 0,
             sampled_at=now - (1 if sample_kind == "expired" else 0.05)
             if sample_kind in {"expired", "before_video"}
-            else now,
+            else time.monotonic(),
             timestamp_ms=time.time_ns() // 1_000_000,
             valid=sample_kind != "invalid",
         )
-    task = asyncio.create_task(client._send_session())
+    task = asyncio.create_task(client._send_session(client._control_requested_at))
     try:
         assert await asyncio.wait_for(statuses.get(), 1) == expected
         assert not client.armed and client.epoch is None
@@ -88,7 +91,6 @@ async def test_neutral_input_still_acquires_and_waits_for_execution():
         source=SimpleNamespace(session=42, principal="vehicle"),
     )
     client.video_gate = SimpleNamespace(snapshot=lambda: permit)
-    client.latest = ControlInput(0, 1, 0, time.monotonic(), time.time_ns() // 1_000_000)
 
     async def request(method, params):
         requests.append(method)
@@ -104,9 +106,11 @@ async def test_neutral_input_still_acquires_and_waits_for_execution():
     client.connection = SimpleNamespace(
         protocol=protocol, clock=SimpleNamespace(check=lambda: None)
     )
-    await client._send_session()
+    assert service.request_start_control()
+    client.latest = ControlInput(0, 1, 0, time.monotonic(), time.time_ns() // 1_000_000)
+    await client._send_session(client._control_requested_at)
     assert requests == ["acquire"]
-    assert statuses == ["waiting_execution"]
+    assert statuses == ["starting", "waiting_execution"]
     assert not client.armed
 
 
@@ -122,15 +126,19 @@ def test_input_status_text_and_online_indicator(legacy_python):
         bridge = SignalBridge()
         worker = ControlSystemThread(bridge, DrivingSettings())
         received = []
+        control = []
         bridge.quic_status_changed.connect(lambda *args: received.append(args))
+        bridge.control_status_changed.connect(lambda *args: control.append(args))
+        worker._connection_status(True, 'registered')
         for state, text in [
             ('waiting_device', '等待控制设备'),
             ('waiting_input', '等待设备输入'),
             ('waiting_neutral', '请将控制输入归零'),
         ]:
             worker._status(state)
-            assert received[-1] == (True, text)
-        worker._status('error', 'protocol_upgrade_required')
+            assert control[-1] == (state, text)
+            assert received[-1] == (True, '已认证')
+        worker._connection_status(False, 'protocol_upgrade_required')
         assert received[-1] == (False, '控制协议不兼容，请同步升级')
     """,
     )

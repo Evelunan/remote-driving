@@ -35,7 +35,7 @@ processes:
   kill_timeout_s: 1.0
 ```
 
-首次心跳受 `startup_timeout_s` 限定。媒体子进程加载媒体库、打开配置的摄像头并启动采集任务后才发送首次心跳，此后的心跳间隔按 `heartbeat_timeout_s` 检查。首次心跳只表示采集任务已启动，主视角的新帧仍由视频监护单独检查。这些默认值来自本机模拟，目标硬件仍需验证。退出最多依次等待 shutdown_timeout_s、两次 kill_timeout_s，加上有限轮询开销；实际停车不能以这一软件时间推断。独立控制超时仍使用 `control.command_timeout_ms`，不依赖父进程心跳。
+首次心跳受 `startup_timeout_s` 限定。媒体子进程配置好媒体服务后开始心跳，此后的心跳间隔按 `heartbeat_timeout_s` 检查。空闲媒体进程保持心跳，首位授权观看者加入后才打开摄像头，最后一位离开后释放设备。主视角的新帧另由视频监护检查。这些默认值来自本机模拟，目标硬件仍需验证。退出最多依次等待 `shutdown_timeout_s`、两次 `kill_timeout_s`，加上有限轮询开销。车辆控制仍使用独立的 `control.command_timeout_ms` 检测超时。
 
 ```bash
 rd-vehicle --config /path/vehicle.mock.yaml --check-config
@@ -48,7 +48,7 @@ rd-vehicle --config /path/vehicle.mock.yaml --components media
 
 ## 验证边界
 
-`tests/test_vehicle_processes.py` 使用真实 spawn 和私有 socketpair，覆盖独立 PID、真实回环 QUIC 执行 ACK、WSS/WebRTC 视频、控制进程依赖隔离、有序退出、媒体事件循环卡死、子进程崩溃、父通道丢失、重复取消、部分启动失败。模拟卡死测试检查控制循环继续推进、模拟零速已请求且物理确认仍为 false。
+`tests/test_vehicle_processes.py` 使用真实 spawn 和私有 socketpair，覆盖独立 PID、真实回环 QUIC 执行 ACK、WSS/WebRTC 视频、空闲心跳、观看者驱动的采集启停、控制进程依赖隔离、有序退出、媒体事件循环卡死、子进程崩溃、父通道丢失、重复取消、部分启动失败。模拟卡死测试检查控制循环继续推进、模拟零速已请求且物理确认仍为 false。
 
 心跳本身不代表相机健康；B16 已增加独立主采集超时检查，故障先关闭父健康通道再清理设备，并在驾驶端按主画面呈现证据限制控制，见 [画面与控制](video-safety.zh-CN.md)。B25 已使用正式组件入口/监督器，完成四路合成媒体负载下共进程与分进程各三轮的资源、尾延迟及重连测量，见 [性能记录](video-performance.zh-CN.md#b25-正式车辆进程拓扑的测量)。分进程的 PSS/CPU/启动成本均有记录，没有据此宣称所有指标更快；目标机器和实机性能仍待验收。驾驶端仍使用 PyQt 工作线程，车端的本次隔离不等同于驾驶端 UI/控制已分进程。
 

@@ -105,6 +105,8 @@ def test_media_row_actions_keep_control_worker_and_ignore_old_signals(
                 time.sleep(0.10)
             def request_stop(self):
                 self.stop.set()
+            def pause_control_for_video(self):
+                return True
             def request_control_reconnect(self):
                 self.control_requests += 1
                 return True
@@ -112,9 +114,11 @@ def test_media_row_actions_keep_control_worker_and_ignore_old_signals(
         window = module.MainWindow(session_id=42, room='video')
         window.show()
         panel = window._control_panel
-        old_video, old_control = window._receiver_thread, window._control_thread
-        assert set(panel._action_buttons) == {{'signal', 'webrtc', 'usb', 'quic'}}
-        assert panel._connections['video']._action_button is None
+        old_control = window._control_thread
+        assert window._receiver_thread is None
+        assert set(panel._action_buttons) == {{'signal', 'webrtc', 'usb', 'quic', 'video', 'control'}}
+        assert panel._action_buttons['video'].text() == '连接视频'
+        assert not panel._action_buttons['signal'].isEnabled()
         def until(predicate):
             deadline = time.monotonic() + 3
             while not predicate():
@@ -125,6 +129,11 @@ def test_media_row_actions_keep_control_worker_and_ignore_old_signals(
             panel.set_connection_status('quic', True, '等待控制设备')
             panel._action_buttons['quic'].click()
             assert old_control.control_requests == 1
+            panel._action_buttons['video'].click()
+            old_video = window._receiver_thread
+            old_video.status_changed.emit('joined', '')
+            app.processEvents()
+            assert panel._action_buttons['video'].text() == '断开视频'
             assert not old_video.stop.is_set() and not old_control.stop.is_set()
             panel._action_buttons['signal'].click()
             panel._action_buttons['webrtc'].click()

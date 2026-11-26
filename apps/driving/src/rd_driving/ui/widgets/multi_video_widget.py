@@ -241,9 +241,9 @@ class MultiVideoWidget(QWidget):
         for display in self._displays.values():
             display.apply_theme(theme)
 
-    def show_message_all(self, message: str) -> None:
+    def show_message_all(self, message: str, *, reason="picture_unavailable") -> None:
         if self._video_gate is not None:
-            self._video_gate.invalidate("picture_unavailable")
+            self._video_gate.invalidate(reason)
         for cam, display in self._displays.items():
             display.show_message(message)
             self.set_camera_stats(cam, 0, None)

@@ -59,7 +59,7 @@ rd-server --config /path/server.yaml --services signaling --set signaling.port=8
 | --- | --- | --- |
 | [server.lan.yaml](../configs/server.lan.yaml) | [driving.lan.yaml](../configs/driving.lan.yaml) | [vehicle.lan.yaml](../configs/vehicle.lan.yaml) |
 
-驾驶端 `--connect` 立即使用配置的 session/room，否则打开选择页面；同时提供两个便捷参数也会立即连接。车辆端 `--components control,media` 或单项选择模块；controller 为 none 时禁用控制、不注册、不生成 ACK，control-only + none 会在启动前拒绝。正式入口默认以父进程管理独立 control/media 子进程，单模块模式只启动所选子进程。详见[进程隔离](process-isolation.zh-CN.md)。
+驾驶端 `--connect` 或同时提供 `--session` 和 `--room` 时，直接使用选定的会话和房间进入只读工作台，否则先打开会话选择页。进入工作台后自动连接状态通道，驾驶员分别启动视频和控制。车辆端 `--components control,media` 或单项选择模块。controller 为 none 时禁用控制、不注册、不生成 ACK，control-only + none 会在启动前拒绝。正式入口由父进程管理独立 control/media 子进程，单模块模式只启动所选子进程。详见[进程隔离](process-isolation.zh-CN.md)。
 
 两端 `--dump-config` 不加载 Qt、OpenCV、ROS，也不解析秘密；`--check-config` 校验所选模块的本地凭据/证书，车辆选 ROS2 时检查 rclpy 导入，不创建 ROS 节点，不打开 USB/相机/串口，不连接网络。依赖导入通过不意味着真实设备可用。
 
@@ -102,9 +102,9 @@ feedback:
 
 `send_hz` 为回传频率上限，范围 `(0, 50]`；没有新样本时不重复发送。`stale_timeout_ms` 为车端快照的有效时间，范围 `(0, 10000]`。源消息时间必须有效、递增且未过期；零时间、未来时间和旧样本不作为新反馈。NaN/Inf 或非法字段分别标为未知，合法零值与 false 保留。
 
-回传还受中继 `max_control_age_ms` / `max_clock_skew_ms` 约束；配置有效期应大于时钟偏差预算。驾驶端以其 `control.command_timeout_ms` 和中继年龄上限的较小值扣除原始采样年龄，得到剩余显示时间，跨 Qt 排队也不刷新期限。未获得当前控制租约时不转发状态，状态包本身不续租。
+回传还受中继 `max_control_age_ms` / `max_clock_skew_ms` 约束。配置有效期应大于时钟偏差预算。驾驶端以其 `control.command_timeout_ms` 和中继年龄上限的较小值扣除原始采样年龄，得到剩余显示时间，跨 Qt 排队也不刷新期限。中继向获准注册同一车辆会话的驾驶端转发底盘状态。状态回传在控制授权前后均可使用，租约仍只由有效的控制样本续期。
 
-三应用与共享包须配套升级至注册修订 `vehicle-status/2`；包括按 km/h 解释状态的 `vehicle-status/1` 在内的旧版会收到 `protocol_upgrade_required`。用户操作及验收步骤见[车辆端状态反馈](../apps/vehicle/README.md#ros2-底盘状态反馈)。
+三应用与共享包须配套升级至注册修订 `vehicle-status/3`。按 km/h 解释状态的 `vehicle-status/1` 以及依赖租约接收状态的 `vehicle-status/2` 会收到 `protocol_upgrade_required`。用户操作及验收步骤见[车辆端状态反馈](../apps/vehicle/README.md#ros2-底盘状态反馈)。
 
 ### 摄像头不足时复用画面
 

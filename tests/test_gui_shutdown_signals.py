@@ -57,6 +57,7 @@ def test_formal_gui_signals_wait_for_workers_and_restore_handlers(
                 self.tick.start(5)
                 QTimer.singleShot(25, request_shutdown)
                 if {connected!r}:
+                    self._toggle_video()
                     QTimer.singleShot(85, request_shutdown)
                     QTimer.singleShot(135, request_shutdown)
         module.MainWindow = ObservedWindow
@@ -121,11 +122,12 @@ def test_gui_exits_during_webrtc_peer_removal(legacy_python, via_signal):
             def __init__(self, *args, **kwargs):
                 super().__init__(*args, **kwargs)
                 windows.append(self)
+                self._toggle_video()
                 self.close_when_ready = QTimer(self)
                 self.close_when_ready.timeout.connect(self._close_during_peer_removal)
                 self.close_when_ready.start(10)
 
-            def _start_control(self):
+            def _start_session_worker(self):
                 pass
 
             def _close_during_peer_removal(self):

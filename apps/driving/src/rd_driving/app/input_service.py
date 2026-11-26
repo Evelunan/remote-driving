@@ -23,6 +23,7 @@ class DrivingInputService:
         on_usb=None,
         on_local_input=None,
         on_status=None,
+        on_connection_status=None,
         on_execution=None,
         on_telemetry=None,
         on_vehicle_status=None,
@@ -45,6 +46,7 @@ class DrivingInputService:
             settings,
             self.processed,
             on_status=self._control_status,
+            on_connection_status=on_connection_status,
             on_execution=on_execution,
             on_telemetry=on_telemetry,
             on_vehicle_status=on_vehicle_status,
@@ -132,6 +134,19 @@ class DrivingInputService:
         self._control_restart_requested = True
         self._control_task.cancel()
         return True
+
+    def request_start_control(self):
+        return self.client.request_start_control()
+
+    def request_stop_control(self):
+        return self.client.request_stop_control()
+
+    def pause_control_for_video(self):
+        return self.client.pause_control_for_video()
+
+    def apply_control_request(self, action):
+        if not action(self):
+            self._control_status(self._control_state, self._control_detail)
 
     async def _control(self):
         try:

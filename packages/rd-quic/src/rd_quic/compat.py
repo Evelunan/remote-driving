@@ -12,10 +12,18 @@ def cancel_pending_io(protocol):
     protocol._timer = protocol._transmit_task = None
 
 
-def send_latest_datagram(protocol, data):
-    protocol._quic._datagrams_pending.clear()
+def send_latest_datagram(protocol, data, *, best_effort):
+    pending = protocol._quic._datagrams_pending
+    if best_effort and pending:
+        return False
+    pending.clear()
     protocol._quic.send_datagram_frame(data)
     protocol.transmit()
+    return True
+
+
+def discard_pending_datagrams(protocol):
+    protocol._quic._datagrams_pending.clear()
 
 
 def has_stream_capacity(protocol, limit):

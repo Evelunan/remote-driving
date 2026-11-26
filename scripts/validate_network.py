@@ -295,6 +295,8 @@ async def validate(args, cache, gate, interrupted):
                             samples(),
                         )
                     ]
+                    await until(lambda: vehicle.connection is not None)
+                    await until(driver.request_start_control)
                     await until(lambda: driver.armed and picture(started))
                     report["initial_paths"] = (
                         await network_snapshot(publisher, receiver)
@@ -306,6 +308,7 @@ async def validate(args, cache, gate, interrupted):
                     throttle = 0.25
                     await until(lambda: controller.commands[-1][0] > 0)
                     old_epoch, old_publisher = driver.epoch, publisher.my_id
+                    driver_connection, vehicle_connection = driver.connection, vehicle.connection
                     before_counts = cache.counts()
                     before_network = await network_snapshot(publisher, receiver)
                     report["udp_before_fault"] = shaper.snapshot()
@@ -418,7 +421,8 @@ async def validate(args, cache, gate, interrupted):
                                 )
                         if args.case == "media-blackhole":
                             report["control_transport_survived_video_loss"] = (
-                                vehicle.connection is not None
+                                driver.connection is driver_connection
+                                and vehicle.connection is vehicle_connection
                             )
                             if not report["control_transport_survived_video_loss"]:
                                 raise RuntimeError(
@@ -498,6 +502,8 @@ async def validate(args, cache, gate, interrupted):
                             )
                         report["held_input_did_not_rearm"] = True
                         throttle = 0.0
+                        await until(lambda: vehicle.connection is not None)
+                        await until(driver.request_start_control)
                         await until(lambda: driver.armed and driver.epoch != old_epoch)
                         report["recovery_to_new_epoch_ms"] = (
                             time.monotonic() - recovery

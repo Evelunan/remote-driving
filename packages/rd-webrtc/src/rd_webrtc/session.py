@@ -211,8 +211,8 @@ class MediaSession:
 
         return peer
 
-    def _spawn_peer_task(self, peer_id, peer, coroutine):
-        task = asyncio.create_task(coroutine, name="media-receive")
+    def _spawn_peer_task(self, peer_id, peer, coroutine, *, name="media-receive"):
+        task = asyncio.create_task(coroutine, name=name)
         self._peer_tasks[peer].add(task)
 
         def observe(done):
@@ -222,10 +222,8 @@ class MediaSession:
                 and done.exception() is not None
                 and self._current(peer_id, peer)
             ):
-                logger.warning(
-                    "Media receive failed (%s)", type(done.exception()).__name__
-                )
-                self._emit_status("error", "视频接收失败")
+                logger.warning("%s failed (%s)", name, type(done.exception()).__name__)
+                self._emit_status("error", "媒体连接失败")
                 self._schedule_cleanup(peer_id, peer)
 
         task.add_done_callback(observe)

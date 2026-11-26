@@ -223,8 +223,17 @@ async def test_congested_datagram_and_notification_queues_are_bounded():
     for value in range(1000):
         protocol.send_datagram(str(value).encode())
     assert list(protocol._quic._datagrams_pending) == [b"999"]
+    assert not protocol.send_datagram(b"vehicle status", best_effort=True)
+    assert list(protocol._quic._datagrams_pending) == [b"999"]
+    protocol._quic._datagrams_pending.clear()
+    assert protocol.send_datagram(b"vehicle status", best_effort=True)
+    assert list(protocol._quic._datagrams_pending) == [b"vehicle status"]
+    assert protocol.send_datagram(b"control")
+    assert list(protocol._quic._datagrams_pending) == [b"control"]
+    protocol.discard_pending_datagrams()
     for _ in range(8):
         protocol.notify("event", {})
+    assert not protocol._quic._datagrams_pending
     with pytest.raises(RpcError, match="backpressure"):
         protocol.notify("event", {})
     assert len(protocol._quic._streams) == 8

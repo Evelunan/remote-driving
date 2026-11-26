@@ -51,17 +51,22 @@ async def test_real_feedback_transport_keeps_units_and_never_repeats_stale_cache
     driver = DrivingControlClient(driving_settings, inputs.queue,
                                   video_gate=inputs.video_gate,
                                   on_vehicle_status=lambda *args: reports.append(args))
-    tasks = [asyncio.create_task(vehicle.run()), asyncio.create_task(inputs.run()),
-             asyncio.create_task(driver.run())]
+    tasks = [asyncio.create_task(vehicle.run()), asyncio.create_task(driver.run())]
     try:
-        await until(lambda: driver.armed)
+        await until(lambda: driver.connection is not None and vehicle.connection is not None)
+        assert driver.epoch is None
         source.sample = FeedbackSample(status, time.time_ns() // 1_000_000,
                                        time.monotonic(), 1)
         await until(lambda: len(reports) == 1)
         packet, deadline = reports[0]
         assert packet.payload == status
         assert time.monotonic() < deadline <= time.monotonic() + 0.3
+        assert packet.epoch == driver.connection.status_stream
+        assert driver.epoch is None
         original_timestamp = packet.source_time_ms
+        tasks.append(asyncio.create_task(inputs.run()))
+        assert driver.request_start_control()
+        await until(lambda: driver.armed)
         await asyncio.sleep(0.35)
         assert len(reports) == 1 and driver.armed
         # Changing a revision without a new source timestamp cannot renew freshness.
@@ -199,6 +204,8 @@ async def test_real_clients_execute_configured_targets_expire_input_and_rearm_af
         asyncio.create_task(driver.run()),
     ]
     try:
+        await until(lambda: vehicle.connection is not None)
+        await until(driver.request_start_control)
         await until(lambda: driver.armed)
         old_epoch = driver.epoch
         assert vehicle.epoch == old_epoch and reports
@@ -221,6 +228,7 @@ async def test_real_clients_execute_configured_targets_expire_input_and_rearm_af
         await asyncio.sleep(0.3)
         assert not driver.armed and vehicle.epoch is None
         inputs.throttle = inputs.steering = 0
+        await until(driver.request_start_control)
         await until(lambda: driver.armed)
         assert driver.epoch != old_epoch
         tasks[-1].cancel()
@@ -230,6 +238,7 @@ async def test_real_clients_execute_configured_targets_expire_input_and_rearm_af
             driving_settings, inputs.queue, video_gate=inputs.video_gate
         )
         tasks[-1] = asyncio.create_task(replacement.run())
+        await until(replacement.request_start_control)
         await until(lambda: replacement.armed)
         assert replacement.epoch != old_epoch
         assert vehicle.connection is not None
@@ -285,11 +294,13 @@ async def test_no_execution_ack_causes_driver_release_and_vehicle_failsafe(
         asyncio.create_task(driver.run()),
     ]
     try:
+        await until(lambda: vehicle.connection is not None)
+        await until(driver.request_start_control)
         await until(lambda: driver.armed)
         inputs.throttle = 0.5
         await until(lambda: controller.commands[-1][0] == 0.6)
         vehicle._result = lambda *args: None
-        await until(lambda: ("error", "execution_confirmation_expired") in statuses)
+        await until(lambda: ("paused", "execution_confirmation_expired") in statuses)
         inputs.enabled = False
         await until(lambda: vehicle.epoch is None and controller.commands[-1] == (0, 0))
     finally:
@@ -407,6 +418,8 @@ async def test_blocked_actuator_does_not_block_independent_stop_or_invalidate_ne
         asyncio.create_task(driver.run()),
     ]
     try:
+        await until(lambda: vehicle.connection is not None)
+        await until(driver.request_start_control)
         await until(lambda: driver.armed)
         previous = vehicle.epoch
         safety.clear()
@@ -423,6 +436,7 @@ async def test_blocked_actuator_does_not_block_independent_stop_or_invalidate_ne
         await until(lambda: vehicle.epoch is None and controller.commands[-1] == (0, 0))
         assert driver.epoch != previous or not driver.armed
         inputs.throttle, inputs.enabled = 0, True
+        await until(driver.request_start_control)
         await until(lambda: driver.armed)
         assert vehicle.epoch != previous
     finally:

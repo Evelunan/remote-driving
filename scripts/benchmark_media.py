@@ -388,6 +388,8 @@ async def run_case(args, probe, cache, gate, stop):
                     monitor(),
                 )
             ]
+            await until(lambda: vehicle.connection is not None)
+            await until(driver.request_start_control)
             await until(lambda: all_painted_after(started))
             with probe.lock:
                 report["first_paint_ms"] = {
@@ -441,6 +443,7 @@ async def run_case(args, probe, cache, gate, stop):
             report["reconnect_all_views_painted_ms"] = (
                 time.monotonic() - reconnect
             ) * 1000
+            await until(driver.request_start_control)
             await until(lambda: driver.armed and driver.epoch != old_epoch)
             report["reconnect_new_control_epoch_ms"] = (
                 time.monotonic() - reconnect
