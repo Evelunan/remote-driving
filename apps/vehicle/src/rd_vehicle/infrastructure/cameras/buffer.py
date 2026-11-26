@@ -7,7 +7,8 @@ from rd_webrtc.video import CapturedImage
 
 
 class CaptureBuffer:
-    def __init__(self):
+    def __init__(self, pixel_format="bgr24"):
+        self._pixel_format = pixel_format
         self._lock = threading.Lock()
         self._sequence = 0
         self._latest = None
@@ -25,7 +26,9 @@ class CaptureBuffer:
         readonly.flags.writeable = False
         with self._lock:
             self._sequence += 1
-            self._latest = CapturedImage(self._sequence, captured_at, readonly)
+            self._latest = CapturedImage(
+                self._sequence, captured_at, readonly, self._pixel_format
+            )
             callback = self._on_change
         if callback is not None:
             callback()

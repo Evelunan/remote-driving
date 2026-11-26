@@ -87,7 +87,11 @@ async def validate(args, cache, gate, interrupted):
     publisher = receiver = manager = vehicle = None
     shaper = Shaper(seed=args.seed)
     throttle = 0.0
-    report = {"case": args.case, "physical_stop_verified": False}
+    report = {
+        "case": args.case,
+        "low_latency_vp8": args.low_latency_vp8,
+        "physical_stop_verified": False,
+    }
     controller = None
     turn = None
     original_datagram = RpcProtocol.send_datagram
@@ -231,6 +235,7 @@ async def validate(args, cache, gate, interrupted):
                         network,
                         CredentialSettings("RD_NET_DRIVER"),
                         views=views,
+                        low_latency_vp8=args.low_latency_vp8,
                     )
                     receiver.on_frame(
                         lambda name, frame, source, captured_at: cache.put(
@@ -614,6 +619,7 @@ def main():
     parser.add_argument("--views", type=int, choices=(1, 4), default=4)
     parser.add_argument("--seconds", type=float, default=3)
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--low-latency-vp8", action="store_true")
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument(
         "--turnserver",

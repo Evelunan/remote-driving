@@ -123,6 +123,8 @@ class Probe:
             "encoder_queue": ("encoder_input", "encode_start"),
             "encode_including_color_conversion": ("encode_start", "encode_end"),
             "encode_end_to_decode_start": ("encode_end", "decode_start"),
+            "rtp_last_packet_to_assembly": ("rtp_last_packet", "rtp_assembled"),
+            "rtp_assembly_to_decode_start": ("rtp_assembled", "decode_start"),
             "decode": ("decode_start", "decode_end"),
             "decode_to_track_recv": ("decode_end", "track_recv"),
             "receive_bgr_conversion": ("track_recv", "callback"),
@@ -198,6 +200,7 @@ class Probe:
         stack = ExitStack()
         original_track = VideoFrameTrack.recv_if_ready
         original_remote = rx.RemoteStreamTrack.recv
+        original_rtp = rx.RTCRtpReceiver._handle_rtp_packet
         encoder_factory, decoder_factory = tx.get_encoder, rx.get_decoder
         budget_encoder_factory = budgeting.create_encoder
         probe = self
@@ -259,6 +262,38 @@ class Probe:
             def pack(self, packet):
                 raise RuntimeError("this benchmark requires raw camera frames")
 
+        class JitterProbe:
+            def __init__(self, inner):
+                self.inner = inner
+                self.arrivals = OrderedDict()
+
+            def add(self, packet):
+                if packet._data:
+                    key = (packet.ssrc, packet.timestamp)
+                    self.arrivals[key] = time.monotonic()
+                    self.arrivals.move_to_end(key)
+                    if len(self.arrivals) > self.inner.capacity:
+                        self.arrivals.popitem(last=False)
+                pli, frame = self.inner.add(packet)
+                if frame is not None:
+                    arrival = self.arrivals.pop((packet.ssrc, frame.timestamp), None)
+                    frame.arrival_marks = (
+                        {"rtp_last_packet": arrival, "rtp_assembled": time.monotonic()}
+                        if arrival is not None
+                        else {}
+                    )
+                return pli, frame
+
+        async def handle_rtp(receiver, packet, arrival_time_ms):
+            jitter = receiver._RTCRtpReceiver__jitter_buffer
+            if (
+                receiver.track is not None
+                and receiver.track.kind == "video"
+                and not isinstance(jitter, JitterProbe)
+            ):
+                receiver._RTCRtpReceiver__jitter_buffer = JitterProbe(jitter)
+            await original_rtp(receiver, packet, arrival_time_ms)
+
         class Decoder:
             def __init__(self, codec):
                 self.inner = decoder_factory(codec)
@@ -269,7 +304,11 @@ class Probe:
                 ended = time.monotonic()
                 with probe.lock:
                     for frame in frames:
-                        probe.decoded_frames[id(frame)] = (started, ended)
+                        probe.decoded_frames[id(frame)] = {
+                            **getattr(encoded, "arrival_marks", {}),
+                            "decode_start": started,
+                            "decode_end": ended,
+                        }
                 return frames
 
         async def remote_recv(track):
@@ -278,7 +317,7 @@ class Probe:
                 decoded = probe.decoded_frames.pop(id(frame), None)
                 if decoded is None:
                     raise RuntimeError("missing decoder frame association")
-                probe.deliveries[track.id] = (*decoded, time.monotonic())
+                probe.deliveries[track.id] = {**decoded, "track_recv": time.monotonic()}
             return frame
 
         stack.enter_context(
@@ -298,6 +337,9 @@ class Probe:
             )
         )
         stack.enter_context(patch.object(rx, "get_decoder", Decoder))
+        stack.enter_context(
+            patch.object(rx.RTCRtpReceiver, "_handle_rtp_packet", handle_rtp)
+        )
         stack.enter_context(patch.object(rx.RemoteStreamTrack, "recv", remote_recv))
         return stack
 
@@ -333,9 +375,7 @@ def measured_cache(probe):
                 decoded = probe.deliveries.pop(name, None)
             if decoded is None:
                 raise RuntimeError("missing track delivery")
-            for stage, timestamp in zip(
-                ("decode_start", "decode_end", "track_recv"), decoded
-            ):
+            for stage, timestamp in decoded.items():
                 probe.mark(key, stage, timestamp)
             with self.probe_lock:
                 result = super().put(

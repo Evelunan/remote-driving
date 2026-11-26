@@ -437,6 +437,7 @@ class MainWindow(QMainWindow):
         receiver = WebRTCReceiver(
             self._room, self.settings.network, self.settings.credentials,
             video_policy=self.settings.video,
+            low_latency_vp8=self.settings.low_latency_vp8,
         )
         generation = self.fb.begin_session()
         receiver.on_frame(

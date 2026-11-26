@@ -10,7 +10,7 @@ import numpy as np
 from aiortc import VideoStreamTrack
 from aiortc.mediastreams import MediaStreamError
 from av import VideoFrame
-
+from av.video.reformatter import ColorRange
 from rd_core.async_compat import async_timeout
 
 
@@ -19,6 +19,13 @@ class CapturedImage:
     sequence: int
     captured_at: float
     pixels: np.ndarray
+    pixel_format: str = "bgr24"
+
+    def to_av_frame(self) -> VideoFrame:
+        frame = VideoFrame.from_ndarray(self.pixels, format=self.pixel_format)
+        if self.pixel_format == "yuv420p":
+            frame.color_range = ColorRange.MPEG
+        return frame
 
 
 class FrameSource:
@@ -56,14 +63,24 @@ class FrameSource:
             or image.captured_at > time.monotonic()
             or not isinstance(pixels, np.ndarray)
             or pixels.dtype != np.uint8
-            or pixels.ndim != 3
-            or pixels.shape[2] != 3
-            or not all(pixels.shape)
+            or not pixels.size
             or pixels.flags.writeable
         ):
             raise ValueError(
-                "expected monotonic capture metadata and readonly BGR image"
+                "expected monotonic capture metadata and readonly uint8 pixels"
             )
+        if image.pixel_format == "bgr24":
+            valid_shape = pixels.ndim == 3 and pixels.shape[2] == 3
+        elif image.pixel_format == "yuv420p":
+            valid_shape = (
+                pixels.ndim == 2
+                and pixels.shape[0] % 3 == 0
+                and pixels.shape[1] % 2 == 0
+            )
+        else:
+            valid_shape = False
+        if not valid_shape:
+            raise ValueError("invalid capture pixel format or dimensions")
         self._last_sequence, self._last_capture = image.sequence, image.captured_at
         self.latest = image
         self._wake()
@@ -142,7 +159,7 @@ class VideoFrameTrack(VideoStreamTrack):
         image = self._fresh_image(now)
         if image is None or now < self._next_send:
             return None
-        frame = VideoFrame.from_ndarray(image.pixels, format="bgr24")
+        frame = image.to_av_frame()
         completed = time.monotonic()
         if completed - image.captured_at >= self.source.max_age_s:
             return None
