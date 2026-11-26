@@ -65,9 +65,11 @@ class WebRTCReceiver(MediaSession):
         *,
         views=("front", "back", "left", "right"),
         video_policy=None,
+        low_latency_vp8=False,
     ):
         super().__init__(room, network, credentials)
         self._video_policy = video_policy or VideoSafetySettings()
+        self._low_latency_vp8 = low_latency_vp8
         self._on_frame = None
         self._include_capture_time = False
         self._on_invalidate = None
@@ -122,6 +124,13 @@ class WebRTCReceiver(MediaSession):
                 track.stop()
                 self._schedule_cleanup(peer_id, peer)
                 return
+            if self._low_latency_vp8:
+                from rd_webrtc.vp8_jitter import enable_low_latency_vp8
+
+                transceiver = next(
+                    t for t in peer.pc.getTransceivers() if t.receiver.track is track
+                )
+                enable_low_latency_vp8(transceiver)
             self._track_ids[peer].add(track.id)
             self._spawn_peer_task(
                 peer_id, peer, self._recv_track(peer_id, peer, track, timing, outage)

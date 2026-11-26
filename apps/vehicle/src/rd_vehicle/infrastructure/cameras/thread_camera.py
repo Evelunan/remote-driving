@@ -13,14 +13,14 @@ logger = logging.getLogger(__name__)
 
 
 class ThreadCamera(ICamera):
-    def __init__(self, width, height, fps, name):
+    def __init__(self, width, height, fps, name, *, pixel_format="bgr24"):
         if type(width) is not int or type(height) is not int or min(width, height) <= 0:
             raise ValueError("invalid camera dimensions")
         if not math.isfinite(fps) or not 0 < fps <= 240:
             raise ValueError("invalid camera FPS")
         self.width, self.height, self.fps = width, height, fps
         self.camera_name = name
-        self.buffer = CaptureBuffer()
+        self.buffer = CaptureBuffer(pixel_format)
         self.diagnostics = {}
         self._thread = None
         self._stop = threading.Event()
@@ -66,7 +66,13 @@ class ThreadCamera(ICamera):
 
     def get_latest_frame(self):
         image = self.get_snapshot()
-        return None if image is None else image.pixels
+        if image is None:
+            return None
+        if image.pixel_format == "bgr24":
+            return image.pixels
+        pixels = image.to_av_frame().to_ndarray(format="bgr24")
+        pixels.flags.writeable = False
+        return pixels.view()
 
     def get_frame_count(self):
         return self.buffer.sequence

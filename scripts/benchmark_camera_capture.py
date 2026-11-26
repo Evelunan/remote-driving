@@ -23,6 +23,11 @@ def main():
         help="use each configured backend, or override every physical camera",
     )
     parser.add_argument("--seconds", type=float, default=10.0)
+    parser.add_argument(
+        "--capture-pixel-format",
+        choices=("bgr24", "yuv420p"),
+        help="override the output format of physical PyAV cameras",
+    )
     args = parser.parse_args()
     if not 0 < args.seconds <= 120:
         parser.error("--seconds must be in (0, 120]")
@@ -35,10 +40,23 @@ def main():
         for item in settings.cameras
         if item.source is not None and item.source != "synthetic"
     ]
-    if args.backend != "config":
-        camera_settings = [
-            replace(item, capture_backend=args.backend) for item in camera_settings
-        ]
+    if args.backend == "opencv" and args.capture_pixel_format == "yuv420p":
+        parser.error("yuv420p capture requires the PyAV backend")
+    for i, item in enumerate(camera_settings):
+        backend = item.capture_backend if args.backend == "config" else args.backend
+        camera_settings[i] = replace(
+            item,
+            capture_backend=backend,
+            capture_pixel_format=(
+                (args.capture_pixel_format or item.capture_pixel_format)
+                if backend == "pyav"
+                else "bgr24"
+            ),
+        )
+    if args.capture_pixel_format and not any(
+        item.capture_backend == "pyav" for item in camera_settings
+    ):
+        parser.error("capture-pixel-format requires a physical PyAV camera")
     if not camera_settings:
         parser.error("configuration contains no physical cameras")
 
@@ -70,6 +88,7 @@ def main():
                     },
                     "frames": frames,
                     "observed_fps": frames / elapsed,
+                    "pixel_format": image.pixel_format if image else None,
                     "frame_shape": list(image.pixels.shape) if image else None,
                     "diagnostics": camera.diagnostics,
                 }

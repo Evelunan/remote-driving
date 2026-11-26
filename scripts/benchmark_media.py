@@ -279,7 +279,11 @@ async def run_case(args, probe, cache, gate, stop):
                 encoder_workers=args.encoder_workers,
             )
             receiver = WebRTCReceiver(
-                "benchmark", network, CredentialSettings("RD_BENCH_DRIVER"), views=views
+                "benchmark",
+                network,
+                CredentialSettings("RD_BENCH_DRIVER"),
+                views=views,
+                low_latency_vp8=args.low_latency_vp8,
             )
             receiver.on_frame(
                 lambda name, pixels, source, captured_at: cache.put(
@@ -508,6 +512,7 @@ def main():
     )
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--encoder-workers", type=int)
+    parser.add_argument("--low-latency-vp8", action="store_true")
     parser.add_argument(
         "--encoding-profile", choices=("upstream", "differentiated"), default="upstream"
     )
@@ -655,6 +660,7 @@ def main():
             "scene": args.scene,
             "encoder_workers": args.encoder_workers,
             "encoding_profile": args.encoding_profile,
+            "low_latency_vp8": args.low_latency_vp8,
         },
         "encoder_instances": probe.codecs,
         "measurement_errors": probe.errors,

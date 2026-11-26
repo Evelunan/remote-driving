@@ -145,6 +145,14 @@ direnv exec . uv run --no-sync rd-vehicle --config configs/vehicle.single-camera
 
 主视角和控制授权使用统一 `video.primary_view` / `stale_frame_ms` / `recovery_ms`；不再接受 `ui.stale_frame_ms`。媒体发布身份/session 必须匹配控制租约的车辆，恢复须持续新帧与新的中立输入，详见 [画面与控制](video-safety.zh-CN.md)。三个应用须协同升级信令来源与 acquire 字段，缺少新字段时不会降级授权。
 
+## 可选视频链路优化
+
+车辆端可在 Linux 物理 PyAV 摄像头的 `cameras[]` 条目中加上 `capture_pixel_format: yuv420p` 进行对照。MJPEG 解码后直接转换为编码器所用的有限范围 YUV420P。默认 `bgr24`，OpenCV 和合成源继续输出 BGR。这个选项需要摄像头实际协商的宽高均为偶数。
+
+驾驶端可在 YAML 顶层设置 `low_latency_vp8: true`。协商首选 VP8 时，收到具有帧首、帧尾与连续序号的完整 RTP 帧即可送去解码。缺失的包继续等待重传，缓冲溢出时继续请求关键帧。默认 `false`。两个开关可独立使用，修改后重启对应应用。H.264 的协商和接收方式沿用原路径。
+
+可用 `scripts/benchmark_camera_capture.py --backend pyav --capture-pixel-format bgr24`（再测 `yuv420p`）比较采集 CPU。接收端可用 `scripts/benchmark_media.py --output /tmp/video-baseline.json` 对比加上 `--low-latency-vp8 --output /tmp/video-vp8.json` 的同机测试，报告包含 RTP 缓冲内的组帧等待和组帧后的解码排队。[本机测试结果](video-improvement-candidates.zh-CN.md#vp8-组帧与-pyav-采集格式对照)
+
 ## 可选编码预算
 
 `encoder_workers` 是车辆媒体进程内、所有视角和订阅者共享的编码工作线程数，范围 1–32；默认 `null` 保留 aiortc 原路径。配置后使用独立工作线程池，不占 asyncio 默认线程池的编码工作名额；这不是编解码及 Qt 全部原生线程数的上限，也不限制驾驶端解码器。

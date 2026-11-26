@@ -331,6 +331,7 @@ class CameraSettings:
     fps: float = 30.0
     encoding: CameraEncodingSettings | None = None
     capture_backend: Literal["opencv", "pyav"] = "opencv"
+    capture_pixel_format: Literal["bgr24", "yuv420p"] = "bgr24"
 
     def __post_init__(self):
         if self.name not in {"front", "back", "left", "right"}:
@@ -347,6 +348,10 @@ class CameraSettings:
             raise ValueError("camera FPS must not exceed 240")
         if self.width % 2 or self.height % 2:
             raise ValueError("camera dimensions must be even")
+        if self.capture_pixel_format == "yuv420p" and (
+            self.capture_backend != "pyav" or self.source in (None, "synthetic")
+        ):
+            raise ValueError("yuv420p capture requires a physical PyAV camera")
 
 
 @dataclass(frozen=True)
@@ -521,6 +526,7 @@ class DrivingSettings:
     usb: USBSettings = field(default_factory=USBSettings)
     ui: UISettings = field(default_factory=UISettings)
     video: VideoSafetySettings = field(default_factory=VideoSafetySettings)
+    low_latency_vp8: bool = False
 
     def validate(self):
         validate_client(self)

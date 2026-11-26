@@ -98,16 +98,21 @@ def _create_camera(settings):
             fps=settings.fps,
             name=settings.name,
         )
-    adapter = PyAVCamera if settings.capture_backend == "pyav" else USBCamera
-    if adapter is PyAVCamera and not PyAVCamera.supports(settings.source):
-        raise ConfigError("pyav capture requires a Linux /dev video source")
-    return adapter(
-        settings.source,
-        settings.name,
-        width=settings.width,
-        height=settings.height,
-        fps=settings.fps,
-    )
+    dimensions = {
+        "width": settings.width,
+        "height": settings.height,
+        "fps": settings.fps,
+    }
+    if settings.capture_backend == "pyav":
+        if not PyAVCamera.supports(settings.source):
+            raise ConfigError("pyav capture requires a Linux /dev video source")
+        return PyAVCamera(
+            settings.source,
+            settings.name,
+            pixel_format=settings.capture_pixel_format,
+            **dimensions,
+        )
+    return USBCamera(settings.source, settings.name, **dimensions)
 
 
 async def start_control(settings, *, controller_factory=None, capture_health=None):

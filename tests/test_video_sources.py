@@ -7,8 +7,10 @@ from unittest.mock import AsyncMock
 import numpy as np
 import pytest
 from aiortc.mediastreams import MediaStreamError
+from av import VideoFrame
+from av.video.reformatter import ColorRange
 from rd_core.async_compat import ExceptionGroup, async_timeout
-from rd_core.settings import ClientNetworkSettings, CredentialSettings
+from rd_core.settings import CameraSettings, ClientNetworkSettings, CredentialSettings
 from rd_vehicle.application.multi_camera_manager import (
     MultiCameraManager,
     _FrameNotification,
@@ -18,6 +20,7 @@ from rd_vehicle.infrastructure.cameras.thread_camera import ThreadCamera
 from rd_vehicle.infrastructure.cameras.usb_camera import USBCamera
 from rd_vehicle.infrastructure.streams.track_manager import TrackManager
 from rd_vehicle.infrastructure.streams.webrtc_streamer import WebRTCStreamer
+from rd_vehicle.main import _create_camera
 from rd_webrtc.video import CapturedImage, FrameSource
 
 
@@ -25,6 +28,67 @@ def captured(sequence, value=0, *, at=None):
     pixels = np.full((24, 32, 3), value, dtype=np.uint8)
     pixels.flags.writeable = False
     return CapturedImage(sequence, time.monotonic() if at is None else at, pixels)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("decoded_format", ["yuvj422p", "yuv420p"])
+async def test_pyav_yuv_capture_preserves_limited_range_and_independent_subscribers(
+    monkeypatch, decoded_format,
+):
+    from rd_vehicle.infrastructure.cameras import pyav_camera
+
+    black = VideoFrame(32, 24, decoded_format)
+    white = VideoFrame(32, 24, decoded_format)
+    black.color_range = white.color_range = ColorRange.JPEG
+    for frame, luma in ((black, 0), (white, 255)):
+        for index, plane in enumerate(frame.planes):
+            plane.update(bytes([128 if index else luma]) * plane.buffer_size)
+
+    class Capture:
+        streams = SimpleNamespace(video=[SimpleNamespace(index=0, average_rate=30)])
+
+        def decode(self, video):
+            assert video == 0
+            return iter((black, white))
+
+        def close(self):
+            pass
+
+    monkeypatch.setattr(pyav_camera.platform, "system", lambda: "Linux")
+    monkeypatch.setattr(pyav_camera.av, "open", lambda *a, **kw: Capture())
+    camera = _create_camera(
+        CameraSettings(
+            source="/dev/video0", capture_backend="pyav", capture_pixel_format="yuv420p"
+        )
+    )
+    camera._open()
+    source = FrameSource("front", fps=120)
+    try:
+        camera.buffer.publish_owned(camera._read())
+        captured_black = camera.get_snapshot()
+        assert captured_black.pixel_format == "yuv420p"
+        assert not captured_black.pixels.flags.writeable
+        assert np.all(captured_black.pixels[:24] == 16)
+        assert np.all(captured_black.pixels[24:] == 128)
+        assert np.all(camera.get_latest_frame() == 0)
+
+        camera.buffer.publish_owned(camera._read())
+        captured_white = camera.get_snapshot()
+        assert np.all(captured_white.pixels[:24] == 235)
+        assert np.all(captured_black.pixels[:24] == 16)
+        assert source.publish(captured_white)
+        a = await source.subscribe().recv()
+        b = await source.subscribe().recv()
+        assert (a.format.name, a.width, a.height) == ("yuv420p", 32, 24)
+        assert a.color_range == ColorRange.MPEG
+        a.pts = 123
+        a.planes[0].update(bytes(a.planes[0].buffer_size))
+        assert b.pts == 0
+        assert np.all(b.to_ndarray()[:24] == 235)
+        assert np.all(captured_white.pixels[:24] == 235)
+    finally:
+        camera._close()
+        source.close()
 
 
 @pytest.mark.asyncio
