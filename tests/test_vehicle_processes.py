@@ -340,7 +340,7 @@ async def test_spawned_control_and_media_execute_receive_video_and_clean_up(
         frames.append((name, pixels.shape))
 
     receiver.on_frame(received)
-    axis = 0.0
+    axis = 0.2
 
     async def produce():
         while True:
@@ -360,7 +360,6 @@ async def test_spawned_control_and_media_execute_receive_video_and_clean_up(
         )
         assert client.request_start_control()
         await until(lambda: client.armed, group_task, timeout=12)
-        axis = 0.2
         await until(
             lambda: any(sample.throttle == 0.2 for sample in executed), group_task
         )
@@ -370,7 +369,7 @@ async def test_spawned_control_and_media_execute_receive_video_and_clean_up(
         assert frames[-1] == ("front", (64, 96, 3))
         assert client.armed and client.epoch == epoch
         assert client.request_stop_control()
-        await until(lambda: client.epoch is None, group_task)
+        await until(lambda: not client.armed and client.epoch != epoch, group_task)
         frame_count = len(frames)
         await until(lambda: len(frames) >= frame_count + 3, group_task)
         axis = 0.0

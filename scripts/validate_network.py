@@ -410,7 +410,7 @@ async def validate(args, cache, gate, interrupted):
                             await until(
                                 lambda: (
                                     not driver.armed
-                                    and vehicle.epoch is None
+                                    and vehicle.epoch != old_epoch
                                     and controller.commands[-1] == (0, 0)
                                 ),
                                 timeout=5,
@@ -515,7 +515,7 @@ async def validate(args, cache, gate, interrupted):
                             )
                         if media_only:
                             if not driver.armed or driver.epoch != old_epoch or vehicle.epoch != old_epoch:
-                                raise RuntimeError("media recovery replaced the control lease")
+                                raise RuntimeError("media recovery replaced the control route")
                             report["control_retained"] = True
                             report["sample_to_execution_ack_ms"] = [
                                 ms for stamp, ms, _ in executions if stamp >= started_fault
@@ -539,7 +539,7 @@ async def validate(args, cache, gate, interrupted):
                             report["held_input_did_not_rearm"] = True
                             await until(
                                 lambda: control_registered()
-                                and vehicle_settings.session not in relay.registry.leases
+                                and driver.epoch is not None and driver.epoch != old_epoch
                             )
                             throttle = 0.0
                             await until(

@@ -56,6 +56,56 @@ def test_neutral_gate_timeout_latch_and_new_epoch():
     assert s.state == ControlState.CLOSED
 
 
+def test_direct_route_can_idle_then_apply_the_first_input_and_expire():
+    device = Recorder()
+    s = ControlSupervisor(device, timeout_s=0.08)
+    try:
+        assert s.begin_route("test")
+        time.sleep(s.timeout_s * 1.5)
+        assert s.state == ControlState.READY
+        assert not device.commands and not device.stops
+        assert s.submit(Command("test", 0, 0, 0.8, -0.15))
+        wait_for(lambda: device.commands == [(0, 0.8, -0.15)])
+        assert not s.begin_route("replacement")
+        wait_for(lambda: s.state == ControlState.FAILSAFE)
+        wait_for(lambda: s.begin_route("replacement"))
+        assert not s.submit(command(2, 1, epoch="test"))
+        assert s.submit(command(0, 0.25, epoch="replacement"))
+        wait_for(lambda: device.commands[-1] == (0.25, 0, 0))
+        assert device.stops == ["control input expired"]
+    finally:
+        assert s.close()
+
+
+def test_direct_route_waits_for_an_in_flight_stop():
+    started, release = threading.Event(), threading.Event()
+
+    class SlowStop(Recorder):
+        def request_safe_stop(self, reason):
+            started.set()
+            assert release.wait(1)
+            super().request_safe_stop(reason)
+
+    device = SlowStop()
+    s = ControlSupervisor(device, timeout_s=0.2)
+    try:
+        assert s.begin_route("first")
+        assert s.submit(command(0, 0.5, epoch="first"))
+        wait_for(lambda: device.commands)
+        s.stop("operator stopped", epoch="first")
+        assert started.wait(0.5)
+        assert not s.begin_route("next")
+        assert not s.submit(command(1, 0.9, epoch="first"))
+        release.set()
+        wait_for(lambda: s.begin_route("next"))
+        assert s.submit(command(0, 0.1, epoch="next"))
+        wait_for(lambda: len(device.commands) == 2)
+        assert device.stops == ["operator stopped"]
+    finally:
+        release.set()
+        assert s.close()
+
+
 def test_duplicates_old_and_invalid_values_cannot_renew_deadline():
     s = ControlSupervisor(None, timeout_s=0.08, sequence_bits=16)
     try:

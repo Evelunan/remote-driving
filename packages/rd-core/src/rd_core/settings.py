@@ -120,7 +120,7 @@ class RelaySettings:
     tls: TLSSettings = field(default_factory=TLSSettings)
     idle_timeout_s: float = 10.0
     register_timeout_s: float = 5.0
-    lease_ttl_s: float = 1.0
+    lease_ttl_s: float = 1.0  # Accepted for older configuration files; v4 has no leases.
     max_control_age_ms: int = 300
     max_clock_skew_ms: int = 50
     max_datagram_bytes: int = 1200
@@ -142,8 +142,6 @@ class RelaySettings:
             raise ValueError("protocol buffer limits are too large")
         if self.register_timeout_s > 60:
             raise ValueError("register_timeout_s must not exceed 60")
-        if self.lease_ttl_s * 1000 <= self.max_control_age_ms:
-            raise ValueError("lease_ttl_s must exceed max_control_age_ms / 1000")
 
 
 @dataclass(frozen=True)

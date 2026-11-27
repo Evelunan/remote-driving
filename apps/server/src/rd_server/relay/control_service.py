@@ -70,16 +70,14 @@ class ControlRelayService:
                 raise RpcError("invalid_parameters")
             return {"server_time_ms": int(time.time() * 1000)}
         self.registry._binding(protocol)
-        if method == "acquire" and not params:
-            return await self.registry.acquire(protocol)
-        if method == "release":
-            return self.registry.release(protocol, params)
+        if method == "stop_control":
+            return self.registry.stop_control(protocol, params)
         raise RpcError("unsupported_method")
 
     def _event(self, protocol, method, params):
-        if method != "release":
+        if method != "stop_control":
             raise RpcError("unsupported_event")
-        self.registry.release(protocol, params)
+        self.registry.stop_control(protocol, params)
 
     async def _maintain(self):
         while True:
@@ -94,7 +92,7 @@ class ControlRelayService:
                 if protocol.transport_closed:
                     await protocol.shutdown()
                     self.protocols.discard(protocol)
-            await asyncio.sleep(min(self.settings.lease_ttl_s / 4, 0.05))
+            await asyncio.sleep(0.05)
 
     async def start(self):
         _, self.listener = await asyncio.get_running_loop().create_datagram_endpoint(

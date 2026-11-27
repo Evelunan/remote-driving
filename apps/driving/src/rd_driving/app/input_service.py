@@ -132,7 +132,7 @@ class DrivingInputService:
             self._usb_status(False, "离线")
 
     def request_control_reconnect(self):
-        """Restart only the control client, after its lease/connection cleanup."""
+        """Restart only the control client, after its connection cleanup."""
         if (
             self._control_task is None
             or self._control_task.done()

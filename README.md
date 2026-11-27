@@ -8,7 +8,7 @@ Python 3.10.12 工作区，包含三个可独立安装的应用：
 | [车辆端](apps/vehicle/README.md) | rd-vehicle / rd-vehicle | 相机、WebRTC 推流、控制监护及 ROS2/串口适配 |
 | [统一服务端](apps/server/README.md) | rd-server / rd-server | 可共同或分别启动的信令与 QUIC 中继模块 |
 
-改造仍在实施中。统一配置已接入服务端，信令已支持身份与房间授权，中继已实现认证注册与独占租约；新版两端控制客户端已通过无硬件完整链路验证；三个正式入口已统一配置并接入认证控制/媒体；车端控制/媒体已分进程；画面状态与控制租约独立；完整视频性能和部署验收尚未完成。具体状态见[实施记录](docs/refactoring-progress.zh-CN.md)，设计依据见[改造方案](docs/refactoring-plan.zh-CN.md)，配置规则见[配置说明](docs/configuration.zh-CN.md)。
+改造仍在实施中。统一配置已接入服务端，信令已支持身份与房间授权，中继已实现按会话认证注册与独占连接配对；新版两端控制客户端已通过无硬件完整链路验证；三个正式入口已统一配置并接入认证控制/媒体；车端控制/媒体已分进程；画面状态与行驶控制独立；完整视频性能和部署验收尚未完成。具体状态见[实施记录](docs/refactoring-progress.zh-CN.md)，设计依据见[改造方案](docs/refactoring-plan.zh-CN.md)，配置规则见[配置说明](docs/configuration.zh-CN.md)。
 
 ## 目录
 

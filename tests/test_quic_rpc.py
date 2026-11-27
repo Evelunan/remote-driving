@@ -3,6 +3,7 @@ import gc
 import socket
 import struct
 from contextlib import asynccontextmanager
+from uuid import uuid4
 
 import pytest
 from aioquic.asyncio import connect
@@ -10,7 +11,7 @@ from aioquic.quic.configuration import QuicConfiguration
 from aioquic.quic.connection import QuicConnection
 from aioquic.quic.events import HandshakeCompleted, StreamDataReceived
 from rd_core.async_compat import async_timeout
-from rd_core.wire import ALPN
+from rd_core.wire import ALPN, Execution, ExecutionStatus, Packet, Telemetry, Window
 from rd_quic.framing import MessageBuffer, RpcError, encode_message
 from rd_quic.protocol import RpcProtocol
 from rd_server.relay.service import Listener
@@ -237,6 +238,45 @@ async def test_congested_datagram_and_notification_queues_are_bounded():
     with pytest.raises(RpcError, match="backpressure"):
         protocol.notify("event", {})
     assert len(protocol._quic._streams) == 8
+    protocol.close()
+
+
+@pytest.mark.asyncio
+async def test_congested_vehicle_feedback_keeps_latest_window_and_execution():
+    protocol = RpcProtocol(QuicConnection(configuration=QuicConfiguration(is_client=True)))
+    protocol.rpc_ready = True
+    protocol.transmit = lambda: None
+    pending = protocol._quic._datagrams_pending
+    epoch = uuid4()
+
+    def window(seq, lease):
+        return Packet(42, lease, seq, 0, Window(seq.to_bytes(16, "big"))).encode()
+
+    def execution(seq):
+        return Packet(42, epoch, seq, 0, Execution(ExecutionStatus.EXECUTED, seq)).encode()
+
+    report = Packet(42, epoch, 0, 0, Telemetry(0, 0)).encode()
+    assert protocol.send_datagram(report, best_effort=True)
+    assert protocol.send_datagram(window(0, epoch))
+    for seq in range(1, 100):
+        assert protocol.send_datagram(execution(seq))
+        assert protocol.send_datagram(window(seq, epoch))
+        assert not protocol.send_datagram(report, best_effort=True)
+        assert not protocol.send_datagram(report)  # Legacy telemetry forwarded by the relay.
+        assert list(pending) == [window(seq, epoch), execution(seq)]
+    # Only one frame fit in the last QUIC packet. The next window and ACK must
+    # retain the order of the two outstanding kinds as each is refreshed.
+    pending.popleft()
+    assert protocol.send_datagram(window(100, epoch))
+    assert protocol.send_datagram(execution(100))
+    assert list(pending) == [execution(100), window(100, epoch)]
+    new_window = window(0, uuid4())
+    assert protocol.send_datagram(new_window)
+    assert list(pending) == [new_window]
+    protocol.send_datagram(window(101, epoch))
+    protocol.send_datagram(execution(101))
+    protocol.discard_pending_datagrams()
+    assert not pending
     protocol.close()
 
 

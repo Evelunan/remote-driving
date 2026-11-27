@@ -1,4 +1,4 @@
-"""Reproduce v2 registration, target execution, input expiry and neutral recovery.
+"""Reproduce direct control, target execution, input expiry and recovery.
 
 Only binds loopback, generates temporary credentials/TLS and uses MockController.
 No USB, ROS, serial adapter, camera, GUI or external endpoint is opened.
@@ -169,7 +169,7 @@ async def simulate(directory, motion_seconds):
         current["enabled"] = False
         lost_at = time.monotonic()
         await wait_for(
-            lambda: vehicle.epoch is None and controller.commands[-1] == (0, 0)
+            lambda: not driver.armed and vehicle.epoch != first_epoch and controller.commands[-1] == (0, 0)
         )
         stop_delay_ms = (time.monotonic() - lost_at) * 1000
         current.update(enabled=True, throttle=0.0, steering=0.0)

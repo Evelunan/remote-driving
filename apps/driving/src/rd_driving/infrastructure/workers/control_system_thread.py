@@ -1,6 +1,7 @@
 """Qt adapter around the GUI-independent input and authenticated control service."""
 
 import asyncio
+import queue
 import sys
 import threading
 
@@ -14,18 +15,19 @@ logger = get_logger(__name__)
 STATUS_TEXT = {
     "connecting": "连接中",
     "registered": "已认证",
-    "idle": "控制未开启",
-    "starting": "正在启动控制",
+    "idle": "未开始",
+    "starting": "准备发送",
     "retrying": "等待自动恢复控制",
-    "stopping": "正在释放控制权",
+    "waiting_channel": "等待数据通道",
+    "waiting_vehicle": "等待车端连接",
     "paused": "控制已暂停",
     "waiting_device": "等待控制设备",
     "waiting_input": "等待设备输入",
     "waiting_neutral": "请将控制输入归零",
-    "waiting_execution": "等待中立执行确认",
-    "active": "控制已授权",
-    "revoked": "控制授权已撤销",
-    "lease_busy": "车辆已被其他驾驶端控制",
+    "waiting_control_window": "等待车端控制窗口",
+    "active": "发送中",
+    "channel_busy": "数据通道已被占用",
+    "driver_already_connected": "已有驾驶端连接",
     "vehicle_changed": "受控车辆已更换，请核对后开始控制",
     "error": "连接或授权失败",
     "disconnected": "离线",
@@ -38,6 +40,7 @@ class ControlSystemThread(QThread):
         self._bridge, self.settings = signal_bridge, settings
         self._loop = self._main_task = None
         self._stop_requested = threading.Event()
+        self._control_requests = queue.SimpleQueue()
         self.service = None
 
     def _safe_emit(self, signal_name, *args):
@@ -46,7 +49,7 @@ class ControlSystemThread(QThread):
 
     def _status(self, state, detail=""):
         text = STATUS_TEXT.get(state, "状态未知")
-        if state in {"paused", "revoked"}:
+        if state == "paused":
             text = {
                 "access_denied": "控制权限被拒绝",
                 "role_denied": "当前身份没有控制权限",
@@ -54,7 +57,7 @@ class ControlSystemThread(QThread):
                 "protocol_upgrade_required": "控制协议不兼容",
             }.get(detail, text)
         self._safe_emit("control_status_changed", state, text)
-        if state == "waiting_execution":
+        if state == "active" and detail:
             self._safe_emit("control_target_changed", detail)
         if state != "active":
             self._safe_emit("control_confirmation_expired")
@@ -112,6 +115,7 @@ class ControlSystemThread(QThread):
             on_telemetry=self._telemetry,
             on_vehicle_status=self._vehicle_status,
         )
+        self._apply_pending_control_requests()
         await self.service.run()
 
     def run(self):
@@ -174,17 +178,24 @@ class ControlSystemThread(QThread):
         return self._dispatch_control_request(DrivingInputService.request_stop_control)
 
     def _dispatch_control_request(self, action):
-        loop = self._loop
-        if self._stop_requested.is_set() or loop is None or self.service is None:
+        if self._stop_requested.is_set() or self.isFinished():
             return False
+        self._control_requests.put(action)
+        loop = self._loop
+        if loop is None:
+            return True  # The worker drains requests once the input service is ready.
         try:
-            loop.call_soon_threadsafe(self._apply_control_request, action)
+            loop.call_soon_threadsafe(self._apply_pending_control_requests)
         except RuntimeError:
             return False
         return True
 
-    def _apply_control_request(self, action):
-        if not self._stop_requested.is_set() and self.service is not None:
+    def _apply_pending_control_requests(self):
+        while not self._stop_requested.is_set() and self.service is not None:
+            try:
+                action = self._control_requests.get_nowait()
+            except queue.Empty:
+                return
             self.service.apply_control_request(action)
 
     def _cancel(self):

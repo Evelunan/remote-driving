@@ -14,7 +14,7 @@ uv run --package rd-vehicle rd-vehicle --config configs/vehicle.mock.yaml --comp
 
 默认配置的控制器为 none，此时不注册控制会话，也不产生假执行确认。可选 mock、ros2、serial。`components` 选择 control/media；正式 CLI 使用父进程管理独立 control/media 子进程；单模块模式只启动所选子进程。单个组件退出或心跳超时时，父进程隔离并回收该组件，再尝试独立重启。详见[进程隔离](../../docs/process-isolation.zh-CN.md)。
 
-运动限值使用 m/s、rad/s，按用户要求暂保留 5.0 和 2.0，并实际传入适配器；不是已验收的实车安全上限。`control.command_timeout_ms: 300` 为模拟默认值。目标执行与超时监护各有独立线程；失效锁存后恢复需要新授权代次及新鲜中立输入。已阻塞的设备调用不能通过取消线程可靠终止。
+运动限值使用 m/s、rad/s，按用户要求暂保留 5.0 和 2.0，并实际传入适配器；不是已验收的实车安全上限。`control.command_timeout_ms: 300` 为模拟默认值。目标执行与超时监护各有独立线程；失效锁存后恢复需要新的配对代次和有效的新输入。已阻塞的设备调用不能通过取消线程可靠终止。
 
 `request_safe_stop(reason)` 及独立停车回调为真实接口保留接入点。现有适配器只请求零速目标，StopResult.confirmed 为 False，不能解释为底盘已经停车。真实制动与底盘 watchdog 后续接入；串口编码及单位需硬件方确认。
 
@@ -22,7 +22,7 @@ uv run --package rd-vehicle rd-vehicle --config configs/vehicle.mock.yaml --comp
 
 摄像头不足时，可设置 `camera_fallback_source: front`：有显式 source 的视角照常采集，缺少 source 或未列出的视角复用 front，补齐四路测试画面。源设备只打开一次，复制帧保留原始采集时间；真实设备故障仍报错。[单摄像头示例](../../configs/vehicle.single-camera.yaml) 使用模拟底盘，需按实际设备修改前摄像头路径。
 
-媒体进程启动后连接认证信令房间，使用配置中的 session 表明车辆身份。首位有权限的驾驶端或观看端加入视频房间时打开摄像头。多个观看端共享同一组采集，最后一位离开或车端信令断开时停止采集并释放设备。主相机超时会清除关联画面并单独重试，当前控制租约继续有效。`video` 配置与驾驶端策略见 [画面与控制](../../docs/video-safety.zh-CN.md)。
+媒体进程启动后连接认证信令房间，使用配置中的 session 表明车辆身份。首位有权限的驾驶端或观看端加入视频房间时打开摄像头。多个观看端共享同一组采集，最后一位离开或车端信令断开时停止采集并释放设备。主相机超时会清除关联画面并单独重试，当前控制通道继续工作。`video` 配置与驾驶端策略见 [画面与控制](../../docs/video-safety.zh-CN.md)。
 
 ## ROS2 控制器与底盘启动
 
@@ -113,7 +113,7 @@ ros2 topic info /ecu --verbose --no-daemon
 
 ## ROS2 底盘状态反馈
 
-车辆端支持订阅 `/vehicle_status`（`yunle_msgs/msg/VehicleStatus`），经 QUIC 中继回传给获准查看同一车辆会话的驾驶端。只读状态订阅在 QUIC 注册后生效，可在取得控制租约前和释放后接收。`configs/vehicle.lan.yaml` 和 `configs/vehicle.yaml` 已启用以下配置，其余配置默认关闭：
+车辆端支持订阅 `/vehicle_status`（`yunle_msgs/msg/VehicleStatus`），经 QUIC 中继回传给获准查看同一车辆会话的驾驶端。只读状态订阅在 QUIC 注册后生效，可以在开始控制之前和停止之后接收。`configs/vehicle.lan.yaml` 和 `configs/vehicle.yaml` 已启用以下配置，其余配置默认关闭：
 
 ```yaml
 feedback:
@@ -134,7 +134,7 @@ feedback:
 
 以下步骤由操作者执行，本次开发未启动真实 ROS 节点或实车程序：
 
-1. 配套升级服务端、车辆端、驾驶端及共享包，注册修订为 `vehicle-status/3`。旧注册修订会收到 `protocol_upgrade_required`，包括按租约发送状态的 `vehicle-status/2`。回退时恢复配套旧版本和旧配置。
+1. 配套升级服务端、车辆端、驾驶端及共享包，注册修订为 `direct-control/4`。旧注册修订会收到 `protocol_upgrade_required`，包括按租约发送状态的 `vehicle-status/2`。回退时恢复配套旧版本和旧配置。
 2. 按上文准备 ROS 和底盘环境；已有驱动时查询即可，不重复启动。检查消息定义、发布者和一次反馈：
 
    ```bash
@@ -146,7 +146,7 @@ feedback:
    ```
 
 3. 依照上文启动车辆端。日志应出现 `ROS chassis feedback subscribed`。依赖缺失时先确认已加载正确工作区，不在本项目任务中修改或构建底盘包。
-4. 驾驶端注册目标车辆会话后检查底盘状态是否实时更新。分别在取得租约前和释放租约后确认反馈仍然更新。该验收可以在车辆静止时进行。
+4. 驾驶端注册目标车辆会话后检查底盘状态是否实时更新。分别在开始控制前和停止控制后确认反馈仍然更新。该验收可以在车辆静止时进行。
 5. 对照同一次现场查询和界面，检查车速、转向角、反馈编码、使能、刹车和诊断轮速；区分外设“所选挡位”与底盘“反馈挡位”。消息时间必须有效；时钟偏差超过预算、字段无效或数据过期时应显示未知/过期。
 
 源消息的 `header.stamp` 为零、已过期、在未来或重复时不更新快照；没有新样本不会给缓存值重打时间戳。默认车端有效期 300 ms，中继和驾驶端还会扣除采样年龄及预留时钟偏差；Qt 界面在定时检查时清除过期值。仅在整条消息层面判断新鲜度，轮速若被底盘驱动内部缓存且仍为有限数值，本项目无法独立确认其采样时刻。

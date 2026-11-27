@@ -1,22 +1,21 @@
-"""Vehicle-side v2 lease adapter around the independent actuator supervisor."""
+"""Authenticated direct-control routes and the independent actuator supervisor."""
 
 import asyncio
 import secrets
 import time
 from collections import OrderedDict
-from uuid import UUID
 
 from rd_core.control import Command, ControlState, ControlSupervisor, is_newer
 from rd_core.logging import SampledControlLog, get_logger
 from rd_core.settings import VehicleSettings
 from rd_core.wire import (
-    CONTROL_REVISION,
     Control,
     Execution,
     ExecutionStatus,
     Packet,
     Window,
     conservative_age_ms,
+    parse_control_route,
 )
 from rd_quic.client import registered_connection
 from rd_quic.framing import RpcError
@@ -24,6 +23,7 @@ from rd_quic.framing import RpcError
 from rd_vehicle.shutdown import ComponentCleanupError
 
 logger = get_logger(__name__)
+CONTROL_REVISION = "direct-control/4"
 
 
 class VehicleControlClient:
@@ -48,8 +48,8 @@ class VehicleControlClient:
         self._last_feedback_sample = None
         self._rx_log = SampledControlLog(logger)
         self._window_drop_log = SampledControlLog(logger)
-        self._lease_deadline = 0
-        self._lease_ttl_s = 0
+        self._route_revision = 0
+        self._pending_epoch = None
         self._loop = None
         self.state = "disconnected"
 
@@ -67,26 +67,26 @@ class VehicleControlClient:
 
     def _retire(self, reason, *, notify=True):
         epoch, self.epoch = self.epoch, None
+        self._pending_epoch = None
         self._windows.clear()
         if epoch is not None:
-            self.supervisor.stop(reason, epoch=str(epoch))
+            if self._last_seq is not None and self.supervisor.state != ControlState.FAILSAFE:
+                self.supervisor.stop(reason, epoch=str(epoch))
+            self._last_seq = None
             logger.info(
-                "Vehicle lease ended session=%s epoch=%s reason=%s",
+                "Vehicle control route closed session=%s epoch=%s reason=%s",
                 self.settings.session,
                 epoch,
                 reason,
             )
-            if (
-                notify
-                and self.connection is not None
-                and self.connection.protocol.rpc_ready
-            ):
-                try:
-                    self.connection.protocol.notify("release", {"epoch": str(epoch)})
-                except (ConnectionError, RpcError):
-                    self.connection.protocol.close(
-                        error_code=0x105, reason_phrase="release_failed"
-                    )
+            if self.connection is not None and self.connection.protocol.rpc_ready:
+                protocol = self.connection.protocol
+                protocol.discard_pending_datagrams()
+                if notify:
+                    try:
+                        protocol.notify("stop_control", {"epoch": str(epoch)})
+                    except (ConnectionError, RpcError):
+                        protocol.close(error_code=0x105, reason_phrase="stop_control_failed")
         self._status(
             "registered"
             if self.connection is not None and self.connection.protocol.rpc_ready
@@ -94,53 +94,25 @@ class VehicleControlClient:
             reason,
         )
 
-    async def _request(self, generation, method, params):
-        if generation is not self._generation or self.connection is None:
-            raise RpcError("vehicle_not_ready")
-        if method != "prepare_lease" or set(params) != {
-            "session",
-            "epoch",
-            "lease_ttl_ms",
-            "max_control_age_ms",
-            "max_clock_skew_ms",
-        }:
-            raise RpcError("unsupported_method")
-        if params["session"] != self.settings.session or self.epoch is not None:
-            raise RpcError("vehicle_not_ready")
-        try:
-            epoch = UUID(params["epoch"])
-        except (ValueError, TypeError, AttributeError):
-            raise RpcError("invalid_epoch") from None
-        if epoch.int == 0 or any(
-            type(params[key]) is not int
-            for key in ("lease_ttl_ms", "max_control_age_ms", "max_clock_skew_ms")
-        ):
-            raise RpcError("invalid_lease")
-        if (
-            not 0
-            <= params["max_clock_skew_ms"]
-            < params["max_control_age_ms"]
-            < params["lease_ttl_ms"]
-            or params["max_clock_skew_ms"] != self.connection.max_clock_skew_ms
-        ):
-            raise RpcError("invalid_lease_limits")
-        try:
-            self.supervisor.begin_session(str(epoch))
-        except (RuntimeError, ValueError):
-            raise RpcError("device_not_ready") from None
-        self.epoch, self._last_seq = epoch, None
-        self._lease_ttl_s = params["lease_ttl_ms"] / 1000
-        self._lease_deadline = time.monotonic() + self._lease_ttl_s
-        self._status("waiting_neutral")
-        return {"ready": True, "epoch": str(epoch)}
-
     def _event(self, generation, method, params):
         if generation is not self._generation:
             return
-        if method != "lease_revoked" or set(params) != {"epoch", "reason"}:
-            raise RpcError("unexpected_lease_event")
-        if str(self.epoch) == params["epoch"]:
-            self._retire("lease revoked", notify=False)
+        if method != "control_route":
+            raise RpcError("unexpected_route_event")
+        try:
+            revision, epoch, _ = parse_control_route(params)
+        except ValueError:
+            raise RpcError("invalid_control_route") from None
+        if revision <= self._route_revision:
+            return
+        self._route_revision = revision
+        if epoch is not None and epoch == self.epoch:
+            return
+        if self.epoch is not None:
+            self._retire("control route changed", notify=False)
+        # The relay may publish the route before registration completes. A
+        # previous device operation may also still be finishing its safe stop.
+        self._pending_epoch = epoch
 
     def _datagram(self, generation, data):
         if (
@@ -170,9 +142,6 @@ class VehicleControlClient:
                 packet.seq,
             )
             return
-        if time.monotonic() >= self._lease_deadline:
-            self._retire("lease expired before command")
-            return
         command = Command(
             str(packet.epoch),
             packet.seq,
@@ -183,9 +152,6 @@ class VehicleControlClient:
         )
         if self.supervisor.submit(command, deadline=deadline):
             self._last_seq = packet.seq
-            self._lease_deadline = (
-                deadline - self.connection.max_control_age_ms / 1000 + self._lease_ttl_s
-            )
             self._rx_log.write(
                 packet.epoch,
                 "Command received and accepted session=%s epoch=%s seq=%d throttle=%.3f brake=%.3f steering=%.3f",
@@ -280,12 +246,14 @@ class VehicleControlClient:
 
     async def _watch(self):
         while True:
+            if self._pending_epoch is not None and self.supervisor.begin_route(
+                str(self._pending_epoch)
+            ):
+                self.epoch, self._pending_epoch = self._pending_epoch, None
+                self._status("ready")
             if self.epoch is not None:
-                if (
-                    self.supervisor.state == ControlState.FAILSAFE
-                    or time.monotonic() >= self._lease_deadline
-                ):
-                    self._retire("local control expired")
+                if self.supervisor.state == ControlState.FAILSAFE:
+                    self._retire(self.supervisor.reason)
                 else:
                     now = time.monotonic()
                     while self._windows and next(iter(self._windows.values())) <= now:
@@ -315,13 +283,15 @@ class VehicleControlClient:
             independent_stop=self.independent_stop,
             on_result=self._post_result,
         )
-        self.supervisor.stop("awaiting authenticated lease")
+        self.supervisor.stop("awaiting authenticated control connection")
         try:
             while True:
                 generation = self._generation = object()
+                self._route_revision = 0
 
                 def disconnected(protocol, g=generation):
                     if g is self._generation:
+                        self._generation = None
                         self._retire("control connection closed", notify=False)
 
                 try:
@@ -333,9 +303,6 @@ class VehicleControlClient:
                         session=self.settings.session,
                         role="vehicle",
                         revision=CONTROL_REVISION,
-                        request_handler=lambda method, params, g=generation: (
-                            self._request(g, method, params)
-                        ),
                         event_handler=lambda method, params, g=generation: self._event(
                             g, method, params
                         ),
@@ -362,7 +329,8 @@ class VehicleControlClient:
                             for task in done:
                                 task.result()
                         finally:
-                            self._retire("control session ended")
+                            self._generation = None
+                            self._retire("control session ended", notify=False)
                             for task in owned:
                                 task.cancel()
                             await asyncio.gather(*owned, return_exceptions=True)
@@ -388,12 +356,13 @@ class VehicleControlClient:
                         else type(error).__name__,
                     )
                 finally:
+                    self._generation = None
+                    self._pending_epoch = None
                     self.connection = None
                 await asyncio.sleep(self.settings.network.reconnect_delay_s)
         finally:
             self._generation = None
-            self._retire("vehicle control shutdown")
-            self.supervisor.stop("vehicle control shutdown")
+            self._retire("vehicle control shutdown", notify=False)
             clean = await asyncio.to_thread(self.supervisor.close)
             self._loop = None
             self._status("disconnected")

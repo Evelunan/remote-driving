@@ -42,7 +42,7 @@ logger = get_logger(__name__)
 
 CONTROL_IN_PROGRESS = {
     "starting", "retrying", "waiting_device", "waiting_input", "waiting_neutral",
-    "waiting_execution", "active",
+    "waiting_channel", "waiting_vehicle", "waiting_control_window", "channel_busy", "active",
 }
 
 
@@ -255,25 +255,20 @@ class MainWindow(QMainWindow):
             tone = "waiting"
             if state == "active":
                 tone = "active"
-            elif state in {"paused", "revoked", "lease_busy", "vehicle_changed", "disconnected"}:
+            elif state in {"paused", "channel_busy", "vehicle_changed", "disconnected"}:
                 tone = "blocked"
             self._navbar.set_control_status(text, tone=tone)
-            if state not in {"active", "waiting_execution"}:
+            if state != "active":
                 self._on_control_target_changed(None)
         if state != "active":
-            self._clear_lease_feedback()
+            self._clear_execution_feedback()
 
     def _refresh_control_action(self):
         if self._control_panel is None:
             return
         state = self._control_state
         requested = state in CONTROL_IN_PROGRESS
-        enabled = (
-            (requested or self._quic_online)
-            and state != "stopping"
-            and not self._control_action_pending
-        )
-        self._control_panel.set_control_action(requested or state == "stopping", enabled=enabled)
+        self._control_panel.set_control_action(requested, enabled=not self._control_action_pending)
 
     def _toggle_control(self):
         worker = self._control_thread
@@ -281,15 +276,13 @@ class MainWindow(QMainWindow):
             return
         if self._control_state in CONTROL_IN_PROGRESS:
             accepted = worker.request_stop_control()
-        elif self._quic_online and self._control_state != "stopping":
-            accepted = worker.request_start_control()
         else:
-            return
+            accepted = worker.request_start_control()
         if accepted:
             self._control_action_pending = True
             self._refresh_control_action()
 
-    def _clear_lease_feedback(self):
+    def _clear_execution_feedback(self):
         self._telemetry_at = None
         self._command_deadline = None
         self._command_confirmed_once = False
@@ -298,7 +291,7 @@ class MainWindow(QMainWindow):
             self._control_panel.clear_measured_status()
 
     def _clear_feedback(self):
-        self._clear_lease_feedback()
+        self._clear_execution_feedback()
         self._vehicle_status_deadline = None
         if self._control_panel is not None:
             self._control_panel.clear_vehicle_status("反馈未接入或连接已断开")

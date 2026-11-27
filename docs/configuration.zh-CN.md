@@ -1,6 +1,6 @@
 # 配置与身份授权
 
-当前实施状态：三个正式入口均使用不可变配置。认证 WSS/WebRTC、QUIC 租约和配对时钟诊断已有本机验证；驾驶 USB、UI、车辆运动限值和相机配置已实际注入并通过模拟联动验证。当前版本不作为实车部署完成态。
+当前实施状态：三个正式入口均使用不可变配置。认证 WSS/WebRTC、QUIC 连接配对和时钟诊断已有本机验证；驾驶 USB、UI、车辆运动限值和相机配置已实际注入并通过模拟联动验证。当前版本不作为实车部署完成态。
 
 ## 加载规则
 
@@ -27,7 +27,7 @@ rd-server --config /path/server.yaml --services signaling --set signaling.port=8
 
 客户端在 WebSocket 握手头中发送 `Authorization: Bearer <token>`。服务端在登记 peer 前验证令牌；无令牌、无效令牌和已过期令牌均关闭连接（1008）。加入房间前检查 room 权限，过期身份不能发送或接收信令；有 `expires_at` 的空闲连接也会自动关闭。身份过期配置使用带时区的 ISO 时间。变更或撤销令牌目前需要重启服务，现有连接将关闭，不提供静默热更新。
 
-`vehicle` 才能发送 offer，`driving`/`viewer` 只能向车辆发送 answer；candidate 也只能在车辆与接收角色之间路由。每个房间最多一个车辆发布者，离开后其他已授权车辆才能加入。服务端在 joined/new_peer 中提供真实角色，接收端只接受本房间车辆的 offer。`viewer` 可以访问被授予的视频房间，但其角色不能用于取得驾驶控制权。房间成员关系不代表控制租约；控制授权由 relay 模块独立裁决。服务端总是根据连接填充消息 `from`；指定 `to` 时，目标必须是同房间其他成员，非法目标不会变成广播。
+`vehicle` 才能发送 offer，`driving`/`viewer` 只能向车辆发送 answer；candidate 也只能在车辆与接收角色之间路由。每个房间最多一个车辆发布者，离开后其他已授权车辆才能加入。服务端在 joined/new_peer 中提供真实角色，接收端只接受本房间车辆的 offer。`viewer` 可以访问被授予的视频房间，但其角色不能用于取得驾驶控制权。中继独立校验驾驶身份和控制会话。服务端总是根据连接填充消息 `from`；指定 `to` 时，目标必须是同房间其他成员，非法目标不会变成广播。
 
 两端共用 `rd_webrtc.signaling.SignalingClient`：校验证书及主机名，非回环地址拒绝明文 WS；禁止重定向和隐式环境代理，避免令牌发送到其他目的地。TURN 用户名/口令从环境变量引用读取。加入房间必须收到确认，断线结束监听，不在旧连接上重试。`network.signaling_*` 控制消息大小、ping、发送及关闭超时，`register_timeout_s` 限定连接与加入房间时间，`reconnect_delay_s` 控制重连间隔。固定 websockets 16.0 并测试禁止重定向的适配点。
 
@@ -41,7 +41,7 @@ rd-server --config /path/server.yaml --services signaling --set signaling.port=8
 
 旧信令模块内的 `server.yaml` 和缓存加载器已移除，入口统一为 `rd-server`。字段映射：`ping_interval` → `signaling.ping_interval_s`，`ping_timeout` → `signaling.ping_timeout_s`，`max_message_size` → `signaling.max_message_bytes`；host、port、max_peers_per_room 移入 signaling。
 
-信令和中继可分别配置监听地址和 TLS 路径。生产信令必须使用 WSS；认证的非回环监听在任何环境都要求 TLS。未经认证的旧模式只能显式启用 `allow_legacy_development`，且仅允许 development 环境与回环地址。QUIC 旧入口仍需证书，且不提供认证租约。在认证 v2 中，`idle_timeout_s` 进入传输配置，`register_timeout_s` 限定注册/准备阶段，`lease_ttl_s` 控制授权过期，`max_control_age_ms` 与 `max_clock_skew_ms` 约束采样新鲜度，`max_datagram_bytes` 与 `max_rpc_bytes` 限定消息大小；这些租约字段不适用于旧协议。租约 TTL 必须大于控制采样年龄上限。
+信令和中继可分别配置监听地址和 TLS 路径。生产信令使用 WSS，旧开发模式仅支持显式启用的本机回环。QUIC 的 `idle_timeout_s`、`register_timeout_s` 分别限制传输空闲和注册等待，`max_control_age_ms` 限制控制窗口，`max_clock_skew_ms` 用于观测数据，`max_datagram_bytes` 和 `max_rpc_bytes` 限定消息大小。旧配置中的 `lease_ttl_s` 仍可读取，直接控制协议不使用它。
 
 回退须匹配对应版本的制品与配置；新文件不能直接交给旧入口。认证连接不降级为匿名连接。三应用正式入口均使用认证 v2；后续发布文档会补充完整协同升级/回退演练。
 
@@ -102,9 +102,9 @@ feedback:
 
 `send_hz` 为回传频率上限，范围 `(0, 50]`；没有新样本时不重复发送。`stale_timeout_ms` 为车端快照的有效时间，范围 `(0, 10000]`。源消息时间必须有效、递增且未过期；零时间、未来时间和旧样本不作为新反馈。NaN/Inf 或非法字段分别标为未知，合法零值与 false 保留。
 
-回传还受中继 `max_control_age_ms` / `max_clock_skew_ms` 约束。配置有效期应大于时钟偏差预算。驾驶端以其 `control.command_timeout_ms` 和中继年龄上限的较小值扣除原始采样年龄，得到剩余显示时间，跨 Qt 排队也不刷新期限。中继向获准注册同一车辆会话的驾驶端转发底盘状态。状态回传在控制授权前后均可使用，租约仍只由有效的控制样本续期。
+回传还受中继 `max_control_age_ms` / `max_clock_skew_ms` 约束。配置有效期应大于时钟偏差预算。驾驶端以其 `control.command_timeout_ms` 和中继年龄上限的较小值扣除原始采样年龄，得到剩余显示时间，跨 Qt 排队也不刷新期限。中继向获准注册同一车辆会话的驾驶端转发底盘状态。驾驶员开始或停止控制时，底盘状态均可持续回传。
 
-三应用与共享包须配套升级至注册修订 `vehicle-status/3`。按 km/h 解释状态的 `vehicle-status/1` 以及依赖租约接收状态的 `vehicle-status/2` 会收到 `protocol_upgrade_required`。用户操作及验收步骤见[车辆端状态反馈](../apps/vehicle/README.md#ros2-底盘状态反馈)。
+三应用与共享包须配套升级至注册修订 `direct-control/4`。按 km/h 解释状态的 `vehicle-status/1` 以及依赖租约接收状态的 `vehicle-status/2` 会收到 `protocol_upgrade_required`。用户操作及验收步骤见[车辆端状态反馈](../apps/vehicle/README.md#ros2-底盘状态反馈)。
 
 ### 摄像头不足时复用画面
 
@@ -143,7 +143,7 @@ direnv exec . uv run --no-sync rd-vehicle --config configs/vehicle.single-camera
 
 串口默认读写超时均为 0.02 s，13 字节模板显式可配，速度编码上限由 uint16 表示范围限制；这部分只保留兼容适配，用户当前选择 ROS2。运动限值和超时均需实车验收，停车接口尚未接入物理确认。
 
-主视角和画面健康提示使用 `video.primary_view`、`stale_frame_ms` 和 `recovery_ms`。控制会话通过 QUIC 独立认证并取得租约，视频配置只作用于媒体链路。详见[视频状态与控制授权](video-safety.zh-CN.md)。
+主视角和画面健康提示使用 `video.primary_view`、`stale_frame_ms` 和 `recovery_ms`。控制会话通过 QUIC 独立认证并自动配对，视频配置只作用于媒体链路。详见[视频状态与控制授权](video-safety.zh-CN.md)。
 
 ## 可选视频链路优化
 

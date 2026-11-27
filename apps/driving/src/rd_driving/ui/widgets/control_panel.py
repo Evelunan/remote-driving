@@ -125,7 +125,7 @@ class ControlPanel(QFrame):
             "usb": ConnectionItem("控制设备"),
             "quic": ConnectionItem("数据通道"),
             "video": ConnectionItem("视频流"),
-            "control": ConnectionItem("行驶授权"),
+            "control": ConnectionItem("行驶控制"),
             "webrtc": ConnectionItem("WebRTC"),
             "signal": ConnectionItem("信令服务器"),
         }
@@ -149,7 +149,7 @@ class ControlPanel(QFrame):
             "重连车辆状态的数据通道；保留设备和视频连接",
         )
         self.set_connection_status("video", False, "未连接")
-        self.set_connection_status("control", False, "未开启")
+        self.set_connection_status("control", False, "未开始")
         self.set_control_action(False, enabled=False)
 
         self._layout.addWidget(self._conn_card)

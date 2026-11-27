@@ -23,6 +23,7 @@ class ControlState(str, Enum):
     __str__ = str.__str__
 
     DISARMED = "disarmed"
+    READY = "ready"
     WAITING_NEUTRAL = "waiting_neutral"
     ACTIVE = "active"
     FAILSAFE = "failsafe"
@@ -71,8 +72,8 @@ def is_newer(seq: int, previous: int | None, bits: int = 32) -> bool:
 class ControlSupervisor:
     """Single latest target, serialized device I/O, and a separate timeout monitor.
 
-    A failsafe remains latched until begin_session supplies a new epoch and a
-    neutral command arrives. Heartbeats never call submit and never renew input.
+    A failsafe remains latched until a new epoch is bound. Legacy sessions also
+    require a neutral command. Heartbeats never call submit and never renew input.
     A blocked device operation cannot be killed safely; the independent stop hook
     is notified and pending motion is discarded. Chassis watchdog integration is
     still required for physical safety.
@@ -105,6 +106,7 @@ class ControlSupervisor:
         self._pending: Command | None = None
         self._pending_stop: str | None = None
         self._safety_notice: str | None = None
+        self._safety_busy = False
         self._closing = False
         self._device_busy_since: float | None = None
         self._threads = [
@@ -148,6 +150,26 @@ class ControlSupervisor:
             self._deadline = None
             self._state = ControlState.WAITING_NEUTRAL
 
+    def begin_route(self, epoch: str) -> bool:
+        """Bind an idle authenticated route when the previous stop has finished."""
+        with self._condition:
+            if not epoch or epoch == self._epoch:
+                raise ValueError("direct control requires a new route epoch")
+            if (
+                self._closing
+                or self._state == ControlState.ACTIVE
+                or self._device_busy_since is not None
+                or self._pending_stop is not None
+                or self._safety_notice is not None
+                or self._safety_busy
+            ):
+                return False
+            self._epoch = epoch
+            self._last_seq = self._deadline = None
+            self._state = ControlState.READY
+            self._reason = "waiting for a fresh command"
+            return True
+
     def submit(
         self, command: Command, *, age_s: float = 0.0, deadline: float | None = None
     ) -> bool:
@@ -167,7 +189,9 @@ class ControlSupervisor:
             ):
                 self._trip_locked("control input expired before next command")
                 return False
-            if self._state not in (ControlState.ACTIVE, ControlState.WAITING_NEUTRAL):
+            if self._state not in (
+                ControlState.READY, ControlState.ACTIVE, ControlState.WAITING_NEUTRAL
+            ):
                 return False
             if not is_newer(command.seq, self._last_seq, self.sequence_bits):
                 return False
@@ -201,7 +225,8 @@ class ControlSupervisor:
         self._pending = None
         self._deadline = None
         self._pending_stop = reason
-        self._safety_notice = reason
+        if self._independent_stop is not None:
+            self._safety_notice = reason
         self._condition.notify_all()
 
     def _watchdog(self):
@@ -311,12 +336,16 @@ class ControlSupervisor:
                 self._safety_notice = None
                 if notice is None and self._closing:
                     return
+                self._safety_busy = notice is not None
             if notice is not None:
                 try:
                     self._independent_stop(notice)
                 except Exception:  # noqa: BLE001 - report external safety adapter failure
                     with self._condition:
                         self._reason = "independent safety hook failed"
+                finally:
+                    with self._condition:
+                        self._safety_busy = False
 
     def close(self, timeout_s: float = 1.0) -> bool:
         with self._condition:

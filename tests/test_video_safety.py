@@ -1,8 +1,6 @@
 import asyncio
 import threading
 import time
-from types import SimpleNamespace
-from uuid import uuid4
 
 import pytest
 from rd_core.async_compat import async_timeout
@@ -131,12 +129,27 @@ def test_live_gui_keeps_status_during_manual_control_and_video_lifecycle(
         from rd_core.wire import VehicleStatus
         from rd_server.main import create_runtime, parse_args
         from rd_vehicle.main import run
+        from rd_vehicle.infrastructure.cameras.test_camera import TestCamera
         from rd_vehicle.infrastructure.controller.mock_controller import MockController
         from rd_vehicle.infrastructure.controller.vehicle_feedback import FeedbackSample
         from rd_driving.main_window import MainWindow
         import rd_driving.app.input_service as inputs
         shared, errors = {}, []
         ready = threading.Event()
+        camera_silent = threading.Event()
+        delayed_capture = threading.Event()
+        class Camera(TestCamera):
+            def _read(self):
+                if camera_silent.is_set():
+                    return None
+                return super()._read()
+
+            def get_snapshot(self):
+                image = super().get_snapshot()
+                if image is not None and delayed_capture.is_set():
+                    return replace(image, captured_at=image.captured_at - 0.35)
+                return image
+
         class Feedback:
             speed = 1.25
             revision = 0
@@ -161,7 +174,8 @@ def test_live_gui_keeps_status_during_manual_control_and_video_lifecycle(
                 stop = asyncio.Event()
                 shared.update(network=network, controller=controller, stop=stop, loop=asyncio.get_running_loop())
                 ready.set()
-                await run(settings,stop,controller_factory=lambda settings: controller)
+                await run(settings, stop, controller_factory=lambda settings: controller,
+                          camera_factory=lambda cam: Camera(cam.width, cam.height, cam.fps, cam.name))
             except BaseException as error:
                 errors.append(type(error).__name__)
             finally:
@@ -169,7 +183,7 @@ def test_live_gui_keeps_status_during_manual_control_and_video_lifecycle(
                 await server.stop()
         thread = threading.Thread(target=lambda: asyncio.run(backend()),daemon=True)
         class Device:
-            axis = 128
+            axis = 255  # The very first fresh input is full brake.
             reporting = True
             task = None
             def __init__(self,*args): pass
@@ -210,12 +224,19 @@ def test_live_gui_keeps_status_during_manual_control_and_video_lifecycle(
             until(lambda: control_button.isEnabled() and speed.get_value() == '1.25')
             client=window._control_thread.service.client
             connection=client.connection
-            assert window._receiver_thread is None and client.epoch is None
+            assert window._receiver_thread is None and not client.control_requested
             assert media_button.text() == '连接视频' and control_button.text() == '开始控制'
             acknowledgements = []
             window._bridge.control_data_updated.connect(lambda data: acknowledgements.append(data["sample"]))
+            def check_new_brake_ack():
+                requested = time.monotonic()
+                Device.axis = 255
+                until(lambda: acknowledgements and acknowledgements[-1].sampled_at >= requested
+                      and acknowledgements[-1].brake == 1 and shared['controller'].commands[-1] == (0, 0))
+
             control_button.click()
-            until(lambda: client.armed)
+            until(lambda: acknowledgements and client.armed)
+            assert acknowledgements[0].brake == 1
             epoch = client.epoch
             assert epoch is not None and window._receiver_thread is None
             media_button.click()
@@ -223,13 +244,62 @@ def test_live_gui_keeps_status_during_manual_control_and_video_lifecycle(
             assert window.video_gate.snapshot().source.principal == "vehicle"
             Device.axis = 64
             until(lambda: shared['controller'].commands[-1] == (2.5, 0.0))
+            # Stop only camera frames. Both transports, the visible dashboard and
+            # the USB reporting cadence remain live throughout the expiry.
+            receiver = window._receiver_thread
+            camera_silent.set()
+            display = window._multi_video_widget.get_display('front')
+            until(lambda: display._message == '接收画面已过期'
+                  and not panel.get_connection_items()['video'].is_online())
+            assert not window.video_gate.snapshot().ready
+            assert window._webrtc_connected and receiver.isRunning() and display.isVisible()
+            check_new_brake_ack()
+            assert client.armed and client.epoch == epoch and client.connection is connection
+            assert panel.get_connection_items()['control'].is_online()
+            assert window._navbar._control_status.text() == '发送中'
+            assert control_button.text() == '停止控制'
+            # Deliver new frames again, with capture timestamps beyond the
+            # driver's 300 ms limit but within the sender's 500 ms frame window.
+            delayed_capture.set()
+            camera_silent.clear()
+            video_row = panel.get_connection_items()['video']
+            until(lambda: video_row._status_label.text() == '主画面延迟未知或过高'
+                  and window.fb.get('front').captured_at is not None)
+            Device.axis = 64
+            control_button.click()
+            until(lambda: client.epoch != epoch and control_button.text() == '开始控制')
+            states = []
+            window._bridge.control_status_changed.connect(lambda state, text: states.append(state))
+            last_frame = window.fb.get('front').id
+            started = time.monotonic()
+            control_button.click()
+            until(lambda: 'active' in states
+                  and acknowledgements and acknowledgements[-1].sampled_at >= started
+                  and acknowledgements[-1].throttle > 0 and acknowledgements[-1].brake == 0
+                  and window.fb.get('front').id > last_frame)
+            assert client.armed and client.epoch is not None and client.epoch != epoch
+            epoch = client.epoch
+            assert client.connection is connection and window._receiver_thread is receiver
+            frame = window.fb.get('front')
+            assert frame.received_at - frame.captured_at >= settings.video.max_capture_age_ms / 1000
+            assert window.video_gate.snapshot().reason == 'capture_unknown_or_expired'
+            assert video_row._status_label.text() == '主画面延迟未知或过高'
+            assert panel.get_connection_items()['control'].is_online()
+            assert window._navbar._control_status.text() == '发送中'
+            assert control_button.text() == '停止控制'
+            Device.axis = 64
+            until(lambda: shared['controller'].commands[-1] == (2.5, 0.0))
+            check_new_brake_ack()
+            assert client.armed and client.epoch == epoch and not window.video_gate.snapshot().ready
+            delayed_capture.clear()
+            Device.axis = 64
+            until(lambda: shared['controller'].commands[-1] == (2.5, 0.0))
+            until(lambda: window.video_gate.snapshot().ready)
             window._multi_video_widget.hide()
             until(lambda: not window.video_gate.snapshot().ready)
             media_button.click()
             until(lambda: window._receiver_thread is None)
-            Device.axis = 255
-            until(lambda: acknowledgements and acknowledgements[-1].brake == 1
-                  and shared['controller'].commands[-1] == (0, 0))
+            check_new_brake_ack()
             assert client.armed and client.epoch == epoch and client.connection is connection
             assert control_button.text() == '停止控制'
             shared['controller'].feedback.speed = 0.5
@@ -247,8 +317,8 @@ def test_live_gui_keeps_status_during_manual_control_and_video_lifecycle(
             last_frame = window.fb.get('front').id
             until(lambda: window.fb.get('front').id > last_frame and window.video_gate.snapshot().ready)
             assert receiver is window._receiver_thread and receiver.isRunning()
-            until(lambda: client.state == 'waiting_neutral')
-            assert client.epoch is None and control_button.text() == '停止控制'
+            until(lambda: client.epoch is not None and client.epoch != epoch)
+            assert not client.armed and control_button.text() == '停止控制'
             Device.axis = 128
             until(lambda: client.armed and client.epoch != epoch)
             # A silent USB device pauses control. Cancelling the request while
@@ -257,11 +327,11 @@ def test_live_gui_keeps_status_during_manual_control_and_video_lifecycle(
             until(lambda: client.state == 'waiting_input' and not client.armed)
             until(control_button.isEnabled)
             control_button.click()
-            until(lambda: control_button.text() == '开始控制' and client.epoch is None)
+            until(lambda: control_button.text() == '开始控制' and not client.control_requested)
             Device.reporting = True
             resumed_at = time.monotonic()
             until(lambda: client.latest.sampled_at > resumed_at + 0.4)
-            assert not client.armed and client.epoch is None and receiver.isRunning()
+            assert not client.armed and not client.control_requested and receiver.isRunning()
         finally:
             if window is not None:
                 window.close()
@@ -280,54 +350,50 @@ def test_live_gui_keeps_status_during_manual_control_and_video_lifecycle(
 
 
 @pytest.mark.asyncio
-async def test_manual_stop_releases_late_acquire_before_sending_any_command():
-    from rd_core.settings import DrivingSettings
+async def test_manual_stop_before_vehicle_connects_cancels_future_commands(runtime_factory, local_tls):
+    from rd_core.settings import ClientNetworkSettings, ControlSettings, CredentialSettings, DrivingSettings
+    from rd_core.wire import CONTROL_REVISION, Packet, Window, parse_control_route
+    from rd_quic.client import registered_connection
 
-    entered, resume = asyncio.Event(), asyncio.Event()
-    sent = []
-    epoch = uuid4()
-    released = []
-
-    async def request(method, params, **kwargs):
-        if method == "release":
-            released.append(params["epoch"])
-            return {"revoked": True}
-        entered.set()
-        await resume.wait()
-        return {
-            "epoch": str(epoch),
-            "session": 42,
-            "neutral_required": True,
-            "vehicle_principal": "vehicle",
-        }
-
+    build, _ = runtime_factory
+    server = build()
+    await server.start()
+    network = ClientNetworkSettings(
+        quic_host="127.0.0.1",
+        quic_port=server.services["relay"].listener._transport.get_extra_info("sockname")[1],
+        quic_server_name="localhost", quic_ca_file=local_tls[0],
+    )
     client = DrivingControlClient(
-        DrivingSettings(session=42), asyncio.Queue()
+        DrivingSettings(session=42, network=network, credentials=CredentialSettings("TEST_DRIVER")),
+        asyncio.Queue(),
     )
-    client.connection = SimpleNamespace(
-        protocol=SimpleNamespace(
-            rpc_ready=True, request=request, send_datagram=sent.append,
-            discard_pending_datagrams=lambda: None,
-        ),
-        clock=SimpleNamespace(check=lambda: None),
-    )
-    assert client.request_start_control()
-    await asyncio.sleep(0.02)  # Model the first device poll after the request.
-    client.latest = ControlInput(0, 0, 0, time.monotonic(), time.time_ns() // 1_000_000)
-    task = asyncio.create_task(client._run_registered())
+    driver = asyncio.create_task(client.run())
+    events, commands = asyncio.Queue(), []
     try:
-        await asyncio.wait_for(entered.wait(), 1)
-        assert client.request_stop_control()
-        assert not client.request_start_control()
-        resume.set()
-        async with async_timeout(1):
-            while client.state != "idle" or not released:
+        async with async_timeout(3):
+            while client.connection is None:
                 await asyncio.sleep(0.01)
-        assert released == [str(epoch)]
-        assert not sent and not client.armed and client.epoch is None
+        assert client.request_start_control()
+        assert client.request_stop_control()
+        async with registered_connection(
+            network, CredentialSettings("TEST_VEHICLE"), ControlSettings(), session=42,
+            role="vehicle", revision=CONTROL_REVISION, datagram_handler=commands.append,
+            event_handler=lambda method, params: events.put_nowait((method, params)),
+        ) as vehicle:
+            method, params = await asyncio.wait_for(events.get(), 3)
+            assert method == "control_route"
+            _, epoch, _ = parse_control_route(params)
+            assert epoch is not None
+            for seq in range(15):
+                vehicle.protocol.send_datagram(Packet(42, epoch, seq, 0, Window(seq.to_bytes(16, "big"))).encode())
+                await client.samples.put(ControlInput(0.5, 0, 0, time.monotonic(), time.time_ns() // 1_000_000))
+                await asyncio.sleep(0.02)
+            assert client.epoch == epoch and not client.control_requested
+            assert not commands
     finally:
-        task.cancel()
-        await asyncio.gather(task, return_exceptions=True)
+        driver.cancel()
+        await asyncio.gather(driver, return_exceptions=True)
+        await server.stop()
 
 
 @pytest.mark.asyncio

@@ -8,8 +8,26 @@ from uuid import UUID
 
 VERSION = 2
 ALPN = "rd-control/2"
-CONTROL_REVISION = "vehicle-status/3"
+CONTROL_REVISION = "direct-control/4"
 _HEADER = struct.Struct("!2sBBH16sIQ")
+
+
+def parse_control_route(params: dict) -> tuple[int, UUID | None, str | None]:
+    """Validate a relay's connection-scoped route change, including an offline peer."""
+    if not isinstance(params, dict) or set(params) != {"revision", "epoch", "vehicle_principal"}:
+        raise ValueError("invalid control route")
+    revision = params["revision"]
+    if type(revision) is not int or revision <= 0:
+        raise ValueError("invalid route revision")
+    value, principal = params["epoch"], params["vehicle_principal"]
+    if value is None and principal is None:
+        return revision, None, None
+    if not isinstance(value, str) or not isinstance(principal, str) or not 1 <= len(principal) <= 128:
+        raise ValueError("invalid control route identity")
+    epoch = UUID(value)
+    if epoch.int == 0:
+        raise ValueError("empty control route epoch")
+    return revision, epoch, principal
 
 
 class Kind(IntEnum):
@@ -147,7 +165,7 @@ _LAYOUTS = {
 
 @dataclass(frozen=True)
 class Packet:
-    """The epoch field holds a QUIC status stream for VehicleStatus, a lease otherwise."""
+    """The epoch identifies the status stream for VehicleStatus and the paired route otherwise."""
 
     session: int
     epoch: UUID
@@ -226,7 +244,7 @@ class Packet:
         payload.validate()
         identifier = UUID(bytes=epoch)
         if identifier.int == 0:
-            raise ValueError("invalid lease epoch")
+            raise ValueError("invalid stream epoch")
         return cls(session, identifier, seq, timestamp, payload)
 
 

@@ -221,7 +221,7 @@ def test_input_ack_and_feedback_have_independent_original_deadlines(legacy_pytho
         panel = window._control_panel
         worker = ControlSystemThread(window._bridge, window.settings)
         window._bridge.quic_status_changed.emit(True, '已认证')
-        window._bridge.control_status_changed.emit('active', '控制已授权')
+        window._bridge.control_status_changed.emit('active', '发送中')
         def state(age=0, brake=0):
             return LocalInputState(True, ControlInput(-0.75 if not brake else 0, brake, -0.25,
                                    time.monotonic() - age, time.time_ns() // 1_000_000))
@@ -229,7 +229,7 @@ def test_input_ack_and_feedback_have_independent_original_deadlines(legacy_pytho
             worker._vehicle_status(SimpleNamespace(payload=VehicleStatus(
                 speed_mps=0, shift_level=2, p_status=False), source_time_ms=1234),
                 time.monotonic() + 0.3)
-        # No connection, lease or execution is needed to show local input.
+        # No connection or execution is needed to show local input.
         fresh = state()
         window._bridge.local_input_changed.emit(fresh)
         original_deadline = fresh.sample.sampled_at + 0.2

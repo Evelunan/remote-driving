@@ -99,19 +99,23 @@ def test_dashboard_control_status_tracks_worker_and_clears_on_logout(legacy_pyth
             ("idle", "waiting"),
             ("waiting_input", "waiting"),
             ("waiting_neutral", "waiting"),
-            ("waiting_execution", "waiting"),
+            ("waiting_control_window", "waiting"),
+            ("waiting_channel", "waiting"),
+            ("waiting_vehicle", "waiting"),
             ("active", "active"),
-            ("revoked", "blocked"),
+            ("paused", "blocked"),
             ("active", "active"),
         ):
             text = STATUS_TEXT[state]
             signal.emit(state, text)
-            if state == "waiting_execution":
+            if state == "active":
                 window._bridge.control_target_changed.emit("vehicle-42")
-            if state == "revoked":
+            if state == "paused":
                 assert navbar._target_text.accessibleName() == "--"
-            elif state == "waiting_execution":
+            elif state == "active":
                 assert navbar._target_text.accessibleName() == "vehicle-42"
+                button = window._control_panel._action_buttons["control"]
+                assert button.isEnabled() and button.text() == "停止控制"
             assert navbar._control_status.text() == text
             assert navbar._control_tone == tone
             assert (window._theme.success in navbar._control_field.styleSheet()) == (tone == "active")
@@ -139,7 +143,7 @@ def test_dashboard_control_status_tracks_worker_and_clears_on_logout(legacy_pyth
         control_button.click()
         assert worker.control_cancelled
         signal.emit("idle", STATUS_TEXT["idle"])
-        assert control_button.text() == "开始控制" and not control_button.isEnabled()
+        assert control_button.text() == "开始控制" and control_button.isEnabled()
 
         login = window._login_page
         login._room_input.setText("saved-room")

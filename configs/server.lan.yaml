@@ -23,7 +23,6 @@ relay:
     key: tls/lan-server.key
   idle_timeout_s: 10
   register_timeout_s: 5
-  lease_ttl_s: 1
   max_control_age_ms: 300
   max_clock_skew_ms: 50
   max_datagram_bytes: 1200

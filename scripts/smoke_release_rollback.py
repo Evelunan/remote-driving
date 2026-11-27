@@ -15,7 +15,7 @@ import tempfile
 import time
 from pathlib import Path
 
-from check_installed import certificate
+from check_installed import certificate, check_standby_connection
 from manage_release import COMPATIBILITY, write_json
 
 from rd_core.async_compat import async_timeout
@@ -43,14 +43,7 @@ def operation(action, root, env, *options, fail=False):
 
 
 async def live_server(network, token):
-    from rd_core.settings import (
-        ClientNetworkSettings,
-        ControlSettings,
-        CredentialSettings,
-    )
-    from rd_core.wire import CONTROL_REVISION
-    from rd_quic.client import registered_connection
-    from rd_quic.framing import RpcError
+    from rd_core.settings import ClientNetworkSettings
     from websockets.asyncio.client import connect
 
     async with connect(
@@ -65,7 +58,7 @@ async def live_server(network, token):
         await ws.send('{"type":"join","room":"1234"}')
         async with async_timeout(3):
             assert json.loads(await ws.recv())["type"] == "joined"
-    async with registered_connection(
+    await check_standby_connection(
         ClientNetworkSettings(
             **{
                 **network,
@@ -73,18 +66,7 @@ async def live_server(network, token):
                 "signaling_ca_file": Path(network["signaling_ca_file"]),
             }
         ),
-        CredentialSettings(token_env="RD_OPERATOR_TOKEN"),
-        ControlSettings(),
-        session=1234,
-        role="driving",
-        revision=CONTROL_REVISION,
-    ) as connection:
-        try:
-            await connection.protocol.request("acquire", {})
-        except RpcError as error:
-            assert str(error) == "vehicle_unavailable"
-        else:
-            raise RuntimeError("unexpected control authority without a vehicle")
+    )
 
 
 def children(pid):

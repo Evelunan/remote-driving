@@ -97,15 +97,25 @@ def check_origin(role, wheels):
     }
 
 
-async def check_server(config, cert):
-    from rd_core.settings import (
-        ClientNetworkSettings,
-        ControlSettings,
-        CredentialSettings,
-    )
-    from rd_core.wire import CONTROL_REVISION
+async def check_standby_connection(network):
+    from rd_core.settings import ControlSettings, CredentialSettings
+    from rd_core.wire import CONTROL_REVISION, parse_control_route
     from rd_quic.client import registered_connection
-    from rd_quic.framing import RpcError
+
+    events = asyncio.Queue()
+    async with registered_connection(
+        network, CredentialSettings(token_env="RD_OPERATOR_TOKEN"), ControlSettings(),
+        session=1234, role="driving", revision=CONTROL_REVISION,
+        event_handler=lambda method, params: events.put_nowait((method, params)),
+    ):
+        method, params = await asyncio.wait_for(events.get(), 3)
+        assert method == "control_route"
+        _, epoch, vehicle = parse_control_route(params)
+        assert epoch is None and vehicle is None
+
+
+async def check_server(config, cert):
+    from rd_core.settings import ClientNetworkSettings
     from rd_server.main import create_runtime, parse_args
     from websockets.asyncio.client import connect
 
@@ -147,20 +157,7 @@ async def check_server(config, cert):
                     quic_ca_file=cert,
                     quic_server_name="localhost",
                 )
-                async with registered_connection(
-                    network,
-                    CredentialSettings(token_env="RD_OPERATOR_TOKEN"),
-                    ControlSettings(),
-                    session=1234,
-                    role="driving",
-                    revision=CONTROL_REVISION,
-                ) as connection:
-                    try:
-                        await connection.protocol.request("acquire", {})
-                    except RpcError as error:
-                        assert str(error) == "vehicle_unavailable"
-                    else:
-                        raise AssertionError("lease granted without a vehicle")
+                await check_standby_connection(network)
         finally:
             await runtime.stop()
         assert not runtime.ready

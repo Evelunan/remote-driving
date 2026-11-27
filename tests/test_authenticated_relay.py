@@ -38,7 +38,7 @@ def client_config(cert, alpn=ALPN):
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("services", [("relay",), ("signaling", "relay")])
-async def test_real_authenticated_registration_exclusive_lease_and_recovery(
+async def test_real_authenticated_registration_direct_control_and_recovery(
     runtime_factory, local_tls, services
 ):
     build, tokens = runtime_factory
@@ -49,7 +49,7 @@ async def test_real_authenticated_registration_exclusive_lease_and_recovery(
         try:
             port = relay.listener._transport.get_extra_info("sockname")[1]
 
-            async def client(name=None, role=None):
+            async def client(name=None, role=None, events=None):
                 peer = await clients.enter_async_context(
                     connect(
                         "127.0.0.1",
@@ -58,6 +58,8 @@ async def test_real_authenticated_registration_exclusive_lease_and_recovery(
                         create_protocol=RpcProtocol,
                     )
                 )
+                if events is not None:
+                    peer.event_handler = lambda method, params: events.put_nowait((method, params))
                 if name is not None:
                     role = role or ("driving" if name in ("driver", "other") else name)
                     result = await peer.request(
@@ -76,7 +78,7 @@ async def test_real_authenticated_registration_exclusive_lease_and_recovery(
 
             unauthorized = await client()
             with pytest.raises(RpcError, match="registration_required"):
-                await unauthorized.request("acquire", {})
+                await unauthorized.request("stop_control", {"epoch": "unbound"})
             with pytest.raises(RpcError, match="access_denied"):
                 await unauthorized.request(
                     "register",
@@ -93,7 +95,7 @@ async def test_real_authenticated_registration_exclusive_lease_and_recovery(
                     "register",
                     {"token": tokens["driver"], "role": "driving", "session": 42},
                 )
-            for revision in ("video-bound/1", "vehicle-status/2"):
+            for revision in ("video-bound/1", "vehicle-status/2", "vehicle-status/3"):
                 with pytest.raises(RpcError, match="protocol_upgrade_required"):
                     await unauthorized.request(
                         "register",
@@ -129,88 +131,53 @@ async def test_real_authenticated_registration_exclusive_lease_and_recovery(
                 )
                 await ws.send('{"type":"join","room":"video"}')
                 assert json.loads(await ws.recv())["type"] == "joined"
-            vehicle, driver, other = (
-                await client("vehicle"),
-                await client("driver"),
-                await client("other"),
-            )
-            prepare_started, prepare_gate = asyncio.Event(), asyncio.Event()
-            vehicle_events, vehicle_data, driver_data = (
-                asyncio.Queue(),
-                asyncio.Queue(),
-                asyncio.Queue(),
-            )
+            vehicle_events, driver_events = asyncio.Queue(), asyncio.Queue()
+            vehicle = await client("vehicle", events=vehicle_events)
+            method, offline = await asyncio.wait_for(vehicle_events.get(), 1)
+            assert method == "control_route" and offline["epoch"] is None
+            driver = await client("driver", events=driver_events)
+            method, route = await asyncio.wait_for(driver_events.get(), 1)
+            assert method == "control_route" and route["vehicle_principal"] == "vehicle"
+            assert route["revision"] > offline["revision"]
+            assert await asyncio.wait_for(vehicle_events.get(), 1) == (method, route)
+            with pytest.raises(RpcError, match="driver_already_connected"):
+                await client("other")
+            with pytest.raises(RpcError, match="unsupported_method"):
+                await driver.request("acquire", {})
 
-            async def prepare(method, params):
-                assert method == "prepare_lease"
-                prepare_started.set()
-                await prepare_gate.wait()
-                return {"ready": True, "epoch": params["epoch"]}
-
-            vehicle.request_handler = prepare
-            vehicle.event_handler = lambda method, params: vehicle_events.put_nowait(
-                (method, params)
-            )
+            vehicle_data, driver_data = asyncio.Queue(), asyncio.Queue()
             vehicle.datagram_handler = vehicle_data.put_nowait
             driver.datagram_handler = driver_data.put_nowait
-            pending = asyncio.create_task(driver.request("acquire", {}))
-            await prepare_started.wait()
-            assert not pending.done()
-            with pytest.raises(RpcError, match="lease_busy"):
-                await other.request("acquire", {})
-            prepare_gate.set()
-            grant = await pending
-            assert grant["neutral_required"] is True
-            assert grant["vehicle_principal"] == "vehicle"
             token = bytes(range(16))
-            window = Packet(42, UUID(grant["epoch"]), 0, 0, Window(token))
+            window = Packet(42, UUID(route["epoch"]), 0, 0, Window(token))
             vehicle.send_datagram(window.encode())
             assert Packet.decode(await asyncio.wait_for(driver_data.get(), 1)) == window
-            neutral = Packet(
-                42,
-                UUID(grant["epoch"]),
-                0,
-                int(time.time() * 1000),
-                Control(0, 0, 0, token),
-            )
-            driver.send_datagram(neutral.encode())
-            assert (
-                Packet.decode(await asyncio.wait_for(vehicle_data.get(), 1)) == neutral
-            )
-            result = replace(
-                neutral,
-                payload=Execution(ExecutionStatus.EXECUTED, int(time.time() * 1000)),
-            )
+            brake = Packet(42, window.epoch, 0, int(time.time() * 1000), Control(0, 1, 0, token))
+            driver.send_datagram(brake.encode())
+            assert Packet.decode(await asyncio.wait_for(vehicle_data.get(), 1)) == brake
+            motion = replace(brake, seq=1, payload=Control(0.5, 0, 0, token))
+            driver.send_datagram(motion.encode())
+            assert Packet.decode(await asyncio.wait_for(vehicle_data.get(), 1)) == motion
+            result = replace(brake, payload=Execution(ExecutionStatus.EXECUTED, int(time.time() * 1000)))
             vehicle.send_datagram(result.encode())
             assert Packet.decode(await asyncio.wait_for(driver_data.get(), 1)) == result
-            motion = replace(
-                neutral,
-                seq=1,
-                source_time_ms=int(time.time() * 1000),
-                payload=Control(0.5, 0, 0, token),
-            )
-            driver.send_datagram(motion.encode())
-            assert (
-                Packet.decode(await asyncio.wait_for(vehicle_data.get(), 1)) == motion
-            )
-            with pytest.raises(RpcError, match="lease_owner_required"):
-                await other.request("release", {"epoch": grant["epoch"]})
+
+            driver.notify("stop_control", {"epoch": route["epoch"]})
+            _, current = await asyncio.wait_for(vehicle_events.get(), 1)
+            assert current["revision"] > route["revision"] and current["epoch"] != route["epoch"]
+            assert await asyncio.wait_for(driver_events.get(), 1) == ("control_route", current)
             driver.close()
-            method, revoked = await asyncio.wait_for(vehicle_events.get(), 1)
-            assert method == "lease_revoked" and revoked["epoch"] == grant["epoch"]
-            recovered = await other.request("acquire", {})
-            assert (
-                recovered["epoch"] != grant["epoch"] and recovered["neutral_required"]
-            )
-            # A stale release cannot revoke the new generation even on the new owner.
-            assert await other.request("release", {"epoch": grant["epoch"]}) == {
-                "revoked": False
-            }
-            assert relay.registry.leases[42].ready
+            _, offline = await asyncio.wait_for(vehicle_events.get(), 1)
+            assert offline["epoch"] is None and offline["revision"] > current["revision"]
+            other = await client("other", events=driver_events)
+            _, replacement = await asyncio.wait_for(driver_events.get(), 1)
+            assert replacement["epoch"] != current["epoch"] and replacement["revision"] > offline["revision"]
+            assert await other.request("stop_control", {"epoch": current["epoch"]}) == {"stopped": False}
+            assert relay.registry.routes[42].epoch == UUID(replacement["epoch"])
         finally:
             await runtime.stop()
         assert not runtime.ready and not relay.protocols
-        assert not relay.registry.leases and not relay.registry.bindings
+        assert not relay.registry.routes and not relay.registry.bindings
         assert not relay.registration_deadlines
     assert not [
         task
@@ -295,7 +262,7 @@ async def test_registered_quic_stays_connected_without_status_or_control(
             assert vehicle.protocol.rpc_ready and driver.protocol.rpc_ready
             assert set(relay.registry.bindings) == bindings
             assert clock_peers == bindings
-            assert not relay.registry.leases
+            assert 42 in relay.registry.routes
     finally:
         await runtime.stop()
     assert not [
@@ -335,23 +302,19 @@ async def test_relay_maintenance_failure_preserves_signaling_peer(runtime_factor
                     await asyncio.sleep(0.01)
                 await (await ws.ping())
                 assert joined["id"] in signaling.manager.peers
-                assert not relay.registry.leases and not relay.registry.bindings
+                assert not relay.registry.routes and not relay.registry.bindings
     finally:
         stop.set()
         await asyncio.wait_for(host, 3)
 
 
 @pytest.mark.asyncio
-async def test_signaling_restart_preserves_authenticated_control_lease(runtime_factory, local_tls):
+async def test_signaling_restart_preserves_authenticated_control_route(runtime_factory, local_tls):
     build, _ = runtime_factory
-    runtime = build(("signaling", "relay"), lease_ttl_s=5.0)
+    runtime = build(("signaling", "relay"))
     relay, signaling = runtime.services["relay"], runtime.services["signaling"]
     stop = asyncio.Event()
     host = asyncio.create_task(runtime.run(stop))
-
-    async def prepare(method, params):
-        assert method == "prepare_lease"
-        return {"ready": True, "epoch": params["epoch"]}
 
     try:
         async with async_timeout(8), AsyncExitStack() as clients:
@@ -366,17 +329,16 @@ async def test_signaling_restart_preserves_authenticated_control_lease(runtime_f
                 client = await clients.enter_async_context(registered_connection(
                     network, CredentialSettings(token), ControlSettings(),
                     session=42, role=role, revision=CONTROL_REVISION,
-                    request_handler=prepare if role == "vehicle" else None,
                 ))
                 if role == "driving":
                     driver = client.protocol
-            grant = await driver.request("acquire", {})
+            epoch = relay.registry.routes[42].epoch
             first = signaling._server
             first.close()
             while signaling._server is first or not runtime.ready:
                 await asyncio.sleep(0.01)
-            assert driver.rpc_ready and str(relay.registry.leases[42].epoch) == grant["epoch"]
-            assert await driver.request("release", {"epoch": grant["epoch"]}) == {"revoked": True}
+            assert driver.rpc_ready and relay.registry.routes[42].epoch == epoch
+            assert await driver.request("stop_control", {"epoch": str(epoch)}) == {"stopped": True}
     finally:
         stop.set()
         await asyncio.wait_for(host, 3)
