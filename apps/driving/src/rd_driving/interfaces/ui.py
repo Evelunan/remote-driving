@@ -145,7 +145,7 @@ class ITheme(ABC):
         pass
 
     @abstractmethod
-    def get_button_style(self) -> str:
+    def get_button_style(self, *, compact: bool = False, emphasized: bool = True) -> str:
         """获取按钮样式表"""
         pass
 

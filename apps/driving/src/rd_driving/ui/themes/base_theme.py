@@ -27,6 +27,7 @@ class BaseTheme(ITheme, ABC):
     bg_primary = "#101820"
     bg_secondary = "#18242E"
     bg_tertiary = "#23323E"
+    button_hover = "#354C5D"
     bg_card = bg_secondary
     text_primary = "#EDF4F8"
     text_secondary = "#CAD8E2"
@@ -55,57 +56,51 @@ class BaseTheme(ITheme, ABC):
             }}
         """
 
-    def get_button_style(self) -> str:
-        """默认按钮样式"""
+    def get_button_style(self, *, compact: bool = False, emphasized: bool = True) -> str:
+        """所有按钮共用交互颜色，尺寸和字重区分操作层级。"""
         return f"""
             QPushButton {{
+                background-color: {self.bg_tertiary};
+                color: {self.text_primary};
+                border: 2px solid {self.border};
+                border-radius: 5px;
+                font-size: {12 if compact else 13}px;
+                font-weight: {600 if emphasized else 400};
+                font-family: "{self._font_family}";
+                padding: {"0 4px" if compact else "6px 14px"};
+            }}
+            QPushButton:enabled:hover {{
+                background-color: {self.button_hover};
+                border-color: {self.primary};
+            }}
+            QPushButton:enabled:checked {{
                 background-color: {self.primary};
                 color: {self.bg_primary};
-                border: 2px solid transparent;
-                border-radius: 6px;
-                font-size: 13px;
-                font-weight: 600;
-                font-family: {self._font_family};
-                padding: 8px 16px;
+                border-color: {self.primary};
             }}
-            QPushButton:hover {{
+            QPushButton:enabled:checked:hover {{
                 background-color: {self.primary_glow};
             }}
-            QPushButton:pressed {{
+            QPushButton:enabled:pressed, QPushButton:enabled:checked:pressed {{
                 background-color: {self.primary_dark};
+                color: {self.bg_primary};
+                border-color: {self.primary_dark};
             }}
-            QPushButton:focus {{
-                border-color: {self.bg_primary};
+            QPushButton:enabled:focus {{
+                border: 2px dashed {self.text_primary};
+            }}
+            QPushButton:enabled:checked:focus, QPushButton:enabled:pressed:focus {{
+                border: 2px dashed {self.bg_primary};
             }}
             QPushButton:disabled {{
-                background-color: {self.bg_tertiary};
+                background-color: {self.bg_primary};
                 color: {self.text_muted};
+                border-color: {self.bg_tertiary};
             }}
         """
 
     def get_secondary_button_style(self) -> str:
-        return f"""
-            QPushButton {{
-                background: {self.bg_tertiary};
-                color: {self.text_primary};
-                border: 1px solid {self.border};
-                border-radius: 5px;
-                font-size: 13px;
-                padding: 6px 14px;
-            }}
-            QPushButton:hover {{
-                border-color: {self.text_muted};
-            }}
-            QPushButton:pressed {{
-                background: {self.bg_primary};
-            }}
-            QPushButton:focus {{
-                border-color: {self.primary};
-            }}
-            QPushButton:disabled {{
-                color: {self.text_muted};
-            }}
-        """
+        return self.get_button_style(emphasized=False)
 
     def get_navbar_style(self) -> str:
         """默认导航栏样式"""

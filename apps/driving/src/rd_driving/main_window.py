@@ -273,8 +273,7 @@ class MainWindow(QMainWindow):
             and state != "stopping"
             and not self._control_action_pending
         )
-        text = "停止控制" if requested or state == "stopping" else "开始控制"
-        self._control_panel.set_control_action(text, enabled=enabled)
+        self._control_panel.set_control_action(requested or state == "stopping", enabled=enabled)
 
     def _toggle_control(self):
         worker = self._control_thread

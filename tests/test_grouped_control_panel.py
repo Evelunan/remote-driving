@@ -128,7 +128,7 @@ def test_dashboard_sidebar_orders_metrics_connections_and_disclosures(legacy_pyt
         panel.video_toggle_requested.connect(lambda: clicks.append('video'))
         panel.control_toggle_requested.connect(lambda: clicks.append('control'))
         panel.set_video_requested(True)
-        panel.set_control_action('停止控制')
+        panel.set_control_action(True)
         video, control = (panel._action_buttons[key] for key in ('video', 'control'))
         assert video.accessibleName() == '断开视频' and control.accessibleName() == '停止控制'
         video.setFocus()
@@ -143,6 +143,63 @@ def test_dashboard_sidebar_orders_metrics_connections_and_disclosures(legacy_pyt
         panel._camera_details_button.click()
         assert panel._camera_details.isHidden()
         panel.close()
+    """)
+
+
+def test_buttons_share_interaction_colors_and_session_state(legacy_python):
+    legacy_python("driving", """
+        import os
+        os.environ["QT_QPA_PLATFORM"] = "offscreen"
+        from PyQt6.QtCore import QPoint, Qt
+        from PyQt6.QtTest import QTest
+        from PyQt6.QtWidgets import QApplication
+        from rd_driving.factories import UIFactory
+
+        app = QApplication([])
+        def fill(button):
+            app.processEvents()
+            image = button.grab().toImage()
+            return image.pixelColor(image.width() // 2, int(5 * image.devicePixelRatio())).name().upper()
+
+        for theme_name in ("dark_tech", "modern_glass"):
+            theme = UIFactory.set_theme(theme_name)
+            panel = UIFactory.create_control_panel()
+            panel.resize(328, 950)
+            panel.show()
+            panel.set_control_action(False)
+            video, control, reconnect = (panel._action_buttons[key] for key in ("video", "control", "quic"))
+            disclosure = panel._vehicle_details_button
+            for button in (video, control, reconnect, disclosure):
+                QTest.mouseMove(panel, QPoint(0, 0))
+                assert fill(button) == theme.bg_tertiary
+                QTest.mouseMove(button, button.rect().center())
+                assert fill(button) == theme.button_hover
+                QTest.mousePress(button, Qt.MouseButton.LeftButton)
+                assert fill(button) == theme.primary_dark
+                QTest.mouseRelease(button, Qt.MouseButton.LeftButton)
+                if button is disclosure:
+                    assert button.isChecked() and fill(button) == theme.primary_glow
+                else:
+                    assert not button.isChecked() and fill(button) == theme.button_hover
+                QTest.mouseMove(panel, QPoint(0, 0))
+                assert fill(button) == (theme.primary if button is disclosure else theme.bg_tertiary)
+                button.setDisabled(True)
+                QTest.mouseMove(button, button.rect().center())
+                assert fill(button) == theme.bg_primary
+                button.setEnabled(True)
+            for button, set_requested in ((video, panel.set_video_requested), (control, panel.set_control_action)):
+                QTest.mouseMove(panel, QPoint(0, 0))
+                set_requested(True)
+                assert button.isChecked() and fill(button) == theme.primary
+                QTest.mouseMove(button, button.rect().center())
+                assert fill(button) == theme.primary_glow
+                QTest.mousePress(button, Qt.MouseButton.LeftButton)
+                assert fill(button) == theme.primary_dark
+                QTest.mouseRelease(button, Qt.MouseButton.LeftButton)
+                assert button.isChecked()
+                set_requested(False)
+                assert not button.isChecked() and fill(button) == theme.button_hover
+            panel.close()
     """)
 
 

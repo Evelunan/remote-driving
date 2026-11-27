@@ -21,6 +21,13 @@ from ..components import ConnectionItem, DataCard, StatItem
 from .multi_video_widget import CAMERA_NAMES, DEFAULT_LABELS
 
 
+class _SessionButton(QPushButton):
+    def nextCheckState(self):
+        # The session callback sets the checked state once the request is accepted.
+        # A declined click must leave the previous state visible.
+        pass
+
+
 class ControlPanel(QFrame):
     """将关键状态置于上方，将低频查看的统计与诊断放入折叠区域。"""
 
@@ -53,7 +60,8 @@ class ControlPanel(QFrame):
             ("video", "连接视频", self.video_toggle_requested, "开启或关闭车辆视频"),
             ("control", "开始控制", self.control_toggle_requested, "开启、恢复或停止行驶控制"),
         ):
-            button = QPushButton(text)
+            button = _SessionButton(text)
+            button.setCheckable(True)
             button.setAccessibleName(text)
             button.setAccessibleDescription(hint)
             button.setToolTip(hint)
@@ -142,7 +150,7 @@ class ControlPanel(QFrame):
         )
         self.set_connection_status("video", False, "未连接")
         self.set_connection_status("control", False, "未开启")
-        self.set_control_action("开始控制", enabled=False)
+        self.set_control_action(False, enabled=False)
 
         self._layout.addWidget(self._conn_card)
 
@@ -340,8 +348,8 @@ class ControlPanel(QFrame):
             self._vehicle_card, self._input_card, self._confirmation_card, self._conn_card,
         ):
             card.apply_theme(theme)
-        self._action_buttons["video"].setStyleSheet(theme.get_secondary_button_style())
-        self._action_buttons["control"].setStyleSheet(theme.get_button_style())
+        for name in ("video", "control"):
+            self._action_buttons[name].setStyleSheet(theme.get_button_style())
         self._gear.apply_theme(theme, prominent_label=True, value_size=19)
         for item in self._input_stats.values():
             item.apply_theme(theme, prominent_label=True, value_size=19)
@@ -357,21 +365,8 @@ class ControlPanel(QFrame):
 
         for button in (self._vehicle_details_button, self._camera_details_button):
             button.setStyleSheet(
-                f"""
-                QPushButton {{
-                    background-color: {theme.bg_card};
-                    color: {theme.text_primary};
-                    border: 1px solid {theme.border};
-                    border-radius: 4px;
-                    padding: 0 10px;
-                    text-align: left;
-                    font-size: 12px;
-                }}
-                QPushButton:hover, QPushButton:checked {{
-                    background-color: {theme.bg_tertiary};
-                }}
-                QPushButton:focus {{ border-color: {theme.primary}; }}
-                """
+                theme.get_button_style(compact=True, emphasized=False)
+                + "QPushButton { text-align: left; padding-left: 10px; }"
             )
         self._confirmation_state.apply_theme(theme, value_size=16)
         for item in self._command_stats.values():
@@ -392,15 +387,17 @@ class ControlPanel(QFrame):
 
     def set_video_requested(self, requested, *, reconnect_pending=False):
         button = self._action_buttons["video"]
+        button.setChecked(requested)
         button.setText("断开视频" if requested else "连接视频")
         button.setAccessibleName(button.text())
         for name in ("signal", "webrtc"):
             self._action_buttons[name].setEnabled(not reconnect_pending)
 
-    def set_control_action(self, text, *, enabled=True):
+    def set_control_action(self, requested: bool, *, enabled=True):
         button = self._action_buttons["control"]
-        button.setText(text)
-        button.setAccessibleName(text)
+        button.setChecked(requested)
+        button.setText("停止控制" if requested else "开始控制")
+        button.setAccessibleName(button.text())
         button.setEnabled(enabled)
 
     def _on_media_reconnect(self):

@@ -95,6 +95,7 @@ class LoginPage(QWidget):
             self._fake_login_btn.setObjectName("sessionDebug")
             self._fake_login_btn.setMinimumHeight(40)
             self._fake_login_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+            self._fake_login_btn.setStyleSheet(self._theme.get_button_style(emphasized=False))
             self._fake_login_btn.clicked.connect(self._on_fake_login)
             form.addSpacing(8)
             form.addWidget(self._fake_login_btn)
@@ -182,22 +183,6 @@ class LoginPage(QWidget):
                 border-color: {theme.primary};
             }}
             QLineEdit:disabled {{
-                color: {theme.text_secondary};
-            }}
-            QPushButton#sessionDebug {{
-                background-color: transparent;
-                color: {theme.text_primary};
-                border: 2px solid {theme.border};
-                border-radius: 6px;
-                font-size: 13px;
-            }}
-            QPushButton#sessionDebug:hover, QPushButton#sessionDebug:pressed {{
-                background-color: {theme.bg_tertiary};
-            }}
-            QPushButton#sessionDebug:focus {{
-                border-color: {theme.primary};
-            }}
-            QPushButton#sessionDebug:disabled {{
                 color: {theme.text_secondary};
             }}
         """

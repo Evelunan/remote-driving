@@ -154,22 +154,7 @@ class ConnectionItem(QFrame):
 
         if self._action_button is not None:
             self._action_button.setStyleSheet(
-                f"""
-                QPushButton {{
-                    background: transparent;
-                    color: {theme.text_primary};
-                    border: 1px solid {theme.border};
-                    border-radius: 4px;
-                    padding: 0;
-                    font-size: 12px;
-                }}
-                QPushButton:hover, QPushButton:pressed {{
-                    background: {theme.bg_tertiary};
-                }}
-                QPushButton:focus {{ border-color: {theme.primary}; }}
-                QPushButton:disabled {{
-                    color: {theme.text_muted}; border-color: {theme.bg_tertiary};
-                }}
+                theme.get_button_style(compact=True, emphasized=False) + f"""
                 QToolTip {{
                     background-color: {theme.bg_secondary};
                     color: {theme.text_primary};
