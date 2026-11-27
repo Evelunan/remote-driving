@@ -11,12 +11,13 @@ import multiprocessing
 import signal
 import socket
 import struct
+import sys
 import time
 from contextlib import ExitStack
 from dataclasses import dataclass, replace
 from pathlib import Path
 
-from rd_core.async_compat import BaseExceptionGroup
+from rd_core.async_compat import BaseExceptionGroup, Runner
 from rd_core.logging import configure_logging, get_logger
 
 from rd_vehicle.shutdown import stop_on_signals
@@ -137,7 +138,7 @@ async def _component_lifetime(settings, channel, runner):
 def _component_process(settings, channel, runner):
     # A console Ctrl+C is broadcast to the process group on Windows. The parent
     # owns that request and delivers EOF after entering its shutdown path.
-    # Keep children alive through asyncio.run() cleanup, including repeat Ctrl+C.
+    # Keep children alive through event-loop cleanup, including repeat Ctrl+C.
     # This is the spawned process entry point. Keep ignoring broadcasts through
     # multiprocessing finalization, even after its health socket has closed.
     signal.signal(signal.SIGINT, signal.SIG_IGN)
@@ -147,7 +148,12 @@ def _component_process(settings, channel, runner):
         if directory is not None:
             directory = directory / settings.components[0]
         configure_logging(settings.logging.level, directory=directory)
-        asyncio.run(_component_lifetime(settings, channel, runner))
+        factory = None
+        if sys.platform == "win32" and settings.components == ("media",):
+            # Proactor can leave ICE waiting for a UDP close callback.
+            factory = asyncio.SelectorEventLoop
+        with Runner(loop_factory=factory) as event_loop:
+            event_loop.run(_component_lifetime(settings, channel, runner))
     except Exception as exc:  # noqa: BLE001 - process boundary; never log device payloads
         logger.error(
             "Vehicle %s failed (%s)", settings.components[0], type(exc).__name__

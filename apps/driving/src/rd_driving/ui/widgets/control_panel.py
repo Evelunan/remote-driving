@@ -33,7 +33,6 @@ class ControlPanel(QFrame):
         self._control_reconnect_callback: Callable | None = None
         self._usb_connect_callback: Callable | None = None
         self._action_buttons: dict[str, QPushButton] = {}
-        self._video_requested = False
 
         self.setFixedWidth(328)
         self.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Expanding)
@@ -126,7 +125,7 @@ class ControlPanel(QFrame):
         for conn in self._connections.values():
             self._conn_card.add_widget(conn)
 
-        media_hint = "重建信令与视频连接"
+        media_hint = "建立或重新连接信令与视频"
         for name in ("signal", "webrtc"):
             self._action_buttons[name] = self._connections[name].add_action(
                 "重连", self._on_media_reconnect, media_hint
@@ -143,7 +142,6 @@ class ControlPanel(QFrame):
         )
         self.set_connection_status("video", False, "未连接")
         self.set_connection_status("control", False, "未开启")
-        self.set_media_reconnecting(False)
         self.set_control_action("开始控制", enabled=False)
 
         self._layout.addWidget(self._conn_card)
@@ -392,17 +390,12 @@ class ControlPanel(QFrame):
     def set_media_reconnect_callback(self, callback: Callable) -> None:
         self._media_reconnect_callback = callback
 
-    def set_video_requested(self, requested, *, busy=False):
-        self._video_requested = requested
+    def set_video_requested(self, requested, *, reconnect_pending=False):
         button = self._action_buttons["video"]
         button.setText("断开视频" if requested else "连接视频")
         button.setAccessibleName(button.text())
-        button.setEnabled(not busy or requested)
-        self.set_media_reconnecting(busy)
-
-    def set_media_reconnecting(self, busy):
         for name in ("signal", "webrtc"):
-            self._action_buttons[name].setEnabled(self._video_requested and not busy)
+            self._action_buttons[name].setEnabled(not reconnect_pending)
 
     def set_control_action(self, text, *, enabled=True):
         button = self._action_buttons["control"]
@@ -412,9 +405,7 @@ class ControlPanel(QFrame):
 
     def _on_media_reconnect(self):
         if self._media_reconnect_callback:
-            self.set_media_reconnecting(True)
-            if not self._media_reconnect_callback():
-                self.set_media_reconnecting(False)
+            self._media_reconnect_callback()
 
     def set_control_reconnect_callback(self, callback: Callable) -> None:
         self._control_reconnect_callback = callback

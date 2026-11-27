@@ -1,9 +1,11 @@
 """Qt worker owns one asyncio session; stopping never blocks the GUI thread."""
 
 import asyncio
+import sys
 import threading
 
 from PyQt6.QtCore import QThread, pyqtSignal
+from rd_core.async_compat import Runner
 from rd_core.logging import get_logger
 
 logger = get_logger(__name__)
@@ -42,7 +44,10 @@ class WebRTCReceiverThread(QThread):
 
     def run(self):
         try:
-            asyncio.run(self._main())
+            # Windows Proactor can omit UDP connection_lost on close with a pending write.
+            factory = asyncio.SelectorEventLoop if sys.platform == "win32" else None
+            with Runner(loop_factory=factory) as runner:
+                runner.run(self._main())
         except asyncio.CancelledError:
             pass
         except Exception as exc:  # noqa: BLE001 - sanitize the thread boundary

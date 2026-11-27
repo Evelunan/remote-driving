@@ -1,8 +1,9 @@
 import asyncio
+import sys
 import time
 
 import pytest
-from rd_core.async_compat import async_timeout
+from rd_core.async_compat import Runner, async_timeout
 from rd_core.settings import ClientNetworkSettings, CredentialSettings
 from rd_driving.infrastructure.video.webrtc_reciver import WebRTCReceiver
 from rd_vehicle.application.multi_camera_manager import MultiCameraManager
@@ -72,16 +73,28 @@ async def test_repeated_decoded_pts_is_not_new_picture_evidence():
         await receiver.close()
 
 
-@pytest.mark.asyncio
 @pytest.mark.parametrize("budgeted", [False, True])
-async def test_actual_authenticated_media_clients_reconnect_and_own_all_tasks(
-    runtime_factory, local_tls, monkeypatch, budgeted
+def test_actual_authenticated_media_clients_reconnect_and_own_all_tasks(
+    runtime_factory, local_tls, monkeypatch, budgeted, caplog
+):
+    factory = asyncio.SelectorEventLoop if sys.platform == "win32" else None
+    with Runner(loop_factory=factory) as runner:
+        runner.run(
+            _check_media_recovery(runtime_factory, local_tls, monkeypatch, budgeted, caplog)
+        )
+
+
+async def _check_media_recovery(
+    runtime_factory, local_tls, monkeypatch, budgeted, caplog
 ):
     import aioice.ice
 
     monkeypatch.setattr(
         aioice.ice, "get_host_addresses", lambda **kwargs: ["127.0.0.1"]
     )
+    monkeypatch.setattr(aioice.ice, "CONSENT_INTERVAL", 0.05)
+    monkeypatch.setattr(aioice.ice, "CONSENT_FAILURES", 2)
+    caplog.set_level("INFO", logger="aioice.ice")
     build, _ = runtime_factory
     runtime = build(("signaling",), signaling_options={"max_peers_per_room": 3})
     await runtime.start()
@@ -147,10 +160,24 @@ async def test_actual_authenticated_media_clients_reconnect_and_own_all_tasks(
         publisher_id, driver_id = publisher.my_id, driver.my_id
         viewer_peer = viewer.peers[publisher_id]
         source = publisher.track_manager.sources["front"]
-        before = {name: len(value) for name, value in frames.items()}
         failed = driver.peers[publisher_id]
-        await failed.pc.close()
+        # Expire only the publisher's old path to this driver. The viewer's
+        # path and both signaling sockets remain healthy until recovery.
+        failed_sender = publisher.peers[driver_id]
+        ice = failed_sender.pc.getTransceivers()[0].sender.transport.transport
+        connection = ice._connection
+        protocol = connection._nominated[1].protocol
+
+        async def lose_consent(*args, **kwargs):
+            raise aioice.ice.stun.TransactionTimeout()
+
+        monkeypatch.setattr(protocol, "request", lose_consent)
         await until(lambda: driver.my_id is not None and driver.my_id != driver_id)
+        await until(
+            lambda: publisher_id in driver.peers
+            and driver.peers[publisher_id].pc.connectionState == "connected"
+        )
+        before = {name: len(value) for name, value in frames.items()}
         await until(
             lambda: all(len(frames[name]) > count + 2 for name, count in before.items())
         )
@@ -160,6 +187,8 @@ async def test_actual_authenticated_media_clients_reconnect_and_own_all_tasks(
         assert publisher.track_manager.sources["front"] is source and not source.closed
         assert driver.peers[publisher_id] is not failed
         assert failed.pc.connectionState == "closed"
+        assert failed_sender.pc.connectionState == "closed"
+        assert f"{connection} Consent to send expired" in caplog.messages
         await driver.close()
         await until(lambda: len(service.manager.peers) == 2)
         viewer_count = len(frames["viewer"])
@@ -182,6 +211,38 @@ async def test_actual_authenticated_media_clients_reconnect_and_own_all_tasks(
         for task in asyncio.all_tasks()
         if task.get_name().startswith(("media-", "signaling-"))
     ]
+
+
+@pytest.mark.asyncio
+async def test_rapid_failures_after_signaling_join_back_off(monkeypatch):
+    from unittest.mock import AsyncMock
+
+    network = ClientNetworkSettings(reconnect_delay_s=0.15)
+    receiver = WebRTCReceiver("room", network, CredentialSettings())
+    loop = asyncio.get_running_loop()
+    attempts = []
+    retried = asyncio.Event()
+
+    async def connect():
+        attempts.append(loop.time())
+
+    async def listen():
+        if len(attempts) < 3:
+            raise ConnectionError
+        retried.set()
+        await asyncio.Future()
+
+    monkeypatch.setattr(receiver.signaling, "connect", connect)
+    monkeypatch.setattr(receiver.signaling, "join", AsyncMock(return_value={"id": "driver"}))
+    monkeypatch.setattr(receiver.signaling, "listen", listen)
+    task = asyncio.create_task(receiver.start())
+    try:
+        await asyncio.wait_for(retried.wait(), timeout=3)
+        assert attempts[1] - attempts[0] >= 0.14
+        assert attempts[2] - attempts[1] >= 0.28
+    finally:
+        await receiver.close()
+        await asyncio.gather(task, return_exceptions=True)
 
 
 @pytest.mark.asyncio
@@ -316,16 +377,28 @@ def test_qt_media_stop_is_nonblocking_and_not_connected_before_join(legacy_pytho
         from PyQt6.QtCore import QCoreApplication
         from rd_driving.infrastructure.workers.video_reciver_thread import WebRTCReceiverThread
         app = QCoreApplication([])
+        class Datagram(asyncio.DatagramProtocol):
+            def __init__(self):
+                self.closed = asyncio.Event()
+            def connection_lost(self, exc):
+                self.closed.set()
         class Receiver:
             started = False
             closed = False
             def set_status_callback(self, callback):
                 self.status = callback
             async def start(self):
+                loop = asyncio.get_running_loop()
+                self.udp, self.protocol = await loop.create_datagram_endpoint(
+                    Datagram, local_addr=("127.0.0.1", 0)
+                )
                 self.started = True
                 self.status("connecting", "connecting")
                 await asyncio.Future()
             async def close(self):
+                self.udp.sendto(b"pending", self.udp.get_extra_info("sockname"))
+                self.udp.close()
+                await asyncio.wait_for(self.protocol.closed.wait(), 0.8)
                 await asyncio.sleep(0.15)
                 self.closed = True
         receiver = Receiver()

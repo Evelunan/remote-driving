@@ -53,8 +53,13 @@ class MediaSession:
             raise
 
     async def _run(self):
+        loop = asyncio.get_running_loop()
+        initial_delay = self.network.reconnect_delay_s
+        max_delay = max(30.0, initial_delay)
+        retry_delay = initial_delay
         try:
             while not self._closed:
+                joined_at = None
                 try:
                     self._emit_status("connecting", "正在连接信令服务器")
                     await self.signaling.connect()
@@ -62,6 +67,7 @@ class MediaSession:
                         self.room, session=self.publication_session
                     )
                     self.my_id = joined["id"]
+                    joined_at = loop.time()
                     self._emit_status("joined", "信令认证与房间加入已确认")
                     await self._on_joined(joined)
                     await self.signaling.listen()
@@ -71,11 +77,15 @@ class MediaSession:
                     logger.warning("Media connection ended (%s)", type(exc).__name__)
                     self._emit_status("error", "媒体连接失败，等待重连")
                 finally:
+                    # A successful join alone may be followed by another ICE failure.
+                    if joined_at is not None and loop.time() - joined_at >= 30.0:
+                        retry_delay = initial_delay
                     self._disconnect_task = asyncio.create_task(
                         self._disconnect(), name="media-disconnect"
                     )
                     await asyncio.shield(self._disconnect_task)
-                await asyncio.sleep(self.network.reconnect_delay_s)
+                await asyncio.sleep(retry_delay)
+                retry_delay = min(max_delay, 2 * retry_delay)
         finally:
             self._closed = True
             try:
@@ -206,7 +216,7 @@ class MediaSession:
             if peer.pc.connectionState == "connected":
                 self._emit_status("connected", "WebRTC 握手完成，等待新画面")
             elif peer.pc.connectionState in {"failed", "closed"}:
-                self._emit_status("peer_left", "媒体连接失效，等待重新连接")
+                self._emit_status("peer_failed", "媒体连接失效，等待重新连接")
                 self._schedule_cleanup(peer_id, peer)
 
         return peer
@@ -223,7 +233,7 @@ class MediaSession:
                 and self._current(peer_id, peer)
             ):
                 logger.warning("%s failed (%s)", name, type(done.exception()).__name__)
-                self._emit_status("error", "媒体连接失败")
+                self._emit_status("peer_failed", "媒体连接失败")
                 self._schedule_cleanup(peer_id, peer)
 
         task.add_done_callback(observe)

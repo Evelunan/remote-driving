@@ -71,7 +71,7 @@ class MainWindow(QMainWindow):
         self._service_generation = 0
         self._media_generation = 0
         self._video_requested = False
-        self._media_restart_pending = False
+        self._media_stop_pending = False
         self._media_retry_delay_ms = 0
         self._media_retry_timer = QTimer(self)
         self._media_retry_timer.setSingleShot(True)
@@ -544,24 +544,20 @@ class MainWindow(QMainWindow):
 
         receiver.on_invalidate(invalidate)
 
-        self._receiver_thread = WebRTCReceiverThread(receiver)
+        worker = WebRTCReceiverThread(receiver)
 
         media_generation = self._media_generation
-        self._receiver_thread.connection_changed.connect(
-            lambda ok, g=media_generation: self._media_signal(
-                g, self._on_video_conn, ok
-            )
-        )
-        self._receiver_thread.error_occurred.connect(
+        worker.error_occurred.connect(
             lambda e: logger.error(f"视频错误: {e}")
         )
-        self._receiver_thread.status_changed.connect(
+        worker.status_changed.connect(
             lambda status, text, g=media_generation: self._media_signal(
                 g, self._on_video_status_changed, status, text
             )
         )
-        self._receiver_thread.finished.connect(self._on_media_worker_finished)
-        self._receiver_thread.start()
+        worker.finished.connect(self._on_media_worker_finished)
+        worker.start()
+        self._receiver_thread = worker
 
     def _on_media_worker_finished(self):
         if self.sender() is self._receiver_thread:
@@ -578,12 +574,9 @@ class MainWindow(QMainWindow):
             return
         if self._video_requested:
             self._video_requested = False
-            self._media_restart_pending = False
-            self._stop_media("video_disconnected", reconnecting=False)
-        elif self._receiver_thread is None:
-            self._video_requested = True
-            self._media_retry_delay_ms = 0
-            self._open_requested_video()
+            self._stop_media("video_disconnected")
+        else:
+            self._reconnect_media()
 
     def _open_requested_video(self):
         if (
@@ -591,44 +584,55 @@ class MainWindow(QMainWindow):
             or self._pending_action or self._receiver_thread is not None
         ):
             return
-        self._control_panel.set_video_requested(True, busy=True)
+        self._control_panel.set_video_requested(True)
+        self._multi_video_widget.show_message_all("等待画面")
         self._control_panel.set_connection_status("video", False, "等待画面")
         self._control_panel.set_connection_status("signal", False, "连接中")
+        self._control_panel.set_connection_status("webrtc", False, "等待信令")
         try:
             self._start_video()
         except Exception as exc:  # noqa: BLE001 - isolate video startup from the session
             logger.error("视频启动失败 (%s)", type(exc).__name__)
-            self._stop_media("video_start_failed", reconnecting=True)
+            self._reset_media("video_start_failed")
+            self._schedule_media_retry()
 
     def _reconnect_media(self):
-        if (
-            not self._services_running
-            or self._pending_action
-            or not self._video_requested
-            or self._media_restart_pending
-        ):
-            return False
-        self._media_restart_pending = True
-        self._stop_media("media_restarted", reconnecting=True)
-        return True
+        if not self._services_running or self._pending_action:
+            return
+        self._media_retry_delay_ms = 0
+        self._video_requested = True
+        if self._receiver_thread is None:
+            self._media_retry_timer.stop()
+            self._open_requested_video()
+        else:
+            self._stop_media("media_restarted")
 
-    def _stop_media(self, reason, *, reconnecting):
+    def _stop_media(self, reason):
         self._media_retry_timer.stop()
-        self._reset_media(reason, reconnecting=reconnecting)
-        if self._receiver_thread is not None:
+        if self._receiver_thread is not None and not self._media_stop_pending:
+            self._media_stop_pending = True
             self._receiver_thread.request_stop()
+        self._reset_media(reason)
         self._shutdown_poll.start()
         self._finish_shutdown()
 
-    def _reset_media(self, reason, *, reconnecting):
+    def _reset_media(self, reason):
         self._media_generation += 1
         self.fb.clear()
-        text = "等待画面" if reconnecting else "视频未连接"
+        requested = self._video_requested
+        if self._media_stop_pending:
+            text = "等待重新连接视频" if requested else "正在断开视频"
+            connection_text = "断开中"
+        else:
+            text = "等待自动重连" if requested else "视频未连接"
+            connection_text = "未连接"
         self._multi_video_widget.show_message_all(text, reason=reason)
         self._webrtc_connected = False
-        self._control_panel.set_video_requested(self._video_requested, busy=True)
+        self._control_panel.set_video_requested(
+            requested, reconnect_pending=self._media_stop_pending and requested
+        )
         for name in ("signal", "webrtc"):
-            self._control_panel.set_connection_status(name, False, "重连中" if reconnecting else "未连接")
+            self._control_panel.set_connection_status(name, False, connection_text)
         self._control_panel.set_connection_status("video", False, text)
 
     def _schedule_media_retry(self):
@@ -638,7 +642,6 @@ class MainWindow(QMainWindow):
         if not self._media_retry_delay_ms:
             initial_delay = min(30.0, max(0.1, self.settings.network.reconnect_delay_s))
             self._media_retry_delay_ms = round(1000 * initial_delay)
-        self._control_panel.set_connection_status("video", False, "等待自动重连")
         self._media_retry_timer.start(self._media_retry_delay_ms)
         self._media_retry_delay_ms = min(30_000, 2 * self._media_retry_delay_ms)
 
@@ -662,25 +665,15 @@ class MainWindow(QMainWindow):
         self._control_thread.finished.connect(self._finish_shutdown)
         self._control_thread.start()
 
-    def _on_video_conn(self, connected: bool):
-        if not self._services_running or self._control_panel is None:
-            return
-        text = "在线" if connected else "离线"
-        self._control_panel.set_connection_status("signal", connected, text)
-
     def _on_video_status_changed(self, status: str, message: str):
         if not self._services_running or self._multi_video_widget is None:
             return
-        # if status != "receiving":
-        #     self._multi_video_widget.show_message_all(message)
-
-        # 更新控制面板的连接状态
         if self._control_panel:
-            if status in {"joined", "error", "disconnected"}:
-                self._control_panel.set_media_reconnecting(False)
             if status == "connecting":
                 self._webrtc_connected = False
                 self._control_panel.set_connection_status("signal", False, "连接中")
+                self._control_panel.set_connection_status("webrtc", False, "等待信令")
+                self._control_panel.set_connection_status("video", False, "等待画面")
             elif status == "joined":
                 self._media_retry_delay_ms = 0
                 self._control_panel.set_connection_status("signal", True, "已认证")
@@ -688,6 +681,7 @@ class MainWindow(QMainWindow):
                 self._webrtc_connected = False
                 self._control_panel.set_connection_status("signal", True, "已连接")
                 self._control_panel.set_connection_status("webrtc", False, "等待车端")
+                self._control_panel.set_connection_status("video", False, "等待车端")
             elif status == "peer_joined":
                 self._webrtc_connected = False
                 self._control_panel.set_connection_status("signal", True, "已连接")
@@ -703,15 +697,19 @@ class MainWindow(QMainWindow):
                 # 只有 WebRTC 已连接时才更新视频状态
                 if self._webrtc_connected:
                     self._update_primary_video_status()
+            elif status == "peer_failed":
+                self._webrtc_connected = False
+                self._control_panel.set_connection_status("webrtc", False, "连接失效")
+                self._control_panel.set_connection_status("video", False, "等待自动重连")
             elif status == "peer_left":
                 self._webrtc_connected = False
                 self._control_panel.set_connection_status("webrtc", False, "车端离开")
-                self._control_panel.set_connection_status("video", False, "无信号")
+                self._control_panel.set_connection_status("video", False, "等待车端")
             elif status == "disconnected":
                 self._webrtc_connected = False
                 self._control_panel.set_connection_status("signal", False, "已断开")
                 self._control_panel.set_connection_status("webrtc", False, "已断开")
-                self._control_panel.set_connection_status("video", False, "无信号")
+                self._control_panel.set_connection_status("video", False, "等待自动重连")
             elif status == "error":
                 self._webrtc_connected = False
                 self._control_panel.set_connection_status("signal", False, "错误")
@@ -740,7 +738,7 @@ class MainWindow(QMainWindow):
         self._pending_action = action
         self._video_requested = False
         self._quic_online = False
-        self._media_restart_pending = False
+        self._media_stop_pending = False
         self._media_retry_timer.stop()
         self._media_generation += 1
         self._services_running = False
@@ -777,15 +775,15 @@ class MainWindow(QMainWindow):
                 return
             self._shutdown_poll.stop()
             worker, self._receiver_thread = self._receiver_thread, None
-            if self._media_restart_pending:
-                self._media_restart_pending = False
-                self._open_requested_video()
-            elif self._video_requested and self._services_running:
-                if worker is not None:
-                    self._reset_media("media_worker_exited", reconnecting=True)
+            stopping, self._media_stop_pending = self._media_stop_pending, False
+            if stopping:
+                if self._video_requested:
+                    self._open_requested_video()
+                else:
+                    self._reset_media("video_disconnected")
+            elif worker is not None and self._video_requested and self._services_running:
+                self._reset_media("media_worker_exited")
                 self._schedule_media_retry()
-            elif self._control_panel is not None:
-                self._control_panel.set_video_requested(False)
             return
         if any(
             worker is not None and worker.isRunning()

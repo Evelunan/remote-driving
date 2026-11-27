@@ -19,6 +19,7 @@ class VideoStatus:
     RECEIVING_OFFER = "receiving_offer"
     CONNECTED = "connected"
     RECEIVING = "receiving"
+    PEER_FAILED = "peer_failed"
     PEER_LEFT = "peer_left"
     DISCONNECTED = "disconnected"
     ERROR = "error"
@@ -171,7 +172,7 @@ class WebRTCReceiver(MediaSession):
                             track.id, captured_at, time.monotonic()
                         ):
                             self._emit_status(
-                                "connecting", "媒体中断后主画面持续滞后，正在重连"
+                                "peer_failed", "媒体中断后主画面持续滞后，正在重连"
                             )
                             self._schedule_cleanup(peer_id, peer)
                             return

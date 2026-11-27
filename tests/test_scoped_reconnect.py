@@ -81,9 +81,11 @@ async def test_quic_restart_waits_for_cleanup_and_keeps_usb(close_during_cleanup
     assert not service.request_control_reconnect()
 
 
-@pytest.mark.parametrize("close_during_restart", [False, True])
+@pytest.mark.parametrize(
+    ("first_action", "close_during_restart"), [("signal", False), ("webrtc", True)]
+)
 def test_media_row_actions_keep_control_worker_and_ignore_old_signals(
-    legacy_python, close_during_restart
+    legacy_python, first_action, close_during_restart
 ):
     legacy_python(
         "driving",
@@ -123,7 +125,8 @@ def test_media_row_actions_keep_control_worker_and_ignore_old_signals(
         assert window._receiver_thread is None
         assert set(panel._action_buttons) == {{'signal', 'webrtc', 'usb', 'quic', 'video', 'control'}}
         assert panel._action_buttons['video'].text() == '连接视频'
-        assert not panel._action_buttons['signal'].isEnabled()
+        assert panel._action_buttons['signal'].isEnabled()
+        assert panel._action_buttons['webrtc'].isEnabled()
         def until(predicate):
             deadline = time.monotonic() + 3
             while not predicate():
@@ -134,15 +137,22 @@ def test_media_row_actions_keep_control_worker_and_ignore_old_signals(
             panel.set_connection_status('quic', True, '等待控制设备')
             panel._action_buttons['quic'].click()
             assert old_control.control_requests == 1
-            panel._action_buttons['video'].click()
+            assert not window._video_requested and window._receiver_thread is None
+            panel._action_buttons[{first_action!r}].click()
             old_video = window._receiver_thread
+            assert window._video_requested and panel._action_buttons['video'].text() == '断开视频'
+            assert window._control_state == 'idle' and old_control.control_requests == 1
             old_video.status_changed.emit('joined', '')
+            old_video.status_changed.emit('disconnected', '')
+            old_video.status_changed.emit('connecting', '')
             app.processEvents()
             assert panel._action_buttons['video'].text() == '断开视频'
             assert not old_video.stop.is_set() and not old_control.stop.is_set()
+            assert panel._action_buttons['signal'].isEnabled()
+            assert panel._action_buttons['webrtc'].isEnabled()
             panel._action_buttons['signal'].click()
             panel._action_buttons['webrtc'].click()
-            assert window._media_restart_pending
+            assert window._media_stop_pending and window._video_requested
             assert not panel._action_buttons['signal'].isEnabled()
             assert not panel._action_buttons['webrtc'].isEnabled()
             assert old_video.stop.is_set() and not old_control.stop.is_set()
@@ -164,6 +174,29 @@ def test_media_row_actions_keep_control_worker_and_ignore_old_signals(
                 app.processEvents()
                 assert panel._action_buttons['signal'].isEnabled()
                 assert panel._action_buttons['webrtc'].isEnabled()
+                video = panel._action_buttons['video']
+                current = window._receiver_thread
+                video.click()
+                assert not window._video_requested and current.stop.is_set()
+                assert video.text() == '连接视频' and video.isEnabled()
+                assert panel._action_buttons['signal'].isEnabled()
+                assert panel._action_buttons['webrtc'].isEnabled()
+                video.click()
+                assert window._video_requested and window._receiver_thread is current
+                assert video.text() == '断开视频' and video.isEnabled()
+                assert not panel._action_buttons['webrtc'].isEnabled()
+                video.click()
+                until(lambda: window._receiver_thread is None)
+                assert len(workers) == 3 and not window._media_retry_timer.isActive()
+                assert video.text() == '连接视频' and video.isEnabled()
+                video.click()
+                current = window._receiver_thread
+                video.click()
+                panel._action_buttons['webrtc'].click()
+                assert window._video_requested and window._receiver_thread is current
+                until(lambda: window._receiver_thread is not current)
+                assert window._receiver_thread is not None and not current.isRunning()
+                assert len(workers) == 5 and not old_control.stop.is_set()
         finally:
             window.close()
             until(lambda: window._closing_ready)
@@ -222,10 +255,16 @@ def test_requested_video_recovers_worker_failures_and_cancels_pending_retries(le
         try:
             window._toggle_video()
             assert window._video_requested and window._media_retry_timer.interval() == 150
+            assert window._control_panel._action_buttons["signal"].isEnabled()
             until(lambda: len(attempts) == 2)
             assert window._media_retry_timer.interval() == 300
-            until(lambda: window._receiver_thread is not None)
+            window._control_panel._action_buttons["webrtc"].click()
+            assert window._receiver_thread is not None and not window._media_retry_timer.isActive()
             old = window._receiver_thread
+            old.status_changed.emit("connecting", "")
+            app.processEvents()
+            assert window._control_panel._action_buttons["signal"].isEnabled()
+            assert window._control_panel._action_buttons["webrtc"].isEnabled()
             old.status_changed.emit("joined", "")
             old.status_changed.emit("disconnected", "")
             old.status_changed.emit("error", "")
