@@ -10,6 +10,8 @@ from urllib.parse import urlsplit
 
 Role = Literal["driving", "vehicle", "viewer"]
 Environment = Literal["development", "production"]
+_MAX_FEEDBACK_RATE_HZ = 50
+_MAX_FEEDBACK_AGE_MS = 10_000
 
 
 def _positive(**values):
@@ -421,7 +423,7 @@ class VehicleFeedbackSettings:
 
     def __post_init__(self):
         _positive(send_hz=self.send_hz, stale_timeout_ms=self.stale_timeout_ms)
-        if self.send_hz > 50 or self.stale_timeout_ms > 10000:
+        if self.send_hz > _MAX_FEEDBACK_RATE_HZ or self.stale_timeout_ms > _MAX_FEEDBACK_AGE_MS:
             raise ValueError("feedback rate/timeout exceeds supported limit")
         if not self.topic.startswith("/") or not self.topic.strip("/"):
             raise ValueError("feedback topic must be an absolute ROS topic")
@@ -513,6 +515,19 @@ class UISettings:
 
 
 @dataclass(frozen=True)
+class DrivingFeedbackSettings:
+    request_hz: float = 10.0
+    max_age_ms: int = 300
+
+    def __post_init__(self):
+        if type(self.request_hz) not in (int, float) or type(self.max_age_ms) is not int:
+            raise ValueError("feedback request_hz must be numeric and max_age_ms must be an integer")
+        _positive(request_hz=self.request_hz, max_age_ms=self.max_age_ms)
+        if self.request_hz > _MAX_FEEDBACK_RATE_HZ or self.max_age_ms > _MAX_FEEDBACK_AGE_MS:
+            raise ValueError("feedback rate/timeout exceeds supported limit")
+
+
+@dataclass(frozen=True)
 class DrivingSettings:
     environment: Environment = "development"
     session: int = 1234
@@ -525,6 +540,7 @@ class DrivingSettings:
     ui: UISettings = field(default_factory=UISettings)
     video: VideoSafetySettings = field(default_factory=VideoSafetySettings)
     low_latency_vp8: bool = False
+    feedback: DrivingFeedbackSettings = field(default_factory=DrivingFeedbackSettings)
 
     def validate(self):
         validate_client(self)

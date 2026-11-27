@@ -10,6 +10,7 @@ VERSION = 2
 ALPN = "rd-control/2"
 CONTROL_REVISION = "direct-control/4"
 _HEADER = struct.Struct("!2sBBH16sIQ")
+_VEHICLE_STATUS_FIELDS = "BffffBBBB"
 
 
 def parse_control_route(params: dict) -> tuple[int, UUID | None, str | None]:
@@ -37,6 +38,8 @@ class Kind(IntEnum):
     STOP_STATUS = 4
     WINDOW = 5
     VEHICLE_STATUS = 6
+    VEHICLE_STATUS_REQUEST = 7
+    VEHICLE_STATUS_REPLY = 8
 
 
 class ExecutionStatus(IntEnum):
@@ -140,6 +143,46 @@ class VehicleStatus:
         mask = sum(1 << index for index, value in enumerate(values) if value is not None)
         return (mask, *(0 if value is None else value for value in values))
 
+    @classmethod
+    def from_wire_fields(cls, fields):
+        mask, *values = fields
+        _finite(*values[:4])
+        for index, value in enumerate(values):
+            if not mask & (1 << index):
+                if value != 0:
+                    raise ValueError("nonzero unavailable chassis field")
+                values[index] = None
+            elif index in (5, 7):
+                if value not in (0, 1):
+                    raise ValueError("invalid chassis boolean")
+                values[index] = bool(value)
+        return cls(*values)
+
+
+@dataclass(frozen=True)
+class VehicleStatusRequest:
+    request_id: bytes
+
+    def validate(self):
+        if type(self.request_id) is not bytes or len(self.request_id) != 16 or not any(self.request_id):
+            raise ValueError("invalid vehicle status request ID")
+
+
+@dataclass(frozen=True)
+class VehicleStatusReply:
+    request_id: bytes
+    sample_age_ms: int
+    status: VehicleStatus
+
+    def validate(self):
+        VehicleStatusRequest(self.request_id).validate()
+        _uint(self.sample_age_ms, 16, "vehicle status sample age")
+        if self.sample_age_ms > 10_000:
+            raise ValueError("vehicle status sample age exceeds supported limit")
+        if type(self.status) is not VehicleStatus:
+            raise ValueError("invalid vehicle status reply payload")
+        self.status.validate()
+
 
 @dataclass(frozen=True)
 class StopStatus:
@@ -159,19 +202,30 @@ _LAYOUTS = {
     Kind.WINDOW: (Window, struct.Struct("!16s")),
     Kind.TELEMETRY: (Telemetry, struct.Struct("!ff")),
     Kind.STOP_STATUS: (StopStatus, struct.Struct("!BB")),
-    Kind.VEHICLE_STATUS: (VehicleStatus, struct.Struct("!BffffBBBB")),
+    Kind.VEHICLE_STATUS: (VehicleStatus, struct.Struct(f"!{_VEHICLE_STATUS_FIELDS}")),
+    Kind.VEHICLE_STATUS_REQUEST: (VehicleStatusRequest, struct.Struct("!16s")),
+    Kind.VEHICLE_STATUS_REPLY: (VehicleStatusReply, struct.Struct(f"!16sH{_VEHICLE_STATUS_FIELDS}")),
 }
 
 
 @dataclass(frozen=True)
 class Packet:
-    """The epoch identifies the status stream for VehicleStatus and the paired route otherwise."""
+    """The epoch identifies the vehicle status stream or the paired control route."""
 
     session: int
     epoch: UUID
     seq: int
     source_time_ms: int
-    payload: Control | Execution | Telemetry | StopStatus | Window | VehicleStatus
+    payload: (
+        Control
+        | Execution
+        | Telemetry
+        | StopStatus
+        | Window
+        | VehicleStatus
+        | VehicleStatusRequest
+        | VehicleStatusReply
+    )
 
     @property
     def kind(self):
@@ -188,9 +242,16 @@ class Packet:
             raise ValueError("packet epoch must be a nonzero UUID")
         kind = self.kind
         self.payload.validate()
-        fields = tuple(vars(self.payload).values())
         if kind == Kind.VEHICLE_STATUS:
             fields = self.payload.wire_fields()
+        elif kind == Kind.VEHICLE_STATUS_REPLY:
+            fields = (
+                self.payload.request_id,
+                self.payload.sample_age_ms,
+                *self.payload.status.wire_fields(),
+            )
+        else:
+            fields = tuple(vars(self.payload).values())
         try:
             return _HEADER.pack(
                 b"RD",
@@ -221,26 +282,21 @@ class Packet:
         if len(data) != _HEADER.size + layout.size:
             raise ValueError("invalid datagram length")
         fields = layout.unpack_from(data, _HEADER.size)
-        if kind == Kind.EXECUTION:
-            fields = (ExecutionStatus(fields[0]), fields[1])
-        elif kind == Kind.STOP_STATUS:
-            if any(value not in (0, 1) for value in fields):
-                raise ValueError("invalid stop flags")
-            fields = tuple(bool(value) for value in fields)
-        elif kind == Kind.VEHICLE_STATUS:
-            mask, *values = fields
-            _finite(*values[:4])
-            for index, value in enumerate(values):
-                if not mask & (1 << index):
-                    if value != 0:
-                        raise ValueError("nonzero unavailable chassis field")
-                    values[index] = None
-                elif index in (5, 7):
-                    if value not in (0, 1):
-                        raise ValueError("invalid chassis boolean")
-                    values[index] = bool(value)
-            fields = values
-        payload = model(*fields)
+        if kind == Kind.VEHICLE_STATUS:
+            payload = VehicleStatus.from_wire_fields(fields)
+        elif kind == Kind.VEHICLE_STATUS_REPLY:
+            request_id, sample_age_ms, *status_fields = fields
+            payload = VehicleStatusReply(
+                request_id, sample_age_ms, VehicleStatus.from_wire_fields(status_fields)
+            )
+        else:
+            if kind == Kind.EXECUTION:
+                fields = (ExecutionStatus(fields[0]), fields[1])
+            elif kind == Kind.STOP_STATUS:
+                if any(value not in (0, 1) for value in fields):
+                    raise ValueError("invalid stop flags")
+                fields = tuple(bool(value) for value in fields)
+            payload = model(*fields)
         payload.validate()
         identifier = UUID(bytes=epoch)
         if identifier.int == 0:
