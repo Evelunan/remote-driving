@@ -1,6 +1,7 @@
 import asyncio
 
 import pytest
+from rd_core.async_compat import async_timeout
 from rd_server.runtime import ServerRuntime
 
 
@@ -11,6 +12,7 @@ class Service:
 
     async def start(self):
         self.events.append("start:" + self.name)
+        self.closed.clear()
         if self.fail:
             raise OSError("simulated bind failure")
 
@@ -54,14 +56,40 @@ async def test_partial_start_rolls_back_even_the_failing_module():
 
 
 @pytest.mark.asyncio
-async def test_lost_required_listener_stops_other_module():
+@pytest.mark.parametrize("failed", ["signaling", "relay"])
+@pytest.mark.parametrize("during_start", [True, False])
+async def test_only_failed_listener_restarts(failed, during_start):
     events = []
-    signaling, relay = Service("signaling", events), Service("relay", events)
-    runtime = ServerRuntime({"signaling": signaling, "relay": relay})
-    task = asyncio.create_task(runtime.run(asyncio.Event()))
-    await asyncio.sleep(0)
-    assert runtime.ready
-    signaling.closed.set()
-    with pytest.raises(RuntimeError, match="unexpectedly"):
+    services = {name: Service(name, events) for name in ("signaling", "relay")}
+    healthy = "relay" if failed == "signaling" else "signaling"
+    services[failed].fail = during_start
+    runtime = ServerRuntime(services)
+    stop = asyncio.Event()
+    task = asyncio.create_task(runtime.run(stop))
+    try:
+        async with async_timeout(3):
+            if not during_start:
+                while not runtime.ready:
+                    await asyncio.sleep(0.01)
+                services[failed].closed.set()
+            while "stop:" + failed not in events:
+                await asyncio.sleep(0.01)
+            assert not runtime.ready
+            services[failed].fail = False
+            while not runtime.ready:
+                await asyncio.sleep(0.01)
+        assert events.count("start:" + failed) == 2
+        assert events.count("start:" + healthy) == 1 and "stop:" + healthy not in events
+    finally:
+        stop.set()
         await asyncio.wait_for(task, 1)
-    assert not runtime.ready and relay.closed.is_set()
+    assert not runtime.ready and all(service.closed.is_set() for service in services.values())
+
+
+@pytest.mark.asyncio
+async def test_single_listener_bind_failure_is_reported_to_caller():
+    service = Service("relay", [], fail=True)
+    runtime = ServerRuntime({"relay": service})
+    with pytest.raises(OSError, match="bind failure"):
+        await runtime.run(asyncio.Event())
+    assert service.closed.is_set() and not runtime.ready

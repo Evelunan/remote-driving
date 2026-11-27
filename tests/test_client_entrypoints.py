@@ -3,7 +3,6 @@ import json
 import os
 import subprocess
 import sys
-import time
 
 import pytest
 import yaml
@@ -19,7 +18,6 @@ from rd_core.settings import (
     USBSettings,
     VehicleSettings,
 )
-from rd_core.video_safety import VideoGate
 from rd_driving.app.input_service import DrivingInputService
 from rd_driving.cli import parse_args as driving_args
 from rd_driving.infrastructure.video.webrtc_reciver import WebRTCReceiver
@@ -100,6 +98,50 @@ def test_client_cli_precedence_separate_instances_and_no_implicit_room_override(
     assert vehicle_args(
         ["--components", "control", "--set", "controller=mock"]
     ).loaded.value.components == ("control",)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("failed", ["control", "media"])
+async def test_combined_vehicle_host_restarts_only_the_failed_component(monkeypatch, failed):
+    from rd_vehicle import main
+
+    starts = {"media": 0, "control": 0}
+    exited = []
+    peer_started = asyncio.Event()
+    recovered = asyncio.Event()
+    stop = asyncio.Event()
+
+    async def component(settings, **kwargs):
+        name, = settings.components
+        starts[name] += 1
+        try:
+            if name != failed:
+                peer_started.set()
+            elif starts[name] == 1:
+                await peer_started.wait()
+                raise OSError("component unavailable")
+            else:
+                recovered.set()
+            await asyncio.Future()
+        finally:
+            exited.append(name)
+
+    monkeypatch.setattr(main, "start_control", component)
+    monkeypatch.setattr(main, "start_streaming", component)
+    monkeypatch.setattr(main, "check_config", lambda settings: None)
+    settings = VehicleSettings(
+        controller="mock", network=ClientNetworkSettings(reconnect_delay_s=0.05)
+    )
+    host = asyncio.create_task(run_vehicle(settings, stop))
+    try:
+        await asyncio.wait_for(recovered.wait(), 2)
+        assert starts[failed] == 2 and sum(starts.values()) == 3
+        assert exited == [failed]
+    finally:
+        stop.set()
+        await asyncio.wait_for(host, 2)
+    assert exited.count("media") == starts["media"]
+    assert exited.count("control") == starts["control"]
 
 
 @pytest.mark.asyncio
@@ -223,20 +265,12 @@ async def test_formal_vehicle_runtime_and_driving_input_execute_configured_value
         assert (vendor, product) == (123, 456)
         return device
 
-    gate = VideoGate()
-    inputs = DrivingInputService(
-        driving, device_factory=device_factory, video_gate=gate
-    )
+    inputs = DrivingInputService(driving, device_factory=device_factory)
     receiver = WebRTCReceiver("video", network, driving.credentials)
     frames = {}
-    sequence = 0
 
     def frame_received(name, image, source, captured_at):
-        nonlocal sequence
         frames[name] = image.shape
-        sequence += 1
-        if name == "front":
-            gate.observe(sequence, time.monotonic(), source, captured_at=captured_at)
 
     receiver.on_frame(frame_received, include_capture_time=True)
     stop = asyncio.Event()

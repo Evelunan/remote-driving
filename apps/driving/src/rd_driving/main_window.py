@@ -42,7 +42,7 @@ logger = get_logger(__name__)
 
 CONTROL_IN_PROGRESS = {
     "starting", "waiting_device", "waiting_input", "waiting_neutral",
-    "waiting_video", "waiting_execution", "active",
+    "waiting_execution", "active",
 }
 
 
@@ -52,7 +52,7 @@ class MainWindow(QMainWindow):
     _close_started = pyqtSignal()
 
     def __init__(
-        self, session_id: int | None = None, room: str | None = None, *, settings=None
+        self, session_id: int | str | None = None, room: str | None = None, *, settings=None
     ):
         super().__init__()
         self.settings = settings or load_config(DrivingSettings, "driving").value
@@ -61,7 +61,7 @@ class MainWindow(QMainWindow):
             recovery_ms=self.settings.video.recovery_ms,
             max_capture_age_ms=self.settings.video.max_capture_age_ms,
         )
-        self._session_id = session_id
+        self._session_id = int(session_id) if session_id is not None else None
         self._room = room
         self._theme = UIFactory.set_theme(self.settings.ui.theme)
 
@@ -73,6 +73,7 @@ class MainWindow(QMainWindow):
         self._video_requested = False
         self._media_restart_pending = False
         self._quic_online = False
+        self._controlled_vehicle = None
         self._control_state = "idle"
         self._control_action_pending = False
         self._pending_action = None
@@ -131,6 +132,7 @@ class MainWindow(QMainWindow):
             (self._bridge.local_input_changed, self._on_local_input_changed),
             (self._bridge.quic_status_changed, self._on_quic_status_changed),
             (self._bridge.control_status_changed, self._on_control_status_changed),
+            (self._bridge.control_target_changed, self._on_control_target_changed),
             (self._bridge.control_data_updated, self._on_control_data_updated),
             (
                 self._bridge.control_confirmation_expired,
@@ -150,13 +152,7 @@ class MainWindow(QMainWindow):
 
     def _on_control_data_updated(self, data):
         if self._services_running and self._control_panel:
-            picture = self.video_gate.snapshot()
-            if (
-                not self._quic_online
-                or self._control_state != "active"
-                or not picture.ready
-                or data["picture_revision"] != picture.revision
-            ):
+            if not self._quic_online or self._control_state != "active":
                 return
             if data["deadline"] <= time.monotonic():
                 self._on_control_confirmation_expired()
@@ -234,11 +230,17 @@ class MainWindow(QMainWindow):
             self._refresh_control_action()
             if not ok:
                 self._clear_feedback()
+                self._on_control_target_changed(None)
+
+    def _on_control_target_changed(self, principal: str | None):
+        self._controlled_vehicle = principal if self._quic_online else None
+        if self._navbar is not None:
+            self._navbar.set_control_target(self._controlled_vehicle)
 
     def _on_control_status_changed(self, state: str, text: str):
         if not self._services_running:
             return
-        if state == "active" and (not self._quic_online or not self.video_gate.snapshot().ready):
+        if state == "active" and not self._quic_online:
             return
         self._control_state = state
         self._control_action_pending = False
@@ -249,10 +251,11 @@ class MainWindow(QMainWindow):
             tone = "waiting"
             if state == "active":
                 tone = "active"
-            elif state in {"paused", "video_unavailable", "revoked", "lease_busy",
-                           "video_vehicle_mismatch", "disconnected"}:
+            elif state in {"paused", "revoked", "lease_busy", "disconnected"}:
                 tone = "blocked"
             self._navbar.set_control_status(text, tone=tone)
+            if state not in {"active", "waiting_execution"}:
+                self._on_control_target_changed(None)
         if state != "active":
             self._clear_lease_feedback()
 
@@ -267,8 +270,6 @@ class MainWindow(QMainWindow):
             text = "开始控制"
         else:
             text = "恢复控制"
-            picture = self.video_gate.snapshot()
-            enabled = enabled and picture.ready and picture.source.session == int(self._session_id)
         self._control_panel.set_control_action(text, enabled=enabled)
 
     def _toggle_control(self):
@@ -466,14 +467,26 @@ class MainWindow(QMainWindow):
             self._control_panel.set_camera_grid(key, fps, w, h, latency_ms)
 
         if self._webrtc_connected:
-            front = self.fb.get(self.settings.video.primary_view)
-            fresh = front is not None and front.fresh(
-                self.settings.video.stale_frame_ms / 1000
+            self._update_primary_video_status()
+
+    def _update_primary_video_status(self):
+        picture = self.video_gate.snapshot()
+        if picture.ready and (
+            picture.source.session != self._session_id or (
+                self._controlled_vehicle is not None
+                and picture.source.principal != self._controlled_vehicle
             )
-            self._control_panel.set_connection_status(
-                "video", fresh, "传输中" if fresh else "主画面已过期"
-            )
-        self._refresh_control_action()
+        ):
+            self._control_panel.set_connection_status("video", False, "画面与控制目标不符")
+            return
+        text = {
+            "ready": "传输中",
+            "recovering_picture": "主画面恢复中",
+            "picture_hidden": "主画面已隐藏",
+            "picture_expired": "主画面已过期",
+            "capture_unknown_or_expired": "主画面延迟未知或过高",
+        }.get(picture.reason, "主画面不可用")
+        self._control_panel.set_connection_status("video", picture.ready, text)
 
     def _connect_usb(self):
         if self._services_running and self._control_thread is not None:
@@ -590,9 +603,6 @@ class MainWindow(QMainWindow):
         self.fb.clear()
         text = "等待画面" if reconnecting else "视频未连接"
         self._multi_video_widget.show_message_all(text, reason=reason)
-        if self._control_thread is not None:
-            self._control_thread.pause_control_for_video()
-        self._clear_lease_feedback()
         self._webrtc_connected = False
         self._control_panel.set_video_requested(self._video_requested, busy=True)
         for name in ("signal", "webrtc"):
@@ -618,8 +628,7 @@ class MainWindow(QMainWindow):
     def _start_session_worker(self):
         self._control_thread = ControlSystemThread(
             self._bridge,
-            replace(self.settings, session=int(self._session_id), room=self._room),
-            video_gate=self.video_gate,
+            replace(self.settings, session=self._session_id, room=self._room),
         )
         self._control_thread.finished.connect(self._finish_shutdown)
         self._control_thread.start()
@@ -663,7 +672,7 @@ class MainWindow(QMainWindow):
             elif status == "receiving":
                 # 只有 WebRTC 已连接时才更新视频状态
                 if self._webrtc_connected:
-                    self._control_panel.set_connection_status("video", True, "传输中")
+                    self._update_primary_video_status()
             elif status == "peer_left":
                 self._webrtc_connected = False
                 self._control_panel.set_connection_status("webrtc", False, "车端离开")
@@ -677,7 +686,7 @@ class MainWindow(QMainWindow):
                 self._webrtc_connected = False
                 self._control_panel.set_connection_status("signal", False, "错误")
 
-    def get_session_id(self) -> str:
+    def get_session_id(self) -> int | None:
         """获取会话ID"""
         return self._session_id
 

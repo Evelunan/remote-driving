@@ -40,10 +40,10 @@ class VideoPermit:
 
 
 class VideoGate:
-    """Qt paints publish observations; the control thread checks without Qt.
+    """Track the freshness and source of primary-view paints across threads.
 
     Duplicate paints cannot renew freshness. Every outage increments a revision,
-    even if recovery finishes between two control polls. Local timestamps only:
+    even if recovery finishes between two observations. Local timestamps only:
     received_at is not a remote capture time or an end-to-end latency estimate.
     """
 

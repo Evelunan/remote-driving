@@ -304,19 +304,82 @@ async def test_registered_quic_stays_connected_without_status_or_control(
 
 
 @pytest.mark.asyncio
-async def test_maintenance_failure_stops_joint_server(runtime_factory, monkeypatch):
-    build, _ = runtime_factory
+async def test_relay_maintenance_failure_preserves_signaling_peer(runtime_factory, local_tls, monkeypatch):
+    build, tokens = runtime_factory
     runtime = build(("signaling", "relay"))
+    relay, signaling = runtime.services["relay"], runtime.services["signaling"]
+    stop = asyncio.Event()
+    host = asyncio.create_task(runtime.run(stop))
+    try:
+        async with async_timeout(6):
+            while not runtime.ready:
+                await asyncio.sleep(0.01)
+            first = relay.listener
+            port = signaling._server.sockets[0].getsockname()[1]
+            async with ws_connect(
+                f"wss://127.0.0.1:{port}",
+                ssl=ssl.create_default_context(cafile=str(local_tls[0])),
+                additional_headers={"Authorization": "Bearer " + tokens["viewer"]},
+            ) as ws:
+                await ws.send('{"type":"join","room":"video"}')
+                joined = json.loads(await ws.recv())
+                assert joined["type"] == "joined"
+                sweep = relay.registry.sweep
 
-    def fail():
-        raise RuntimeError("simulated registry failure")
+                def fail_once():
+                    monkeypatch.setattr(relay.registry, "sweep", sweep)
+                    raise RuntimeError("simulated registry failure")
 
-    monkeypatch.setattr(runtime.services["relay"].registry, "sweep", fail)
-    with pytest.raises(RuntimeError, match="simulated registry failure"):
-        await asyncio.wait_for(runtime.run(asyncio.Event()), 2)
-    assert not runtime.ready
-    assert not runtime.services["signaling"]._server.sockets
-    assert runtime.services["relay"].listener is None
+                monkeypatch.setattr(relay.registry, "sweep", fail_once)
+                while relay.listener in (None, first) or not runtime.ready:
+                    await asyncio.sleep(0.01)
+                await (await ws.ping())
+                assert joined["id"] in signaling.manager.peers
+                assert not relay.registry.leases and not relay.registry.bindings
+    finally:
+        stop.set()
+        await asyncio.wait_for(host, 3)
+
+
+@pytest.mark.asyncio
+async def test_signaling_restart_preserves_authenticated_control_lease(runtime_factory, local_tls):
+    build, _ = runtime_factory
+    runtime = build(("signaling", "relay"), lease_ttl_s=5.0)
+    relay, signaling = runtime.services["relay"], runtime.services["signaling"]
+    stop = asyncio.Event()
+    host = asyncio.create_task(runtime.run(stop))
+
+    async def prepare(method, params):
+        assert method == "prepare_lease"
+        return {"ready": True, "epoch": params["epoch"]}
+
+    try:
+        async with async_timeout(8), AsyncExitStack() as clients:
+            while not runtime.ready:
+                await asyncio.sleep(0.01)
+            network = ClientNetworkSettings(
+                quic_host="127.0.0.1",
+                quic_port=relay.listener._transport.get_extra_info("sockname")[1],
+                quic_server_name="localhost", quic_ca_file=local_tls[0],
+            )
+            for role, token in (("vehicle", "TEST_VEHICLE"), ("driving", "TEST_DRIVER")):
+                client = await clients.enter_async_context(registered_connection(
+                    network, CredentialSettings(token), ControlSettings(),
+                    session=42, role=role, revision=CONTROL_REVISION,
+                    request_handler=prepare if role == "vehicle" else None,
+                ))
+                if role == "driving":
+                    driver = client.protocol
+            grant = await driver.request("acquire", {})
+            first = signaling._server
+            first.close()
+            while signaling._server is first or not runtime.ready:
+                await asyncio.sleep(0.01)
+            assert driver.rpc_ready and str(relay.registry.leases[42].epoch) == grant["epoch"]
+            assert await driver.request("release", {"epoch": grant["epoch"]}) == {"revoked": True}
+    finally:
+        stop.set()
+        await asyncio.wait_for(host, 3)
 
 
 @pytest.mark.asyncio

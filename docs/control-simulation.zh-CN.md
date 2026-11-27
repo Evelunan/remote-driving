@@ -40,4 +40,4 @@ uv run --no-sync python scripts/simulate_control.py --output /tmp/control-simula
 
 测试还覆盖仅重启驾驶端、旧连接回调、执行 ACK 丢失、阻塞设备、证书主机名不匹配、墙钟偏差、迟到指令及强制关闭期限。真实 ROS2、底盘 watchdog/制动和传感器反馈仍需部署方接入验收。
 
-B16 后控制客户端默认要求主画面证据。本脚本显式生成带匹配模拟车辆身份/session 的合成新鲜度事件，以单独验证控制链路；这些事件没有经过摄像头、WebRTC 或 Qt，不能作为视频联动验收。实际回环视频与 Qt 呈现测试见 [主视角策略](video-safety.zh-CN.md)。
+模拟器直接启动独立的控制会话，无需视频或合成画面事件。实际回环视频及 Qt 呈现测试见[视频状态与控制授权](video-safety.zh-CN.md)。

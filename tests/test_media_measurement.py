@@ -149,10 +149,8 @@ def test_four_view_measurement_traces_real_pipeline_and_cleans_up(
             item["implementation"] == "BudgetedVp8Encoder" and item["thread_count"] == 1
             for item in report["encoder_instances"]
         )
-    assert (
-        report["reconnect_new_control_epoch_ms"]
-        >= report["reconnect_all_views_painted_ms"]
-    )
+    assert report["control_retained_during_media_reconnect"]
+    assert report["reconnect_all_views_painted_ms"] > 0
     for phase in ("steady", "recovered"):
         data = report[phase]
         assert data["samples"]["control_sample_to_mock_submit_ms"]["count"] > 0

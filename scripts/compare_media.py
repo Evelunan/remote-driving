@@ -69,6 +69,21 @@ def cpu_per_frame(phase):
     return phase["process_cpu_percent_one_core"] * 10 / fps if fps else None
 
 
+def compare_control_recovery(before, after):
+    epoch_time = "reconnect_new_control_epoch_ms"
+    retained = "control_retained_during_media_reconnect"
+    runs = before + after
+    if all(run.get(retained) is True and epoch_time not in run for run in runs):
+        return {retained: True}
+    if any(retained in run or epoch_time not in run for run in runs):
+        raise ValueError("incomplete or inconsistent control recovery measurements")
+    return {
+        epoch_time: difference(
+            [r[epoch_time] for r in before], [r[epoch_time] for r in after]
+        )
+    }
+
+
 def load_runs(paths):
     records, hashes = [], set()
     for path in paths:
@@ -243,13 +258,9 @@ def compare(before_paths, after_paths, *, vary_encoding=False):
                     ),
                 }
             case[phase] = result
-        for metric in (
-            "reconnect_all_views_painted_ms",
-            "reconnect_new_control_epoch_ms",
-        ):
-            case[metric] = difference(
-                [r[metric] for r in left], [r[metric] for r in right]
-            )
+        metric = "reconnect_all_views_painted_ms"
+        case[metric] = difference([r[metric] for r in left], [r[metric] for r in right])
+        case.update(compare_control_recovery(left, right))
         cases[str(count)] = case
     changed = sorted(
         path

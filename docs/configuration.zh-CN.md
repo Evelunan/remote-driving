@@ -143,7 +143,7 @@ direnv exec . uv run --no-sync rd-vehicle --config configs/vehicle.single-camera
 
 串口默认读写超时均为 0.02 s，13 字节模板显式可配，速度编码上限由 uint16 表示范围限制；这部分只保留兼容适配，用户当前选择 ROS2。运动限值和超时均需实车验收，停车接口尚未接入物理确认。
 
-主视角和控制授权使用统一 `video.primary_view` / `stale_frame_ms` / `recovery_ms`；不再接受 `ui.stale_frame_ms`。媒体发布身份/session 必须匹配控制租约的车辆，恢复须持续新帧与新的中立输入，详见 [画面与控制](video-safety.zh-CN.md)。三个应用须协同升级信令来源与 acquire 字段，缺少新字段时不会降级授权。
+主视角和画面健康提示使用 `video.primary_view`、`stale_frame_ms` 和 `recovery_ms`。控制会话通过 QUIC 独立认证并取得租约，视频配置只作用于媒体链路。详见[视频状态与控制授权](video-safety.zh-CN.md)。
 
 ## 可选视频链路优化
 

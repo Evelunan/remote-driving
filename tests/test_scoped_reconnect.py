@@ -105,8 +105,6 @@ def test_media_row_actions_keep_control_worker_and_ignore_old_signals(
                 time.sleep(0.10)
             def request_stop(self):
                 self.stop.set()
-            def pause_control_for_video(self):
-                return True
             def request_control_reconnect(self):
                 self.control_requests += 1
                 return True

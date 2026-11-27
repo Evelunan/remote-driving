@@ -2,6 +2,7 @@
 
 import asyncio
 from contextlib import ExitStack
+from dataclasses import replace
 
 from rd_core.async_compat import ExceptionGroup, TaskGroup
 from rd_core.cli import client_arguments
@@ -9,7 +10,7 @@ from rd_core.configuration import ConfigError
 from rd_core.logging import configure_logging, get_logger
 from rd_core.settings import VehicleSettings
 
-from rd_vehicle.shutdown import stop_on_signals
+from rd_vehicle.shutdown import ComponentCleanupError, stop_on_signals
 
 logger = get_logger(__name__)
 
@@ -115,13 +116,13 @@ def _create_camera(settings):
     return USBCamera(settings.source, settings.name, **dimensions)
 
 
-async def start_control(settings, *, controller_factory=None, capture_health=None):
+async def start_control(settings, *, controller_factory=None):
     from rd_vehicle.application.control_client import VehicleControlClient
 
     controller = (controller_factory or _create_controller)(settings)
     if controller is None:
         raise ConfigError("control component requires a controller")
-    client = VehicleControlClient(settings, controller, capture_health=capture_health)
+    client = VehicleControlClient(settings, controller)
     await client.run()
 
 
@@ -153,27 +154,17 @@ async def start_streaming(
     camera_factory=None,
     on_fault=None,
     on_started=None,
-    capture_health=None,
 ):
     from rd_vehicle.application.multi_camera_manager import MultiCameraManager
     from rd_vehicle.infrastructure.streams.webrtc_streamer import WebRTCStreamer
 
     viewers_present = False
-    demand_revision = capture_revision = 0
     demand_changed = asyncio.Event()
 
     def on_viewers_changed(present):
-        nonlocal viewers_present, demand_revision
+        nonlocal viewers_present
         viewers_present = present
-        demand_revision += 1
-        if not present and capture_health is not None:
-            capture_health.update(False)
         demand_changed.set()
-
-    def on_capture_health(healthy):
-        capture_health.update(
-            healthy and viewers_present and capture_revision == demand_revision
-        )
 
     streamer = WebRTCStreamer(
         settings.room,
@@ -187,7 +178,6 @@ async def start_streaming(
         streamer,
         video_policy=settings.video,
         on_fault=on_fault,
-        on_capture_health=on_capture_health if capture_health is not None else None,
     )
 
     async def capture():
@@ -214,13 +204,15 @@ async def start_streaming(
                 # Read the latest demand after all previous handles are released.
                 demand_changed.clear()
                 if viewers_present:
-                    capture_revision = demand_revision
                     active_capture = tasks.create_task(capture(), name="video-capture")
     finally:
         try:
-            await manager.stop()
-        finally:
-            await streamer.close()
+            try:
+                await manager.stop()
+            finally:
+                await streamer.close()
+        except Exception as exc:
+            raise ComponentCleanupError("media cleanup failed") from exc
 
 
 async def run(
@@ -232,52 +224,57 @@ async def run(
     install_signals=False,
     on_fault=None,
     on_media_started=None,
-    capture_health=None,
 ):
     """In-process component host; the production CLI owns separate spawned hosts."""
-    check_config(settings)
+    settings.validate()
     stop = stop or asyncio.Event()
     if stop.is_set():
         return
+    components = active_components(settings)
+    combined = len(components) > 1
+
+    async def serve(component):
+        selected = replace(settings, components=(component,))
+        while not stop.is_set():
+            try:
+                check_config(selected)
+                if component == "control":
+                    await start_control(selected, controller_factory=controller_factory)
+                else:
+                    await start_streaming(
+                        selected,
+                        camera_factory=camera_factory,
+                        on_fault=on_fault if not combined else None,
+                        on_started=on_media_started,
+                    )
+                raise RuntimeError(f"vehicle {component} ended unexpectedly")
+            except ComponentCleanupError:
+                if combined:
+                    # Another component can continue, but a live device owner
+                    # must never be replaced within this process.
+                    logger.error("Vehicle %s cleanup incomplete; restart disabled", component)
+                    await stop.wait()
+                raise
+            except Exception as exc:
+                if not combined:
+                    raise
+                logger.warning("Vehicle %s failed (%s), retrying", component, type(exc).__name__)
+                await asyncio.sleep(settings.network.reconnect_delay_s)
+
     signals = ExitStack()
     if install_signals:
         signals.enter_context(stop_on_signals(stop))
     tasks = []
     stopped = None
     try:
-        components = active_components(settings)
-        if "media" in components and capture_health is None:
-            from rd_vehicle.application.capture_health import CaptureHealth
-
-            capture_health = CaptureHealth()
-        if "control" in components:
-            tasks.append(
-                asyncio.create_task(
-                    start_control(
-                        settings,
-                        controller_factory=controller_factory,
-                        capture_health=capture_health,
-                    ),
-                    name="vehicle-control",
-                )
-            )
-        else:
+        if "control" not in components:
             logger.info(
                 "Vehicle control disabled; no control registration or device opened"
             )
-        if "media" in components:
-            tasks.append(
-                asyncio.create_task(
-                    start_streaming(
-                        settings,
-                        camera_factory=camera_factory,
-                        on_fault=on_fault,
-                        on_started=on_media_started,
-                        capture_health=capture_health,
-                    ),
-                    name="vehicle-media",
-                )
-            )
+        tasks = [
+            asyncio.create_task(serve(component), name=f"vehicle-{component}")
+            for component in components
+        ]
         stopped = asyncio.create_task(stop.wait())
         done, _ = await asyncio.wait(
             [*tasks, stopped], return_when=asyncio.FIRST_COMPLETED
@@ -285,7 +282,6 @@ async def run(
         for task in done:
             if task is not stopped:
                 task.result()
-                raise RuntimeError("vehicle component ended unexpectedly")
     except Exception:
         if on_fault is not None:
             on_fault()

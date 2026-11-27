@@ -105,7 +105,7 @@ class ControlPanel(QFrame):
         for conn in self._connections.values():
             self._conn_card.add_widget(conn)
 
-        media_hint = "重建信令与视频连接；画面恢复前暂停控制"
+        media_hint = "重建信令与视频连接"
         self._action_buttons = {
             name: self._connections[name].add_action(
                 "重连", self._on_media_reconnect, media_hint

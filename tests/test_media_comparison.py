@@ -35,6 +35,25 @@ def test_same_measured_group_has_zero_change_and_retains_zero_metrics():
     assert latency["delta"] == 0 and latency["before"]["runs"] == 3
     empty = steady["views"]["front"]["gaps_over_500ms"]
     assert empty["before"]["median"] == 0 and empty["change_percent"] is None
+    assert report["cases"]["1"]["reconnect_new_control_epoch_ms"]["delta"] == 0
+
+
+def test_reconnect_comparison_requires_consistent_control_evidence(tmp_path):
+    def retained(report):
+        del report["reconnect_new_control_epoch_ms"]
+        report["control_retained_during_media_reconnect"] = True
+
+    runs = copies(tmp_path, retained)
+    case = comparison.compare(runs, runs)["cases"]["1"]
+    assert case["control_retained_during_media_reconnect"] is True
+    assert "reconnect_new_control_epoch_ms" not in case
+    with pytest.raises(ValueError, match="control recovery"):
+        comparison.compare(BASELINE, runs)
+    sample = json.loads(runs[0].read_text())
+    del sample["control_retained_during_media_reconnect"]
+    runs[0].write_text(json.dumps(sample))
+    with pytest.raises(ValueError, match="control recovery"):
+        comparison.compare(runs, runs)
 
 
 def test_missing_frame_latency_is_not_dropped_from_the_comparison():

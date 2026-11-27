@@ -11,21 +11,18 @@ from rd_driving.app.input_service import DrivingInputService
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
-    "sample_kind,usb_online,video_ready,expected",
+    "sample_kind,usb_online,expected",
     [
-        ("missing", False, True, "waiting_device"),
-        ("missing", True, True, "waiting_input"),
-        ("invalid", True, True, "waiting_input"),
-        ("expired", True, True, "waiting_input"),
-        ("before_video", True, True, "waiting_input"),
-        ("steering", True, True, "waiting_neutral"),
-        ("throttle", True, True, "waiting_neutral"),
-        ("missing", False, False, "waiting_video"),
+        ("missing", False, "waiting_device"),
+        ("missing", True, "waiting_input"),
+        ("invalid", True, "waiting_input"),
+        ("expired", True, "waiting_input"),
+        ("before_request", True, "waiting_input"),
+        ("steering", True, "waiting_neutral"),
+        ("throttle", True, "waiting_neutral"),
     ],
 )
-async def test_wait_reason_matches_device_sample_and_video(
-    sample_kind, usb_online, video_ready, expected
-):
+async def test_wait_reason_matches_device_and_sample(sample_kind, usb_online, expected):
     statuses = asyncio.Queue()
     service = DrivingInputService(
         DrivingSettings(session=42),
@@ -34,13 +31,6 @@ async def test_wait_reason_matches_device_sample_and_video(
     service._usb_status(usb_online, "已连接" if usb_online else "未连接")
     client = service.client
     now = time.monotonic()
-    permit = SimpleNamespace(
-        ready=video_ready,
-        ready_at=now - 0.02,
-        revision=1,
-        source=SimpleNamespace(session=42),
-    )
-    client.video_gate = SimpleNamespace(snapshot=lambda: permit)
     client.connection = SimpleNamespace(
         protocol=SimpleNamespace(rpc_ready=True),
         clock=SimpleNamespace(check=lambda: None),
@@ -53,7 +43,7 @@ async def test_wait_reason_matches_device_sample_and_video(
             brake=0,
             steering=0.5 if sample_kind == "steering" else 0,
             sampled_at=now - (1 if sample_kind == "expired" else 0.05)
-            if sample_kind in {"expired", "before_video"}
+            if sample_kind in {"expired", "before_request"}
             else time.monotonic(),
             timestamp_ms=time.time_ns() // 1_000_000,
             valid=sample_kind != "invalid",
@@ -84,14 +74,6 @@ async def test_neutral_input_still_acquires_and_waits_for_execution():
     )
     service._usb_status(True, "已连接")
     client = service.client
-    permit = SimpleNamespace(
-        ready=True,
-        ready_at=time.monotonic() - 0.01,
-        revision=1,
-        source=SimpleNamespace(session=42, principal="vehicle"),
-    )
-    client.video_gate = SimpleNamespace(snapshot=lambda: permit)
-
     async def request(method, params):
         requests.append(method)
         protocol.rpc_ready = False

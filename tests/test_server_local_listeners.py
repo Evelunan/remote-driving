@@ -1,3 +1,4 @@
+import asyncio
 import json
 import ssl
 from contextlib import AsyncExitStack
@@ -10,6 +11,31 @@ from rd_server.main import create_runtime, parse_args
 from websockets.asyncio.client import connect as ws_connect
 
 
+@pytest.mark.asyncio
+async def test_occupied_relay_port_leaves_signaling_available_until_rebind(runtime_factory):
+    build, _ = runtime_factory
+    occupied, _ = await asyncio.get_running_loop().create_datagram_endpoint(
+        asyncio.DatagramProtocol, local_addr=("127.0.0.1", 0)
+    )
+    runtime = build(("relay", "signaling"), port=occupied.get_extra_info("sockname")[1])
+    relay, signaling = runtime.services["relay"], runtime.services["signaling"]
+    stop = asyncio.Event()
+    host = asyncio.create_task(runtime.run(stop))
+    try:
+        async with async_timeout(5):
+            while signaling._server is None:
+                await asyncio.sleep(0.01)
+            first = signaling._server
+            assert first.sockets and not runtime.ready and relay.listener is None
+            occupied.close()
+            while not runtime.ready:
+                await asyncio.sleep(0.01)
+            assert signaling._server is first and first.sockets
+            assert relay.listener is not None
+    finally:
+        occupied.close()
+        stop.set()
+        await asyncio.wait_for(host, 3)
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("services", ["signaling", "relay", "signaling,relay"])

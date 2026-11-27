@@ -62,7 +62,7 @@ def _log_component_failure(component, exception):
     visit(exception)
 
 
-async def _component_lifetime(settings, channel, runner, capture_health=None):
+async def _component_lifetime(settings, channel, runner):
     from rd_vehicle.main import run
 
     stop = asyncio.Event()
@@ -122,7 +122,6 @@ async def _component_lifetime(settings, channel, runner, capture_health=None):
                 stop,
                 on_fault=fault,
                 on_media_started=heartbeat_ready.set,
-                capture_health=capture_health,
             )
         else:
             await runner(settings, stop)
@@ -135,18 +134,20 @@ async def _component_lifetime(settings, channel, runner, capture_health=None):
             signals.close()
 
 
-def _component_process(settings, channel, runner, capture_health=None):
+def _component_process(settings, channel, runner):
     # A console Ctrl+C is broadcast to the process group on Windows. The parent
     # owns that request and delivers EOF after entering its shutdown path.
     # Keep children alive through asyncio.run() cleanup, including repeat Ctrl+C.
-    previous_sigint = signal.signal(signal.SIGINT, signal.SIG_IGN)
+    # This is the spawned process entry point. Keep ignoring broadcasts through
+    # multiprocessing finalization, even after its health socket has closed.
+    signal.signal(signal.SIGINT, signal.SIG_IGN)
     try:
         channel.setblocking(False)
         directory = settings.logging.directory
         if directory is not None:
             directory = directory / settings.components[0]
         configure_logging(settings.logging.level, directory=directory)
-        asyncio.run(_component_lifetime(settings, channel, runner, capture_health))
+        asyncio.run(_component_lifetime(settings, channel, runner))
     except Exception as exc:  # noqa: BLE001 - process boundary; never log device payloads
         logger.error(
             "Vehicle %s failed (%s)", settings.components[0], type(exc).__name__
@@ -155,7 +156,6 @@ def _component_process(settings, channel, runner, capture_health=None):
         raise SystemExit(1) from None
     finally:
         channel.close()
-        signal.signal(signal.SIGINT, previous_sigint)
 
 
 @dataclass
@@ -191,154 +191,195 @@ class _Child:
 
 
 class VehicleProcesses:
-    """Single-use supervisor. Failure closes all components; no automatic re-arm."""
+    """Supervise each component independently and reap all children on shutdown."""
 
     def __init__(self, settings, *, runner=None):
         self.settings = settings
         self._runner = runner  # Importable simulation runner; never a CLI option.
         self.children = []
-        self._capture_health = None
         self.outcomes = []
         self._used = False
 
-    def _start(self):
-        from rd_vehicle.main import active_components
-
+    def _start(self, component):
         context = multiprocessing.get_context("spawn")
-        from rd_vehicle.application.capture_health import CaptureHealth
+        parent, channel = socket.socketpair()
+        parent.setblocking(False)
+        started = time.monotonic()
+        process = context.Process(
+            target=_component_process,
+            args=(
+                replace(self.settings, components=(component,)),
+                channel,
+                self._runner,
+            ),
+            name=f"rd-vehicle-{component}",
+        )
+        try:
+            process.start()
+        except BaseException:
+            parent.close()
+            process.close()
+            raise
+        finally:
+            channel.close()
+        child = _Child(component, process, parent, started)
+        self.children.append(child)
+        logger.info("Vehicle %s process started (pid=%s)", component, process.pid)
+        return child
 
-        components = active_components(self.settings)
-        # Spawned children open the shared semaphore after start() returns.
-        if "media" in components:
-            self._capture_health = CaptureHealth(context)
-        for component in components:
-            parent, child = socket.socketpair()
-            parent.setblocking(False)
-            started = time.monotonic()
-            process = context.Process(
-                target=_component_process,
-                args=(
-                    replace(self.settings, components=(component,)),
-                    child,
-                    self._runner,
-                    self._capture_health,
-                ),
-                name=f"rd-vehicle-{component}",
-            )
-            try:
-                process.start()
-            except BaseException:
-                parent.close()
-                process.close()
-                raise
-            finally:
-                child.close()
-            self.children.append(_Child(component, process, parent, started))
-            logger.info("Vehicle %s process started (pid=%s)", component, process.pid)
-
-    async def _wait_exit(self, timeout):
+    @staticmethod
+    async def _wait_exit(process, timeout):
         deadline = time.monotonic() + timeout
-        while any(child.process.is_alive() for child in self.children):
+        while process.is_alive():
             if time.monotonic() >= deadline:
                 break
             await asyncio.sleep(0.02)
 
-    async def _close(self):
-        forced = set()
-        for child in self.children:
-            try:
-                child.channel.shutdown(socket.SHUT_WR)
-            except OSError:
-                pass
-        await self._wait_exit(self.settings.processes.shutdown_timeout_s)
-        for child in self.children:
-            if child.process.is_alive():
-                forced.add(child.component)
-                logger.error(
-                    "Vehicle %s cleanup timed out; physical stop is unconfirmed",
-                    child.component,
-                )
-                child.process.terminate()
-        await self._wait_exit(self.settings.processes.kill_timeout_s)
-        for child in self.children:
-            if child.process.is_alive():
-                child.process.kill()
-        await self._wait_exit(self.settings.processes.kill_timeout_s)
-        unreaped = []
-        for child in self.children:
-            child.channel.close()
-            process = child.process
-            self.outcomes.append(
-                {
-                    "component": child.component,
-                    "pid": process.pid,
-                    "exitcode": process.exitcode,
-                    "forced": child.component in forced,
-                }
+    @staticmethod
+    def _request_exit(child):
+        try:
+            child.channel.shutdown(socket.SHUT_WR)
+        except OSError:
+            pass
+
+    async def _close_child(self, child):
+        process = child.process
+        self._request_exit(child)
+        await self._wait_exit(process, self.settings.processes.shutdown_timeout_s)
+        forced = process.is_alive()
+        if forced:
+            logger.error(
+                "Vehicle %s cleanup timed out (pid=%s)", child.component, process.pid
             )
-            if process.is_alive():
-                unreaped.append(child.component)
-            else:
-                process.join(timeout=0)
-                process.close()
-        self.children.clear()
-        if forced or unreaped or any(item["exitcode"] != 0 for item in self.outcomes):
+            if child.component == "control":
+                logger.error("Physical stop is unconfirmed")
+            process.terminate()
+            await self._wait_exit(process, self.settings.processes.kill_timeout_s)
+        if process.is_alive():
+            process.kill()
+            await self._wait_exit(process, self.settings.processes.kill_timeout_s)
+        child.channel.close()
+        if process.is_alive():
+            # Keep ownership. Never start a replacement alongside a surviving process.
+            raise ProcessFailure(f"{child.component} could not be reaped")
+        process.join(timeout=0)
+        outcome = {
+            "component": child.component,
+            "pid": process.pid,
+            "exitcode": process.exitcode,
+            "forced": forced,
+        }
+        if outcome["exitcode"] != 0:
+            logger.error(
+                "Vehicle %s exited with code %s (pid=%s)",
+                child.component,
+                outcome["exitcode"],
+                outcome["pid"],
+            )
+            if child.component == "control" and not forced:
+                logger.error("Physical stop is unconfirmed")
+        process.close()
+        self.children.remove(child)
+        self.outcomes.append(outcome)
+        # Repeated failures of a disconnected component must not grow memory forever.
+        del self.outcomes[:-64]
+        return not forced and outcome["exitcode"] == 0
+
+    async def _close(self):
+        results = await asyncio.gather(
+            *(self._close_child(child) for child in self.children),
+            return_exceptions=True,
+        )
+        if not all(result is True for result in results):
             raise ProcessFailure(
                 "vehicle component failed or cleanup was forced/incomplete"
             )
 
+    def _check(self, child):
+        if not child.process.is_alive():
+            raise ProcessFailure(f"{child.component} exited unexpectedly")
+        previous = child.heartbeat_at
+        child.read_health()
+        if not previous and child.heartbeat_at:
+            logger.info(
+                "Vehicle %s event loop responding (pid=%s)",
+                child.component,
+                child.process.pid,
+            )
+        now = time.monotonic()
+        if not child.heartbeat_at:
+            if now - child.started_at > self.settings.processes.startup_timeout_s:
+                raise ProcessFailure(f"{child.component} startup timed out")
+        elif now - child.heartbeat_at > self.settings.processes.heartbeat_timeout_s:
+            raise ProcessFailure(f"{child.component} event-loop heartbeat expired")
+
+    async def _supervise(self, component, stop):
+        while not stop.is_set():
+            child = None
+            try:
+                child = self._start(component)
+                while not stop.is_set():
+                    self._check(child)
+                    await asyncio.sleep(
+                        min(0.05, self.settings.processes.heartbeat_interval_s)
+                    )
+                return
+            except Exception as exc:  # noqa: BLE001 - isolate spawn and health-check failures
+                logger.error("Vehicle %s fault (%s)", component, type(exc).__name__)
+                if isinstance(exc, ProcessFailure):
+                    logger.error("%s", exc)
+            while child is not None and not stop.is_set():
+                try:
+                    await self._close_child(child)
+                    break
+                except (OSError, ProcessFailure):
+                    logger.exception(
+                        "Vehicle %s still needs cleanup; restart suspended", component
+                    )
+                    # A process stuck in a driver may exit late. Resume only once reaped.
+                    while child.process.is_alive() and not stop.is_set():
+                        await asyncio.sleep(0.1)
+            # Repeated startup faults must not create a process-spawning busy loop.
+            try:
+                await asyncio.wait_for(
+                    stop.wait(), max(0.25, self.settings.network.reconnect_delay_s)
+                )
+            except asyncio.TimeoutError:
+                pass
+
     async def run(self, stop=None, *, install_signals=False):
-        from rd_vehicle.main import check_config
+        from rd_vehicle.main import active_components
 
         if self._used:
             raise RuntimeError("vehicle process supervisor is single-use")
         self._used = True
-        check_config(self.settings)
+        self.settings.validate()
         stop = stop or asyncio.Event()
         signals = ExitStack()
         if install_signals:
             signals.enter_context(stop_on_signals(stop))
+        watchers = [
+            asyncio.create_task(self._supervise(component, stop))
+            for component in active_components(self.settings)
+        ]
+        stopped = asyncio.create_task(stop.wait())
         try:
-            if stop.is_set():
-                return
-            self._start()
-            while not stop.is_set():
-                for child in self.children:
-                    if not child.process.is_alive():
-                        raise ProcessFailure(f"{child.component} exited unexpectedly")
-                    previous = child.heartbeat_at
-                    child.read_health()
-                    now = time.monotonic()
-                    if not previous and child.heartbeat_at:
-                        logger.info(
-                            "Vehicle %s event loop responding (pid=%s)",
-                            child.component,
-                            child.process.pid,
-                        )
-                    if not child.heartbeat_at:
-                        if (
-                            now - child.started_at
-                            > self.settings.processes.startup_timeout_s
-                        ):
-                            raise ProcessFailure(f"{child.component} startup timed out")
-                        continue
-                    # Queued heartbeats retain their original monotonic time.
-                    if (
-                        now - child.heartbeat_at
-                        > self.settings.processes.heartbeat_timeout_s
-                    ):
-                        raise ProcessFailure(
-                            f"{child.component} event-loop heartbeat expired"
-                        )
-                await asyncio.sleep(
-                    min(0.05, self.settings.processes.heartbeat_interval_s)
-                )
-        except ProcessFailure as exc:
-            logger.error("Vehicle process group failed: %s", exc)
-            raise
+            done, _ = await asyncio.wait(
+                [stopped, *watchers], return_when=asyncio.FIRST_COMPLETED
+            )
+            for task in done:
+                task.result()
         finally:
             # Repeated cancellation must not abandon live children or skip stop.
-            cleanup = asyncio.create_task(self._close())
+            stop.set()
+            for child in self.children:
+                self._request_exit(child)
+
+            async def finish():
+                await asyncio.gather(stopped, *watchers, return_exceptions=True)
+                await self._close()
+
+            cleanup = asyncio.create_task(finish())
             try:
                 while not cleanup.done():
                     try:

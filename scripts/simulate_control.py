@@ -35,7 +35,6 @@ from rd_core.settings import (
     TLSSettings,
     VehicleSettings,
 )
-from rd_core.video_safety import VideoGate, VideoSource
 from rd_driving.app.control_client import DrivingControlClient
 from rd_server.relay.control_service import ControlRelayService
 from rd_server.runtime import ServerRuntime
@@ -131,27 +130,16 @@ async def simulate(directory, motion_seconds):
     controller = MockController(vehicle_settings.motion)
     vehicle = VehicleControlClient(vehicle_settings, controller)
     samples = asyncio.Queue(maxsize=1)
-    video_gate = VideoGate(recovery_ms=1)
     elapsed = []
     driver = DrivingControlClient(
         driving_settings,
         samples,
-        video_gate=video_gate,
         on_execution=lambda sample, result, ms: elapsed.append(ms),
     )
     current = {"enabled": True, "throttle": 0.0, "steering": 0.0}
 
     async def input_source():
-        sequence = 0
         while True:
-            # Explicit synthetic video readiness for this control-only simulation.
-            sequence += 1
-            video_gate.observe(
-                sequence,
-                time.monotonic(),
-                VideoSource("sim-vehicle", 42, "simulated-video"),
-                captured_at=time.monotonic(),
-            )
             if current["enabled"]:
                 sample = ControlInput(
                     current["throttle"],
@@ -189,7 +177,7 @@ async def simulate(directory, motion_seconds):
         await wait_for(lambda: driver.armed and driver.epoch != first_epoch)
         report = {
             "scope": "loopback TLS QUIC and in-memory actuator; no hardware",
-            "video_evidence": "synthetic readiness events; no camera, WebRTC or Qt",
+            "video_connected": False,
             "python": platform.python_version(),
             "platform": platform.platform(),
             "motion_seconds": motion_seconds,

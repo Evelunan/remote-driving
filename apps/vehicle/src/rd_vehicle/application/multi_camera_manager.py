@@ -2,7 +2,6 @@
 
 import asyncio
 import logging
-import math
 import threading
 import time
 
@@ -38,9 +37,7 @@ class _FrameNotification:
 
 
 class MultiCameraManager:
-    def __init__(
-        self, streamer, *, video_policy=None, on_fault=None, on_capture_health=None
-    ):
+    def __init__(self, streamer, *, video_policy=None, on_fault=None):
         self.cameras = []
         self.streamer = streamer
         self._views_frozen = False
@@ -51,8 +48,6 @@ class MultiCameraManager:
         self._stop_task = None
         self._video_policy = video_policy
         self._on_fault = on_fault
-        self._on_capture_health = on_capture_health
-        self._failed = set()
         self._camera_by_view = {}
         self._views_by_camera = {}
 
@@ -98,7 +93,6 @@ class MultiCameraManager:
             self._stop_task = None
         self._workers.clear()
         self._notifications.clear()
-        self._failed.clear()
         self._views_frozen = True
         self._running = True
         loop = asyncio.get_running_loop()
@@ -116,7 +110,7 @@ class MultiCameraManager:
                 asyncio.gather(*self._starting, return_exceptions=True)
             )
             errors = [result for result in results if isinstance(result, Exception)]
-            if errors and self._on_capture_health is None:
+            if errors and self._video_policy is None:
                 raise ExceptionGroup("camera startup failed", errors)
             if not self._running:
                 return
@@ -125,13 +119,6 @@ class MultiCameraManager:
                 if self._video_policy
                 else None
             )
-            if self._on_capture_health is not None:
-                self._failed.update(
-                    cam
-                    for cam, result in zip(self.cameras, results)
-                    if isinstance(result, Exception) or cam is primary
-                )
-                self._on_capture_health(not self._failed)
             for cam, notification, result in zip(
                 self.cameras, self._notifications, results
             ):
@@ -144,15 +131,9 @@ class MultiCameraManager:
                             cam is primary,
                             isinstance(result, Exception),
                         )
-                        if self._on_capture_health is not None
+                        if self._video_policy is not None
                         else self._camera_push_worker(cam, notification),
                         name="publish-" + cam.camera_name,
-                    )
-                )
-            if self._video_policy is not None and self._on_capture_health is None:
-                self._workers.append(
-                    asyncio.create_task(
-                        self._watch_primary(), name="primary-capture-watch"
                     )
                 )
         except BaseException as exc:
@@ -160,15 +141,6 @@ class MultiCameraManager:
                 self._on_fault()
             await self.stop()
             raise
-
-    def _health(self, camera, healthy):
-        if healthy == (camera not in self._failed):
-            return
-        if healthy:
-            self._failed.remove(camera)
-        else:
-            self._failed.add(camera)
-        self._on_capture_health(not self._failed)
 
     async def _reopen(self, camera):
         # Opening and releasing a device cannot overlap final shutdown.
@@ -200,7 +172,6 @@ class MultiCameraManager:
         while self._running:
             if reopen:
                 self._invalidate_camera(camera)
-                self._health(camera, False)
                 logger.warning("Camera %s unavailable, retrying", camera.camera_name)
                 await self._reopen(camera)
                 deadline = time.monotonic() + timeout
@@ -230,7 +201,6 @@ class MultiCameraManager:
                 # Consecutive reads may share a Windows clock tick. The sequence
                 # identifies a new read; an equal timestamp cannot move the deadline.
                 deadline = last_capture + timeout
-                self._health(camera, True)
             if primary:
                 remaining = deadline - time.monotonic()
                 if remaining <= 0:
@@ -242,28 +212,6 @@ class MultiCameraManager:
                     reopen = True
             else:
                 await notification.event.wait()
-
-    async def _watch_primary(self):
-        camera = self._camera_by_view.get(self._video_policy.primary_view)
-        if camera is None:
-            raise RuntimeError("primary camera is missing")
-        last_sequence, captured_at = 0, time.monotonic()
-        timeout = self._video_policy.stale_frame_ms / 1000
-        while self._running:
-            image = camera.get_snapshot()
-            now = time.monotonic()
-            if image is not None and image.sequence > last_sequence:
-                if (
-                    not math.isfinite(image.captured_at)
-                    or image.captured_at > now
-                    or (last_sequence and image.captured_at < captured_at)
-                ):
-                    raise RuntimeError("invalid primary capture timestamp")
-                last_sequence, captured_at = image.sequence, image.captured_at
-            if now - captured_at >= timeout:
-                self._invalidate_camera(camera)
-                raise RuntimeError("primary capture expired")
-            await asyncio.sleep(min(timeout / 4, 0.05))
 
     async def _camera_push_worker(self, camera, notification):
         last_sequence = 0
@@ -299,8 +247,6 @@ class MultiCameraManager:
         await asyncio.shield(self._stop_task)
 
     async def _stop_owned(self):
-        if self._on_capture_health is not None:
-            self._on_capture_health(False)
         self._running = False
         if not self._views_frozen:
             return

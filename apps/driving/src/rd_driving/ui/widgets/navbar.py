@@ -17,8 +17,8 @@ from PyQt6.QtWidgets import (
 from ..themes import BaseTheme, DarkTechTheme
 
 
-class _RoomLabel(QLabel):
-    """Keep long room IDs from displacing the control status or exit button."""
+class _IdentifierLabel(QLabel):
+    """Elide long identifiers while keeping their full value accessible."""
 
     def __init__(self):
         super().__init__()
@@ -66,19 +66,26 @@ class Navbar(QFrame):
         brand.addWidget(self._subtitle)
         self._layout.addLayout(brand)
 
-        self._room_text = _RoomLabel()
+        self._room_text = _IdentifierLabel()
         self._room_text.setObjectName("navValue")
         room = QFrame(objectName="navIdentity")
         room.setMinimumWidth(136)
         room.setMaximumWidth(240)
-        self._room_caption = self._add_field(room, "房间", self._room_text)
+        self._room_caption = self._add_field(room, "视频房间", self._room_text)
         self._layout.addWidget(room, 1)
 
         self._session_text = QLabel("--", objectName="navValue")
         self._session_text.setTextFormat(Qt.TextFormat.PlainText)
         session = QFrame(objectName="navIdentity")
-        self._add_field(session, "会话", self._session_text)
+        self._add_field(session, "控制会话", self._session_text)
         self._layout.addWidget(session)
+        self._target_text = _IdentifierLabel()
+        self._target_text.setObjectName("navValue")
+        target = QFrame(objectName="navIdentity")
+        target.setMinimumWidth(120)
+        target.setMaximumWidth(240)
+        self._add_field(target, "受控车辆", self._target_text)
+        self._layout.addWidget(target, 1)
         self._layout.addStretch(2)
 
         self._control_status = QLabel("等待连接", objectName="navControlStatus")
@@ -90,6 +97,7 @@ class Navbar(QFrame):
         self._layout.addWidget(self._control_field)
 
         self.set_room(None)
+        self.set_control_target(None)
         self.apply_theme(DarkTechTheme())
 
     @staticmethod
@@ -142,11 +150,14 @@ class Navbar(QFrame):
         self._subtitle.setVisible(subtitle is not None)
 
     def set_room(self, room: str | None) -> None:
-        self._room_caption.setText("房间")
+        self._room_caption.setText("视频房间")
         self._room_text.set_identifier(room if room is not None else "--")
 
     def set_session(self, session: int | None) -> None:
         self._session_text.setText(str(session) if session is not None else "--")
+
+    def set_control_target(self, principal: str | None) -> None:
+        self._target_text.set_identifier(principal or "--")
 
     def set_vehicle_info(self, vehicle_id: str, vehicle_name: str | None = None) -> None:
         self._room_caption.setText("车辆")

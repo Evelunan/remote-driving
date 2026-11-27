@@ -21,9 +21,6 @@ STATUS_TEXT = {
     "waiting_device": "等待控制设备",
     "waiting_input": "等待设备输入",
     "waiting_neutral": "请将控制输入归零",
-    "waiting_video": "等待实时主画面",
-    "video_unavailable": "主画面失效，控制已暂停",
-    "video_vehicle_mismatch": "画面与控制车辆不匹配",
     "waiting_execution": "等待中立执行确认",
     "active": "控制已授权",
     "revoked": "控制授权已撤销",
@@ -34,13 +31,12 @@ STATUS_TEXT = {
 
 
 class ControlSystemThread(QThread):
-    def __init__(self, signal_bridge, settings, *, video_gate=None):
+    def __init__(self, signal_bridge, settings):
         super().__init__()
         self._bridge, self.settings = signal_bridge, settings
         self._loop = self._main_task = None
         self._stop_requested = threading.Event()
         self.service = None
-        self.video_gate = video_gate
 
     def _safe_emit(self, signal_name, *args):
         if not self._stop_requested.is_set() and self._bridge is not None:
@@ -48,6 +44,8 @@ class ControlSystemThread(QThread):
 
     def _status(self, state, detail=""):
         self._safe_emit("control_status_changed", state, STATUS_TEXT.get(state, "状态未知"))
+        if state == "waiting_execution":
+            self._safe_emit("control_target_changed", detail)
         if state != "active":
             self._safe_emit("control_confirmation_expired")
 
@@ -70,7 +68,6 @@ class ControlSystemThread(QThread):
             "sample": sample,
             "elapsed_ms": float(elapsed_ms),
             "deadline": sample.sampled_at + budget_ms / 1000,
-            "picture_revision": client.lease_picture_revision if client is not None else None,
         })
 
     def _telemetry(self, packet):
@@ -104,7 +101,6 @@ class ControlSystemThread(QThread):
             on_execution=self._execution,
             on_telemetry=self._telemetry,
             on_vehicle_status=self._vehicle_status,
-            video_gate=self.video_gate,
         )
         await self.service.run()
 
@@ -166,9 +162,6 @@ class ControlSystemThread(QThread):
 
     def request_stop_control(self):
         return self._dispatch_control_request(DrivingInputService.request_stop_control)
-
-    def pause_control_for_video(self):
-        return self._dispatch_control_request(DrivingInputService.pause_control_for_video)
 
     def _dispatch_control_request(self, action):
         loop = self._loop

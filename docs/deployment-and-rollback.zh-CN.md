@@ -90,7 +90,7 @@ python3 scripts/manage_release.py activate \
 模板位于 [deploy/systemd](../deploy/systemd)。安装模板、创建账号、授予设备权限和启用服务是部署操作，本次改造没有在主机执行它们。
 
 - [rd-server@.service](../deploy/systemd/rd-server@.service)：`server-main`实例默认同时运行两模块；故障重启间隔 3 秒、60 秒最多 5 次。需故障隔离时，建立不同根目录/实例配置，分别指定 `services: [signaling]`和`services: [relay]`，仍使用同一个服务端 wheel。先停共同运行实例，再启用拆分实例，避免端口冲突。
-- [rd-vehicle@.service](../deploy/systemd/rd-vehicle@.service)：应用内部管理 control/media 进程及重连；进程监护失败后保持退出，检查设备和停车接口后重新启动。`KillMode=mixed`先通知父进程，让父进程关闭并回收子进程；最终超时由 systemd 处理整个进程组。默认 20 秒停止预算大于当前 5+1+1 秒进程退出预算；修改这些配置需同步校核。
+- [rd-vehicle@.service](../deploy/systemd/rd-vehicle@.service)：应用内部管理 control/media 进程及重连；子进程故障时独立回收并重启该组件。`KillMode=mixed`先通知父进程，让父进程关闭并回收子进程；最终超时由 systemd 处理整个进程组。默认 20 秒停止预算大于当前 5+1+1 秒进程退出预算；修改这些配置需同步校核。
 - [rd-driving@.service](../deploy/systemd/rd-driving@.service)：桌面用户服务，发布根目录为 `%h/.local/share/remote-driving/%i`。由图形会话启动并提供 DISPLAY/WAYLAND_DISPLAY、XDG_RUNTIME_DIR 等会话环境；不在系统服务中硬编码其他用户的显示权限。关闭窗口走已验证的异步清理路径；B23 起 `SIGINT`/`SIGTERM`请求同一个异步关闭流程，等待控制/媒体工作线程结束后退出；此前的历史版本直接按信号退出，回退记录会保留该差异。
 
 部署时将 `manage_release.py`、车辆包装器放入 `/usr/local/lib/remote-driving/`，模板放入相应 systemd system/user unit 目录。模板中的 `/usr/bin/python3`需对应目标机器的长期保留解释器；修改路径后执行 `systemd-analyze verify`。服务数据写到独立 StateDirectory；如另设 `logging.directory`，须确保服务账号可写且在版本目录以外。
@@ -110,7 +110,7 @@ python3 scripts/manage_release.py activate \
 
 迁移前记录三端 session、room、车辆身份、服务地址/TCP/UDP 端口、CA/证书名称、令牌权限与有效期、相机路径、ROS 环境和运动单位。数值配置不是逐字段机械复制：当前速度单位是 m/s、rad/s，默认 5.0/2.0 仅按用户要求保留，尚未实车确认。
 
-先在模拟环境完整验证新三端；现场停止控制并确认由车辆已有物理安全措施保持安全状态后，停止旧入口并检查端口和旧子进程。准备、校验和切换对应三端版本，再启动统一服务端、车辆端和驾驶端。恢复控制必须看到来源匹配且持续新鲜的主视角，并重新产生中立输入；不能沿用迁移前的租约。旧无认证入口仅用于回环历史测试，不作为生产兼容方案；发布工具明确拒绝 `allow_legacy_development: true`。
+先在模拟环境完整验证新三端；现场停止控制并确认由车辆已有物理安全措施保持安全状态后，停止旧入口并检查端口和旧子进程。准备、校验和切换对应三端版本，再启动统一服务端、车辆端和驾驶端。恢复控制需要核对受控会话、重新产生中立输入并取得新租约。视频来源及画面新鲜度在媒体链路单独验收。旧无认证入口仅用于回环历史测试，不作为生产兼容方案；发布工具明确拒绝 `allow_legacy_development: true`。
 
 ## 升级与回退
 

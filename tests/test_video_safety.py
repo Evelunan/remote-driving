@@ -10,7 +10,6 @@ from rd_core.samples import ControlInput
 from rd_core.settings import VideoSafetySettings
 from rd_core.video_safety import VideoGate, VideoSource
 from rd_driving.app.control_client import DrivingControlClient
-from rd_quic.framing import RpcError
 
 
 def test_unique_pictures_recovery_outage_revision_and_source_replacement():
@@ -52,7 +51,7 @@ def test_capture_deadline_expires_even_if_gui_stops_and_unknown_breaks_recovery(
     assert not gate.snapshot(now=10.08).ready
 
 
-def test_only_completed_primary_qt_paints_allow_control_and_hidden_ui_expires(
+def test_only_completed_primary_qt_paints_refresh_video_health(
     legacy_python,
 ):
     legacy_python(
@@ -87,7 +86,7 @@ def test_only_completed_primary_qt_paints_allow_control_and_hidden_ui_expires(
         now += 0.03
         publish()
         assert gate.snapshot().ready
-        now += 0.12  # No Qt event processing: control still observes the expiry.
+        now += 0.12  # Expiry is visible even if Qt stops processing events.
         assert not gate.snapshot().ready
         for _ in range(3):
             publish("back")
@@ -211,49 +210,41 @@ def test_live_gui_keeps_status_during_manual_control_and_video_lifecycle(
             connection=client.connection
             assert window._receiver_thread is None and client.epoch is None
             assert media_button.text() == '连接视频' and control_button.text() == '开始控制'
+            acknowledgements = []
+            window._bridge.control_data_updated.connect(lambda data: acknowledgements.append(data["sample"]))
             control_button.click()
-            until(lambda: client.state == 'waiting_video')
-            assert window._receiver_thread is None and client.epoch is None
-            until(lambda: control_button.text() == '停止控制' and control_button.isEnabled())
-            control_button.click()
-            until(lambda: control_button.text() == '开始控制')
+            until(lambda: client.armed)
+            epoch = client.epoch
+            assert epoch is not None and window._receiver_thread is None
             media_button.click()
             until(lambda: window.video_gate.snapshot().ready)
-            assert client.epoch is None
-            control_button.click()
-            until(lambda: client.armed)
-            epoch=client.epoch
             assert window.video_gate.snapshot().source.principal == "vehicle"
-            Device.axis=64
-            until(lambda: shared['controller'].commands[-1] == (2.5,0.0))
+            Device.axis = 64
+            until(lambda: shared['controller'].commands[-1] == (2.5, 0.0))
             window._multi_video_widget.hide()
-            until(lambda: not client.armed and shared['controller'].commands[-1] == (0,0))
-            until(lambda: control_button.text() == '恢复控制')
-            assert not control_button.isEnabled()
-            shared['controller'].feedback.speed = 0.5
-            until(lambda: speed.get_value() == '0.5')
-            assert client.connection is connection
-            assert panel._connections['quic'].is_online()
-            window._multi_video_widget.show()
-            until(lambda: window.video_gate.snapshot().ready)
-            assert not client.armed and shared['controller'].commands[-1] == (0,0)
-            Device.axis=128
-            until(lambda: client.latest.throttle == 0)
-            assert not client.armed and client.epoch is None
-            until(control_button.isEnabled)
-            control_button.click()
-            until(lambda: client.armed)
-            assert client.epoch != epoch
-            until(lambda: control_button.text() == '停止控制' and control_button.isEnabled())
-            receiver=window._receiver_thread
-            control_button.click()
-            until(lambda: control_button.text() == '开始控制' and client.epoch is None)
-            assert receiver is window._receiver_thread and receiver.isRunning()
-            shared['controller'].feedback.speed=1.75
-            until(lambda: speed.get_value() == '1.75')
+            until(lambda: not window.video_gate.snapshot().ready)
             media_button.click()
             until(lambda: window._receiver_thread is None)
-            assert client.connection is connection
+            Device.axis = 255
+            until(lambda: acknowledgements and acknowledgements[-1].brake == 1
+                  and shared['controller'].commands[-1] == (0, 0))
+            assert client.armed and client.epoch == epoch and client.connection is connection
+            assert control_button.text() == '停止控制'
+            shared['controller'].feedback.speed = 0.5
+            until(lambda: speed.get_value() == '0.5')
+            Device.axis = 64
+            until(lambda: shared['controller'].commands[-1] == (2.5, 0.0))
+            window._multi_video_widget.show()
+            media_button.click()
+            until(lambda: window.video_gate.snapshot().ready)
+            assert client.epoch == epoch
+            receiver = window._receiver_thread
+            # Drop the driver's actual QUIC connection while the accelerator is held.
+            window._control_thread._loop.call_soon_threadsafe(connection.protocol.close)
+            until(lambda: not client.armed and shared['controller'].commands[-1] == (0, 0))
+            last_frame = window.fb.get('front').id
+            until(lambda: window.fb.get('front').id > last_frame and window.video_gate.snapshot().ready)
+            assert receiver is window._receiver_thread and receiver.isRunning()
         finally:
             if window is not None:
                 window.close()
@@ -272,13 +263,9 @@ def test_live_gui_keeps_status_during_manual_control_and_video_lifecycle(
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("stop_requested", [False, True])
-async def test_pending_acquire_loses_authority_on_video_loss_or_manual_stop(stop_requested):
+async def test_manual_stop_releases_late_acquire_before_sending_any_command():
     from rd_core.settings import DrivingSettings
 
-    gate = VideoGate(recovery_ms=0)
-    source = VideoSource("vehicle", 42, "publisher")
-    gate.observe(1, time.monotonic(), source, captured_at=time.monotonic())
     entered, resume = asyncio.Event(), asyncio.Event()
     sent = []
     epoch = uuid4()
@@ -298,7 +285,7 @@ async def test_pending_acquire_loses_authority_on_video_loss_or_manual_stop(stop
         }
 
     client = DrivingControlClient(
-        DrivingSettings(session=42), asyncio.Queue(), video_gate=gate
+        DrivingSettings(session=42), asyncio.Queue()
     )
     client.connection = SimpleNamespace(
         protocol=SimpleNamespace(
@@ -312,16 +299,11 @@ async def test_pending_acquire_loses_authority_on_video_loss_or_manual_stop(stop
     task = asyncio.create_task(client._run_registered())
     try:
         await asyncio.wait_for(entered.wait(), 1)
-        if stop_requested:
-            assert client.request_stop_control()
-            assert not client.request_start_control()
-        else:
-            gate.invalidate()
-            gate.observe(2, time.monotonic(), source, captured_at=time.monotonic())
+        assert client.request_stop_control()
+        assert not client.request_start_control()
         resume.set()
-        expected = "idle" if stop_requested else "video_unavailable"
         async with async_timeout(1):
-            while client.state != expected:
+            while client.state != "idle" or not released:
                 await asyncio.sleep(0.01)
         assert released == [str(epoch)]
         assert not sent and not client.armed and client.epoch is None
@@ -331,169 +313,7 @@ async def test_pending_acquire_loses_authority_on_video_loss_or_manual_stop(stop
 
 
 @pytest.mark.asyncio
-async def test_real_control_requires_matching_live_video_and_neutral_after_recovery(
-    runtime_factory, local_tls
-):
-    from rd_core.settings import (
-        ClientNetworkSettings,
-        CredentialSettings,
-        DrivingSettings,
-        VehicleSettings,
-    )
-    from rd_vehicle.application.control_client import VehicleControlClient
-    from rd_vehicle.infrastructure.controller.mock_controller import MockController
-
-    build, _ = runtime_factory
-    server = build()
-    await server.start()
-    network = ClientNetworkSettings(
-        quic_host="127.0.0.1",
-        quic_ca_file=local_tls[0],
-        quic_server_name="localhost",
-        quic_port=server.services["relay"].listener._transport.get_extra_info(
-            "sockname"
-        )[1],
-        reconnect_delay_s=0.03,
-    )
-    vehicle_settings = VehicleSettings(
-        session=42,
-        controller="mock",
-        network=network,
-        credentials=CredentialSettings("TEST_VEHICLE"),
-    )
-    controller = MockController(vehicle_settings.motion)
-    vehicle = VehicleControlClient(vehicle_settings, controller)
-    gate = VideoGate(stale_frame_ms=100, recovery_ms=50)
-    queue = asyncio.Queue(maxsize=1)
-    statuses = []
-    driver = DrivingControlClient(
-        DrivingSettings(
-            session=42, network=network, credentials=CredentialSettings("TEST_DRIVER")
-        ),
-        queue,
-        video_gate=gate,
-        on_status=lambda *args: statuses.append(args),
-    )
-    live, throttle, source = False, 0, VideoSource("vehicle", 42, "publisher")
-
-    async def produce():
-        sequence = 0
-        while True:
-            sequence += 1
-            if live:
-                gate.observe(
-                    sequence, time.monotonic(), source, captured_at=time.monotonic()
-                )
-            if queue.full():
-                queue.get_nowait()
-            queue.put_nowait(
-                ControlInput(
-                    throttle, 0, 0, time.monotonic(), time.time_ns() // 1_000_000
-                )
-            )
-            await asyncio.sleep(0.01)
-
-    tasks = [
-        asyncio.create_task(job) for job in (vehicle.run(), driver.run(), produce())
-    ]
-
-    async def until(predicate):
-        async with async_timeout(4):
-            while not predicate():
-                await asyncio.sleep(0.01)
-
-    try:
-        await until(lambda: driver.connection is not None and vehicle.connection is not None)
-        assert driver.request_start_control()
-        await until(lambda: driver.state == "waiting_video")
-        assert vehicle.epoch is None
-        live = True
-        await until(lambda: driver.armed)
-        epoch = driver.epoch
-        throttle = 0.5
-        await until(lambda: controller.commands[-1][0] == 2.5)
-        live = False
-        await until(
-            lambda: (
-                not driver.armed
-                and vehicle.epoch is None
-                and driver.state == "video_unavailable"
-                and controller.commands[-1] == (0, 0)
-            )
-        )
-        assert ("video_unavailable", "primary_video_unavailable") in statuses
-        live = True
-        await asyncio.sleep(0.2)
-        assert not driver.armed  # Picture recovery doesn't restore held throttle.
-        throttle = 0
-        await asyncio.sleep(0.1)
-        assert not driver.armed and driver.epoch is None
-        await until(driver.request_start_control)
-        await until(lambda: driver.armed)
-        assert driver.epoch != epoch
-        source = VideoSource("vehicle", 43, "wrong-session")
-        await until(lambda: not driver.armed and vehicle.epoch is None)
-        await asyncio.sleep(0.15)
-        assert not driver.armed
-        source = VideoSource("another-vehicle", 42, "wrong-identity")
-        await until(driver.request_start_control)
-        await until(
-            lambda: ("video_vehicle_mismatch", "video_vehicle_mismatch") in statuses
-        )
-        assert not driver.armed and not any(
-            v or w for v, w in list(controller.commands)[-3:]
-        )
-    finally:
-        for task in tasks:
-            task.cancel()
-        await asyncio.gather(*tasks, return_exceptions=True)
-        await server.stop()
-
-
-@pytest.mark.asyncio
-async def test_vehicle_retires_camera_bound_lease_even_after_rapid_recovery():
-    from unittest.mock import Mock
-
-    from rd_core.control import ControlState
-    from rd_core.settings import VehicleSettings
-    from rd_vehicle.application.capture_health import CaptureHealth
-    from rd_vehicle.application.control_client import VehicleControlClient
-
-    health = CaptureHealth()
-    vehicle = VehicleControlClient(
-        VehicleSettings(session=42), None, capture_health=health
-    )
-    vehicle.connection = SimpleNamespace(
-        max_control_age_ms=100, max_clock_skew_ms=10, protocol=Mock(rpc_ready=True)
-    )
-    vehicle.supervisor = Mock(state=ControlState.ACTIVE)
-    prepare = {
-        "session": 42,
-        "epoch": str(uuid4()),
-        "lease_ttl_ms": 500,
-        "max_control_age_ms": 100,
-        "max_clock_skew_ms": 10,
-    }
-    with pytest.raises(RpcError, match="vehicle_not_ready"):
-        await vehicle._request(None, "prepare_lease", prepare)
-    health.update(True)
-    await vehicle._request(None, "prepare_lease", prepare)
-    health.update(False)
-    health.update(True)
-    watch = asyncio.create_task(vehicle._watch())
-    try:
-        await asyncio.sleep(0)
-        assert vehicle.epoch is None
-        vehicle.supervisor.stop.assert_called_once_with(
-            "capture unavailable", epoch=prepare["epoch"]
-        )
-    finally:
-        watch.cancel()
-        await asyncio.gather(watch, return_exceptions=True)
-
-
-@pytest.mark.asyncio
-async def test_primary_capture_freeze_reports_fault_before_blocked_driver_cleanup():
+async def test_frozen_primary_is_invalidated_before_its_blocked_capture_finishes():
     from rd_vehicle.application.multi_camera_manager import MultiCameraManager
     from rd_vehicle.infrastructure.cameras.test_camera import TestCamera
     from test_video_sources import LocalPublisher
@@ -511,11 +331,17 @@ async def test_primary_capture_freeze_reports_fault_before_blocked_driver_cleanu
             return super()._read()
 
     publisher = LocalPublisher()
-    fault = asyncio.Event()
+    invalidated = asyncio.Event()
+    original = publisher.invalidate_frame
+
+    def invalidate(view):
+        original(view)
+        invalidated.set()
+
+    publisher.invalidate_frame = invalidate
     manager = MultiCameraManager(
         publisher,
         video_policy=VideoSafetySettings(stale_frame_ms=100),
-        on_fault=fault.set,
     )
     camera = Frozen(96, 64, 30, "front")
     manager.add_camera(camera)
@@ -523,10 +349,9 @@ async def test_primary_capture_freeze_reports_fault_before_blocked_driver_cleanu
     try:
         await manager.start()
         waiting = asyncio.create_task(manager.wait())
-        await asyncio.wait_for(fault.wait(), 1)
+        await asyncio.wait_for(invalidated.wait(), 1)
         assert entered.is_set() and not release.is_set()
-        with pytest.raises(RuntimeError, match="primary capture expired"):
-            await waiting
+        assert not waiting.done()
         cleanup = asyncio.create_task(manager.stop())
         await asyncio.sleep(0.05)
         assert not cleanup.done()  # Fault notification didn't wait for read/close.

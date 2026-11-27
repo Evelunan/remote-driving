@@ -201,7 +201,6 @@ async def run_case(args, probe, cache, gate, stop):
                     credentials=CredentialSettings("RD_PROC_DRIVER"),
                 ),
                 samples,
-                video_gate=gate,
                 on_execution=lambda sample, result, elapsed: probe.sample(
                     "control_sample_to_ack_ms", elapsed
                 ),
@@ -280,7 +279,6 @@ async def run_case(args, probe, cache, gate, stop):
                 )
 
             await phase("steady")
-            throttle = 0.0
             old_peer, old_epoch = publisher_id(), driver.epoch
             reconnect = time.monotonic()
             await signaling.manager.peers[old_peer].websocket.close(
@@ -294,12 +292,9 @@ async def run_case(args, probe, cache, gate, stop):
             report["reconnect_all_views_painted_ms"] = (
                 time.monotonic() - reconnect
             ) * 1000
-            await until(driver.request_start_control)
-            await until(lambda: driver.armed and driver.epoch != old_epoch)
-            report["reconnect_new_control_epoch_ms"] = (
-                time.monotonic() - reconnect
-            ) * 1000
-            throttle = 0.25
+            if not driver.armed or driver.epoch != old_epoch:
+                raise RuntimeError("media reconnect interrupted the control lease")
+            report["control_retained_during_media_reconnect"] = True
             await phase("recovered")
         finally:
             failures = []

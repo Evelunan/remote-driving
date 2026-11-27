@@ -10,7 +10,6 @@ from rd_core.control import is_newer
 from rd_core.logging import SampledControlLog, get_logger
 from rd_core.samples import ControlInput
 from rd_core.settings import DrivingSettings
-from rd_core.video_safety import VideoGate
 from rd_core.wire import (
     CONTROL_REVISION,
     Control,
@@ -39,15 +38,8 @@ class DrivingControlClient:
         on_execution=None,
         on_telemetry=None,
         on_vehicle_status=None,
-        video_gate=None,
     ):
         self.settings, self.samples = settings, samples
-        self.video_gate = video_gate or VideoGate(
-            stale_frame_ms=settings.video.stale_frame_ms,
-            recovery_ms=settings.video.recovery_ms,
-            max_capture_age_ms=settings.video.max_capture_age_ms,
-        )
-        self._lease_video = None
         self.on_status, self.on_execution, self.on_telemetry = (
             on_status,
             on_execution,
@@ -74,7 +66,6 @@ class DrivingControlClient:
         self.state = "idle"
         self._connection_status = (False, "")
         self._control_requested_at = None
-        self._requested_picture_revision = None
         self._attempt_running = False
         self._attempt_end = ("idle", "")
         self._control_changed = asyncio.Event()
@@ -110,24 +101,6 @@ class DrivingControlClient:
     def _neutral(self):
         return self._fresh() and self.latest.throttle == 0 and self.latest.steering == 0
 
-    def _picture_ready(self, permit):
-        return (
-            permit.ready
-            and permit.source is not None
-            and permit.source.session == self.settings.session
-        )
-
-    def _lease_picture_valid(self):
-        permit = self.video_gate.snapshot()
-        return self._picture_ready(permit) and self._lease_video == (
-            permit.revision,
-            permit.source,
-        )
-
-    @property
-    def lease_picture_revision(self):
-        return self._lease_video[0] if self._lease_video is not None else None
-
     def request_start_control(self):
         if (
             self.connection is None
@@ -136,11 +109,6 @@ class DrivingControlClient:
             or self._attempt_running
         ):
             return False
-        permit = self.video_gate.snapshot()
-        picture_ready = self._picture_ready(permit)
-        if self.state != "idle" and not picture_ready:
-            return False
-        self._requested_picture_revision = permit.revision if picture_ready else None
         self._control_requested_at = time.monotonic()
         self._attempt_end = ("idle", "")
         self._status("starting")
@@ -164,9 +132,6 @@ class DrivingControlClient:
 
     def request_stop_control(self):
         return self._stop_control("idle")
-
-    def pause_control_for_video(self):
-        return self._stop_control("video_unavailable", "primary_video_unavailable")
 
     def _disconnected(self, generation, protocol):
         if generation is self._generation:
@@ -202,11 +167,7 @@ class DrivingControlClient:
         if isinstance(packet.payload, VehicleStatus):
             self._receive_vehicle_status(packet)
             return
-        if (
-            self._control_requested_at is None
-            or packet.epoch != self.epoch
-            or not self._lease_picture_valid()
-        ):
+        if self._control_requested_at is None or packet.epoch != self.epoch:
             return
         if isinstance(packet.payload, Window):
             if is_newer(packet.seq, self._last_window):
@@ -298,7 +259,6 @@ class DrivingControlClient:
     async def _release(self):
         epoch, self.epoch = self.epoch, None
         self.armed = False
-        self._lease_video = None
         if (
             epoch is not None
             and self.connection is not None
@@ -326,21 +286,13 @@ class DrivingControlClient:
 
     async def _send_session(self, requested_at):
         protocol = self.connection.protocol
-        picture_revision = self._requested_picture_revision
         while protocol.rpc_ready and self._control_requested_at == requested_at:
-            permit = self.video_gate.snapshot()
-            if picture_revision is not None and picture_revision != permit.revision:
-                raise RpcError("primary_video_unavailable")
-            if self._picture_ready(permit):
-                picture_revision = permit.revision
-                if not self._fresh() or self.latest.sampled_at < max(requested_at, permit.ready_at):
-                    status = "waiting_input"
-                elif self._neutral():
-                    break
-                else:
-                    status = "waiting_neutral"
+            if not self._fresh() or self.latest.sampled_at < requested_at:
+                status = "waiting_input"
+            elif self._neutral():
+                break
             else:
-                status = "waiting_video"
+                status = "waiting_neutral"
             if self.state != status:
                 self._status(status)
             await asyncio.sleep(0.02)
@@ -352,20 +304,19 @@ class DrivingControlClient:
         except (KeyError, ValueError, TypeError, AttributeError):
             raise RpcError("invalid_lease") from None
         if (
-            grant.get("session") != self.settings.session
+            type(grant.get("session")) is not int
+            or grant["session"] != self.settings.session
             or grant.get("neutral_required") is not True
             or epoch.int == 0
             or epoch in self._revoked
         ):
             raise RpcError("invalid_lease")
         self.epoch, self.armed = epoch, False
-        self._lease_video = (permit.revision, permit.source)
         if self._control_requested_at != requested_at:
             return  # The attempt owner releases this late grant before allowing a new start.
-        if not self._lease_picture_valid():
-            raise RpcError("primary_video_unavailable")
-        if grant.get("vehicle_principal") != permit.source.principal:
-            raise RpcError("video_vehicle_mismatch")
+        principal = grant.get("vehicle_principal")
+        if not isinstance(principal, str) or not 1 <= len(principal) <= 128:
+            raise RpcError("invalid_lease")
         self._windows.clear()
         self._last_window = None
         self._sent.clear()
@@ -373,14 +324,12 @@ class DrivingControlClient:
         self._last_execution = time.monotonic()
         period = 1 / self.settings.control.send_hz
         next_tick = time.monotonic()
-        self._status("waiting_execution")
+        self._status("waiting_execution", principal)
         while (
             protocol.rpc_ready
             and self.epoch == epoch
             and self._control_requested_at == requested_at
         ):
-            if not self._lease_picture_valid():
-                raise RpcError("primary_video_unavailable")
             now = time.monotonic()
             if not self._fresh():
                 raise RpcError("input_expired")
@@ -435,11 +384,7 @@ class DrivingControlClient:
             try:
                 await self._send_session(requested_at)
             except RpcError as error:
-                state = {
-                    "primary_video_unavailable": "video_unavailable",
-                    "video_vehicle_mismatch": "video_vehicle_mismatch",
-                    "lease_busy": "lease_busy",
-                }.get(error.code, "paused")
+                state = "lease_busy" if error.code == "lease_busy" else "paused"
                 self._stop_control(state, error.code)
             except TimeoutError:
                 self._stop_control("paused", "acquire_timeout")

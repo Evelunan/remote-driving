@@ -188,27 +188,29 @@ def test_gui_forces_process_exit_when_worker_never_stops(tmp_path, via_signal):
         shutdown.SHUTDOWN_GRACE_S = 0.4
 
         class StalledWorker(QThread):
-            def __init__(self, bridge, settings, *, video_gate):
+            def __init__(self, bridge, settings):
                 super().__init__()
-                self.video_gate = video_gate
 
             def run(self):
                 threading.Event().wait()
 
             def request_stop(self):
-                permit = self.video_gate.snapshot()
-                assert not permit.ready and permit.reason == "service_stopped"
-                print("worker stop requested after picture revocation", flush=True)
+                print("control worker stop requested", flush=True)
 
         class Window(module.MainWindow):
             def __init__(self, *args, **kwargs):
                 super().__init__(*args, **kwargs)
+                self._close_started.connect(self._verify_video_stopped)
                 self.repeat_close = QTimer(self)
                 self.repeat_close.timeout.connect(self._close)
                 QTimer.singleShot(0, self._start_closing)
 
             def _start_video(self):
                 pass
+
+            def _verify_video_stopped(self):
+                picture = self.video_gate.snapshot()
+                assert not picture.ready and picture.reason == 'service_stopped'
 
             def _start_closing(self):
                 now = time.monotonic()
@@ -249,5 +251,5 @@ def test_gui_forces_process_exit_when_worker_never_stops(tmp_path, via_signal):
     )
     output = result.stdout + result.stderr
     assert result.returncode == 1, output
-    assert result.stdout.count("worker stop requested after picture revocation") == 1, output
+    assert result.stdout.count("control worker stop requested") == 1, output
     assert "Timeout" in result.stderr, output

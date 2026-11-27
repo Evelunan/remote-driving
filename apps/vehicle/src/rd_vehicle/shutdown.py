@@ -6,6 +6,10 @@ import threading
 from contextlib import contextmanager
 
 
+class ComponentCleanupError(RuntimeError):
+    """The component may still own devices and cannot restart in this process."""
+
+
 @contextmanager
 def stop_on_signals(stop, *, numbers=(signal.SIGINT, signal.SIGTERM)):
     """Keep handlers active through cleanup and restore the caller's handlers."""

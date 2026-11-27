@@ -377,8 +377,6 @@ def test_window_disconnects_video_without_restarting_other_workers(legacy_python
                 time.sleep(0.15)
             def request_stop(self):
                 self.stop.set()
-            def pause_control_for_video(self):
-                return True
         module.ControlSystemThread = Worker
         module.WebRTCReceiverThread = Worker
         window = module.MainWindow(session_id="42", room="video")

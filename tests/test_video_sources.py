@@ -332,11 +332,9 @@ async def test_two_reads_in_one_clock_tick_do_not_reopen_or_extend_primary_deadl
     from rd_core.settings import VideoSafetySettings
 
     publisher = LocalPublisher()
-    health = []
     camera = TestCamera(32, 24, 60, "front")
     manager = MultiCameraManager(
         publisher, video_policy=VideoSafetySettings(stale_frame_ms=150),
-        on_capture_health=health.append,
     )
     manager.add_camera(camera)
     stamp = time.monotonic()
@@ -351,14 +349,14 @@ async def test_two_reads_in_one_clock_tick_do_not_reopen_or_extend_primary_deadl
                 await asyncio.sleep(0)
             image = captured(2, at=stamp)
             notice.event.set()
-            while publisher.count < 2 and not health:
+            while publisher.count < 2:
                 await asyncio.sleep(0)
-            assert publisher.count == 2 and not health
-            while not health:
+            track = publisher.tracks.sources["front"]
+            assert track.latest.sequence == 2
+            while track.latest is not None:
                 image = captured(image.sequence + 1, at=stamp)
                 notice.event.set()
                 await asyncio.sleep(0.01)
-            assert health == [False]
     finally:
         worker.cancel()
         await asyncio.gather(worker, return_exceptions=True)
@@ -713,7 +711,6 @@ async def test_viewer_leaving_cancels_offer_without_waiting_for_ice(
 @pytest.mark.parametrize("broken_view", ["front", "back"])
 async def test_isolated_camera_reopens_without_interrupting_healthy_track(broken_view):
     from rd_core.settings import VideoSafetySettings
-    from rd_vehicle.application.capture_health import CaptureHealth
 
     fail = False
 
@@ -724,10 +721,7 @@ async def test_isolated_camera_reopens_without_interrupting_healthy_track(broken
             return super()._read()
 
     publisher = LocalPublisher()
-    health = CaptureHealth()
-    manager = MultiCameraManager(
-        publisher, video_policy=VideoSafetySettings(), on_capture_health=health.update
-    )
+    manager = MultiCameraManager(publisher, video_policy=VideoSafetySettings())
     healthy_view = "front" if broken_view == "back" else "back"
     manager.add_camera(Intermittent(64, 48, 30, broken_view))
     manager.add_camera(TestCamera(64, 48, 30, healthy_view))
@@ -736,22 +730,20 @@ async def test_isolated_camera_reopens_without_interrupting_healthy_track(broken
         await manager.start()
         await asyncio.wait_for(tracks[broken_view].recv(), 2)
         await asyncio.wait_for(tracks[healthy_view].recv(), 2)
-        revision = health.permit()
-        assert revision is not None
         fail = True
         async with async_timeout(2):
-            while health.permit() is not None:
+            while publisher.tracks.sources[broken_view].latest is not None:
                 await asyncio.sleep(0.01)
         first = await asyncio.wait_for(tracks[healthy_view].recv(), 1)
         second = await asyncio.wait_for(tracks[healthy_view].recv(), 1)
         assert second.pts > first.pts
         fail = False
         await asyncio.wait_for(tracks[broken_view].recv(), 3)
-        assert health.permit() is not None and health.permit() != revision
+        assert publisher.tracks.sources[broken_view].latest is not None
     finally:
         await manager.stop()
         publisher.tracks.close()
-    assert health.permit() is None
+    assert all(source.latest is None for source in publisher.tracks.sources.values())
 
 
 @pytest.mark.asyncio

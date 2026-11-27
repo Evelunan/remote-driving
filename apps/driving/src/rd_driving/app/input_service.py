@@ -28,7 +28,6 @@ class DrivingInputService:
         on_telemetry=None,
         on_vehicle_status=None,
         device_factory=None,
-        video_gate=None,
     ):
         self.settings, self.on_usb = settings, on_usb
         self.on_local_input = on_local_input
@@ -50,7 +49,6 @@ class DrivingInputService:
             on_execution=on_execution,
             on_telemetry=on_telemetry,
             on_vehicle_status=on_vehicle_status,
-            video_gate=video_gate,
         )
 
     def _usb_status(self, online, message):
@@ -140,9 +138,6 @@ class DrivingInputService:
 
     def request_stop_control(self):
         return self.client.request_stop_control()
-
-    def pause_control_for_video(self):
-        return self.client.pause_control_for_video()
 
     def apply_control_request(self, action):
         if not action(self):

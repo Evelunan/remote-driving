@@ -324,6 +324,13 @@ async def run_case(args, probe, cache, gate, stop):
             )
             vehicle = Vehicle(vehicle_settings, MockController(vehicle_settings.motion))
             samples = asyncio.Queue(maxsize=1)
+
+            def record_control_ready(state, _detail):
+                if state == "active":
+                    report.setdefault(
+                        "initial_control_ready_ms", (time.monotonic() - started) * 1000
+                    )
+
             driver = DrivingControlClient(
                 DrivingSettings(
                     session=42,
@@ -331,7 +338,7 @@ async def run_case(args, probe, cache, gate, stop):
                     credentials=CredentialSettings("RD_BENCH_DRIVER"),
                 ),
                 samples,
-                video_gate=gate,
+                on_status=record_control_ready,
                 on_execution=lambda sample, result, elapsed: probe.sample(
                     "control_sample_to_ack_ms", elapsed
                 ),
@@ -409,7 +416,6 @@ async def run_case(args, probe, cache, gate, stop):
                     for view in views
                 }
             await until(lambda: driver.armed)
-            report["initial_control_ready_ms"] = (time.monotonic() - started) * 1000
             current["throttle"] = 0.25
 
             async def phase(name):
@@ -431,7 +437,6 @@ async def run_case(args, probe, cache, gate, stop):
                 report[name] = result
 
             await phase("steady")
-            current["throttle"] = 0
             old_id, old_epoch = publisher.my_id, driver.epoch
             reconnect = time.monotonic()
             await signaling.manager.peers[old_id].websocket.close(
@@ -447,12 +452,9 @@ async def run_case(args, probe, cache, gate, stop):
             report["reconnect_all_views_painted_ms"] = (
                 time.monotonic() - reconnect
             ) * 1000
-            await until(driver.request_start_control)
-            await until(lambda: driver.armed and driver.epoch != old_epoch)
-            report["reconnect_new_control_epoch_ms"] = (
-                time.monotonic() - reconnect
-            ) * 1000
-            current["throttle"] = 0.25
+            if not driver.armed or driver.epoch != old_epoch:
+                raise RuntimeError("media reconnect interrupted the control lease")
+            report["control_retained_during_media_reconnect"] = True
             await phase("recovered")
             report["cameras"] = [camera.diagnostics for camera in manager.cameras]
             report["network_samples"] = stats

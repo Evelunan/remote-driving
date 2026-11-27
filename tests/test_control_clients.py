@@ -14,7 +14,6 @@ from rd_core.settings import (
     MotionSettings,
     VehicleSettings,
 )
-from rd_core.video_safety import VideoGate, VideoSource
 from rd_core.wire import CONTROL_REVISION, VehicleStatus
 from rd_driving.app.control_client import DrivingControlClient
 from rd_vehicle.application.control_client import VehicleControlClient
@@ -49,7 +48,6 @@ async def test_real_feedback_transport_keeps_units_and_never_repeats_stale_cache
     inputs, reports = Inputs(), []
     vehicle = VehicleControlClient(vehicle_settings, controller)
     driver = DrivingControlClient(driving_settings, inputs.queue,
-                                  video_gate=inputs.video_gate,
                                   on_vehicle_status=lambda *args: reports.append(args))
     tasks = [asyncio.create_task(vehicle.run()), asyncio.create_task(driver.run())]
     try:
@@ -96,18 +94,9 @@ class Inputs:
         self.brake = 0
         self.enabled = True
         self.sampled = []
-        self.video_gate = VideoGate(recovery_ms=1)
-        self.video_sequence = 0
 
     async def run(self):
         while True:
-            self.video_sequence += 1
-            self.video_gate.observe(
-                self.video_sequence,
-                time.monotonic(),
-                VideoSource("vehicle", 42, "simulated-video"),
-                captured_at=time.monotonic(),
-            )
             if self.enabled:
                 sample = ControlInput(
                     self.throttle,
@@ -195,7 +184,6 @@ async def test_real_clients_execute_configured_targets_expire_input_and_rearm_af
     driver = DrivingControlClient(
         driving_settings,
         inputs.queue,
-        video_gate=inputs.video_gate,
         on_execution=lambda *args: reports.append(args),
     )
     tasks = [
@@ -235,7 +223,7 @@ async def test_real_clients_execute_configured_targets_expire_input_and_rearm_af
         await asyncio.gather(tasks[-1], return_exceptions=True)
         await until(lambda: vehicle.epoch is None)
         replacement = DrivingControlClient(
-            driving_settings, inputs.queue, video_gate=inputs.video_gate
+            driving_settings, inputs.queue
         )
         tasks[-1] = asyncio.create_task(replacement.run())
         await until(replacement.request_start_control)
@@ -285,7 +273,6 @@ async def test_no_execution_ack_causes_driver_release_and_vehicle_failsafe(
     driver = DrivingControlClient(
         driving_settings,
         inputs.queue,
-        video_gate=inputs.video_gate,
         on_status=lambda *args: statuses.append(args),
     )
     tasks = [
@@ -410,7 +397,7 @@ async def test_blocked_actuator_does_not_block_independent_stop_or_invalidate_ne
     )
     inputs = Inputs()
     driver = DrivingControlClient(
-        driving_settings, inputs.queue, video_gate=inputs.video_gate
+        driving_settings, inputs.queue
     )
     tasks = [
         asyncio.create_task(vehicle.run()),

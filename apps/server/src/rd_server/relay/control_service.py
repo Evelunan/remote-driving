@@ -127,14 +127,15 @@ class ControlRelayService:
             self.registration_deadlines.clear()
 
     async def wait_closed(self):
-        # Surface maintenance failures to the joint server runtime as well as
-        # listener loss, so another module cannot remain misleadingly ready.
+        # Either a listener or maintenance failure requires a fresh relay lifetime.
         listener_closed = asyncio.create_task(self.listener.closed.wait())
         try:
             done, _ = await asyncio.wait(
                 [listener_closed, self.maintenance], return_when=asyncio.FIRST_COMPLETED
             )
             if self.maintenance in done:
+                if self.maintenance.cancelled():
+                    raise RuntimeError("relay maintenance ended unexpectedly")
                 await self.maintenance
         finally:
             listener_closed.cancel()

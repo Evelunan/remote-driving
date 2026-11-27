@@ -6,7 +6,7 @@ import json
 from collections import Counter
 from pathlib import Path
 
-from compare_media import difference
+from compare_media import compare_control_recovery, difference
 
 CONDITIONS = (
     "schema",
@@ -171,9 +171,9 @@ def compare(combined, split):
         "startup_ready_ms",
         "shutdown_ms",
         "reconnect_all_views_painted_ms",
-        "reconnect_new_control_epoch_ms",
     ):
         result[key] = difference([v[key] for v in a], [v[key] for v in b])
+    result.update(compare_control_recovery(a, b))
     return result
 
 

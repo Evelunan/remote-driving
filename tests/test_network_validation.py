@@ -98,7 +98,7 @@ def test_network_faults_preserve_recovery_contract_and_close_resources(tmp_path,
                 path["local_type"] == path["remote_type"] == "relay"
                 for path in report[key]
             )
-    if case in {"mild", "turn-relay"}:
+    if case in {"mild", "turn-relay", "turn-outage", "signaling-restart", "media-blackhole"}:
         assert report["control_retained"] and report["sample_to_execution_ack_ms"]
     else:
         assert (
@@ -106,22 +106,25 @@ def test_network_faults_preserve_recovery_contract_and_close_resources(tmp_path,
             and report["new_epoch_after_fresh_neutral"]
         )
         assert report["zero_target_until_neutral_recovery"]
+        assert report["motion_ack_in_new_epoch"]
+        if case != "server-restart":
+            assert report["video_continued_during_control_loss"]
         assert 0 <= report["fault_to_mock_zero_ms"] < 5000
         assert report["recovery_to_new_epoch_ms"] > report["recovery_to_all_views_ms"]
-        if case.endswith("blackhole"):
-            category = case.split("-", 1)[0]
-            assert (
-                sum(
-                    endpoint["stats"].get("blackhole_drops", 0)
-                    for endpoint in report["fault_udp"]["endpoints"]
-                    if endpoint["category"] == category
-                )
-                > 0
-            )
-        if case == "media-blackhole":
-            assert report["control_transport_survived_video_loss"]
         if case == "window-budget":
             assert report["window_round_trip_floor_ms"] > 300
         if case == "rpc-only":
             assert report["reliable_rpc_survived_datagram_loss"]
             assert report["suppressed_application_datagrams"] > 0
+    if case in {"media-blackhole", "turn-outage", "signaling-restart"}:
+        assert report["brake_ack_during_video_loss"]
+    if case.endswith("blackhole"):
+        category = case.split("-", 1)[0]
+        assert (
+            sum(
+                endpoint["stats"].get("blackhole_drops", 0)
+                for endpoint in report["fault_udp"]["endpoints"]
+                if endpoint["category"] == category
+            )
+            > 0
+        )

@@ -187,19 +187,15 @@ async def test_copied_primary_expires_with_original_capture():
         video=VideoSafetySettings(primary_view="left", stale_frame_ms=100),
     )
     publisher = Publisher()
-    fault = asyncio.Event()
-    manager = MultiCameraManager(
-        publisher, video_policy=settings.video, on_fault=fault.set
-    )
+    manager = MultiCameraManager(publisher, video_policy=settings.video)
     _configure_cameras(manager, settings, ManualCamera)
     try:
         await manager.start()
-        with pytest.raises(RuntimeError, match="primary capture expired"):
-            await asyncio.wait_for(manager.wait(), 1)
-        assert fault.is_set()
-        assert all(
-            source.latest is None for source in publisher.tracks.sources.values()
-        )
+        views = tuple(publisher.tracks.sources.values())
+        await until(lambda: all(view.latest is not None for view in views))
+        await until(lambda: all(view.latest is None for view in views))
+        await until(lambda: all(view.latest is not None for view in views))
+        assert manager.cameras[0].opened == 2
     finally:
         await manager.stop()
         publisher.tracks.close()

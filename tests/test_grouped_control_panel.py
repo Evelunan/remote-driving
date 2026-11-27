@@ -121,7 +121,6 @@ def test_input_ack_and_feedback_have_independent_original_deadlines(legacy_pytho
         from types import SimpleNamespace
         from PyQt6.QtWidgets import QApplication
         from rd_core.samples import ControlInput
-        from rd_core.video_safety import VideoSource
         from rd_core.wire import VehicleStatus
         from rd_driving.main_window import MainWindow
         from rd_driving.infrastructure.processing.data_processor import LocalInputState
@@ -131,13 +130,8 @@ def test_input_ack_and_feedback_have_independent_original_deadlines(legacy_pytho
         window._setup_control_page()
         window._setup_signals()
         window._services_running = True
-        window.video_gate.recovery_s = 0
-        observed = time.monotonic()
-        window.video_gate.observe(1, observed, VideoSource('vehicle', 42, 'peer'), captured_at=observed)
         panel = window._control_panel
         worker = ControlSystemThread(window._bridge, window.settings)
-        worker.service = SimpleNamespace(client=SimpleNamespace(
-            connection=None, lease_picture_revision=window.video_gate.snapshot().revision))
         window._bridge.quic_status_changed.emit(True, '已认证')
         window._bridge.control_status_changed.emit('active', '控制已授权')
         def state(age=0, brake=0):
@@ -168,7 +162,8 @@ def test_input_ack_and_feedback_have_independent_original_deadlines(legacy_pytho
         assert panel._input_stats['throttle'].get_value() == '75'
         window.video_gate.invalidate()
         worker._execution(old, None, 60)
-        assert window._command_deadline is None
+        assert window._command_deadline == old.sampled_at + 0.3
+        assert panel._confirmation_state.get_value() == '接口已确认'
         assert panel._vehicle_stats['speed_mps'].get_value() == '0'
         window._on_quic_status_changed(False, '离线')
         assert panel._vehicle_stats['speed_mps'].get_value() == '--'

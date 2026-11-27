@@ -62,6 +62,7 @@ def test_dashboard_control_status_tracks_worker_and_clears_on_logout(legacy_pyth
         import os
         os.environ["QT_QPA_PLATFORM"] = "offscreen"
         import time
+        from unittest.mock import patch
         from PyQt6.QtWidgets import QApplication
         from rd_core.video_safety import VideoSource
         from rd_driving.infrastructure.workers.control_system_thread import STATUS_TEXT
@@ -78,10 +79,9 @@ def test_dashboard_control_status_tracks_worker_and_clears_on_logout(legacy_pyth
                 self.stop_requested = True
 
         app = QApplication([])
-        window = MainWindow()
-        window._session_id, window._room = 42, "test-room"
-        window._setup_control_page()
-        window._stacked_widget.setCurrentWidget(window._control_page)
+        with patch.object(MainWindow, "_start_services"):
+            window = MainWindow(session_id="42", room="test-room")
+        assert window.get_session_id() == 42
         window._setup_signals()
         window._services_running = True
         worker = window._control_thread = Worker()
@@ -89,25 +89,42 @@ def test_dashboard_control_status_tracks_worker_and_clears_on_logout(legacy_pyth
         channel = window._control_panel.get_connection_items()["quic"]
         signal = window._bridge.control_status_changed
         window._bridge.quic_status_changed.emit(True, STATUS_TEXT["registered"])
-        window.video_gate.recovery_s = 0
-        observed = time.monotonic()
-        window.video_gate.observe(1, observed, VideoSource('vehicle', 42, 'peer'), captured_at=observed)
         for state, tone in (
             ("idle", "waiting"),
             ("waiting_input", "waiting"),
             ("waiting_neutral", "waiting"),
             ("waiting_execution", "waiting"),
             ("active", "active"),
-            ("video_unavailable", "blocked"),
+            ("revoked", "blocked"),
             ("active", "active"),
         ):
             text = STATUS_TEXT[state]
             signal.emit(state, text)
+            if state == "waiting_execution":
+                window._bridge.control_target_changed.emit("vehicle-42")
+            if state == "revoked":
+                assert navbar._target_text.accessibleName() == "--"
+            elif state == "waiting_execution":
+                assert navbar._target_text.accessibleName() == "vehicle-42"
             assert navbar._control_status.text() == text
             assert navbar._control_tone == tone
             assert (window._theme.success in navbar._control_field.styleSheet()) == (tone == "active")
             assert channel.is_online()
             assert channel._status_label.text() == STATUS_TEXT["registered"]
+
+        window._bridge.control_target_changed.emit("vehicle-42")
+        window.video_gate.recovery_s = 0
+        video = window._control_panel.get_connection_items()["video"]
+        for source, expected in [
+            (VideoSource("vehicle-42", 7, "peer-a"), "画面与控制目标不符"),
+            (VideoSource("another", 42, "peer-b"), "画面与控制目标不符"),
+            (VideoSource("vehicle-42", 42, "peer-c"), "传输中"),
+        ]:
+            now = time.monotonic()
+            window.video_gate.observe(1, now, source, captured_at=now)
+            window._update_primary_video_status()
+            assert video._status_label.text() == expected
+            assert navbar._control_tone == "active" and channel.is_online()
 
         login = window._login_page
         login._room_input.setText("saved-room")

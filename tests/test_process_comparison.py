@@ -30,10 +30,11 @@ def test_recorded_topologies_have_identical_input_and_three_independent_runs(
         == 3
     )
     assert report["steady"]["resources"]["pss_mib"]["p95"]["before"]["median"] > 0
+    assert report["reconnect_new_control_epoch_ms"]["before"]["runs"] == 3
 
 
 @pytest.mark.parametrize(
-    "fault", ["workload", "source", "encoder", "cleanup", "invalid"]
+    "fault", ["workload", "source", "encoder", "cleanup", "invalid", "missing_recovery"]
 )
 def test_different_conditions_cannot_produce_a_performance_claim(
     comparison, tmp_path, fault
@@ -49,6 +50,8 @@ def test_different_conditions_cannot_produce_a_performance_claim(
             report["encoder_instances"][0]["thread_count"] = 16
         elif fault == "cleanup":
             report["component_cleanup"][0]["remaining_threads"] = ["rd-device"]
+        elif fault == "missing_recovery":
+            del report["reconnect_new_control_epoch_ms"]
         else:
             report["valid"] = False
         path = tmp_path / f"changed-{index}.json"

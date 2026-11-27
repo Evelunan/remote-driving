@@ -86,7 +86,7 @@ async def validate(args, cache, gate, interrupted):
     tasks, runtimes, statuses, executions = [], [], [], []
     publisher = receiver = manager = vehicle = None
     shaper = Shaper(seed=args.seed)
-    throttle = 0.0
+    throttle = brake = 0.0
     report = {
         "case": args.case,
         "low_latency_vp8": args.low_latency_vp8,
@@ -258,9 +258,8 @@ async def validate(args, cache, gate, interrupted):
                             credentials=CredentialSettings("RD_NET_DRIVER"),
                         ),
                         inputs,
-                        video_gate=gate,
                         on_execution=lambda sample, result, ms: executions.append(
-                            (time.monotonic(), ms)
+                            (time.monotonic(), ms, sample)
                         ),
                         on_status=lambda state, detail: statuses.append(
                             (time.monotonic(), state, detail)
@@ -274,7 +273,7 @@ async def validate(args, cache, gate, interrupted):
                             inputs.put_nowait(
                                 ControlInput(
                                     throttle,
-                                    0,
+                                    brake,
                                     0,
                                     time.monotonic(),
                                     time.time_ns() // 1_000_000,
@@ -285,6 +284,22 @@ async def validate(args, cache, gate, interrupted):
                     def picture(since):
                         return publisher.my_id is not None and cache.ready(
                             views, since, publisher.my_id
+                        )
+
+                    def control_registered():
+                        # A retiring connection can still be present locally after
+                        # a relay restart. Each successful registration returns a
+                        # new status stream, including on the replacement relay.
+                        streams = {
+                            binding.status_stream
+                            for binding in relay.registry.bindings.values()
+                            if binding.session == vehicle_settings.session
+                        }
+                        return all(
+                            client.connection is not None
+                            and client.connection.protocol.rpc_ready
+                            and client.connection.status_stream in streams
+                            for client in (driver, vehicle)
                         )
 
                     await manager.start()
@@ -300,9 +315,9 @@ async def validate(args, cache, gate, interrupted):
                             samples(),
                         )
                     ]
-                    await until(lambda: vehicle.connection is not None)
+                    await until(control_registered)
                     await until(driver.request_start_control)
-                    await until(lambda: driver.armed and picture(started))
+                    await until(lambda: driver.armed and picture(started) and gate.snapshot().ready)
                     report["initial_paths"] = (
                         await network_snapshot(publisher, receiver)
                     )["paths"]
@@ -328,7 +343,7 @@ async def validate(args, cache, gate, interrupted):
                             raise RuntimeError("a TURN view stopped presenting")
                         report["control_retained"] = True
                         report["sample_to_execution_ack_ms"] = [
-                            ms for stamp, ms in executions if stamp >= started_fault
+                            ms for stamp, ms, _ in executions if stamp >= started_fault
                         ]
                     elif args.case == "mild":
                         shaper.set(
@@ -353,7 +368,7 @@ async def validate(args, cache, gate, interrupted):
                             )
                         report["control_retained"] = True
                         report["sample_to_execution_ack_ms"] = [
-                            ms for stamp, ms in executions if stamp >= started_fault
+                            ms for stamp, ms, _ in executions if stamp >= started_fault
                         ]
                     else:
                         if args.case == "turn-outage":
@@ -376,63 +391,73 @@ async def validate(args, cache, gate, interrupted):
                                 else args.case.split("-", 1)[0]
                             )
                             await active[key].stop()
-                        await until(
-                            lambda: (
-                                not driver.armed
-                                and vehicle.epoch is None
-                                and controller.commands[-1] == (0, 0)
-                            ),
-                            timeout=5,
-                        )
-                        stopped = time.monotonic()
-                        first_zero_index = next(
-                            i
-                            for i in range(fault_event_index, len(controller.events))
-                            if controller.events[i][1] == (0, 0)
-                        )
-                        first_zero = controller.events[first_zero_index][0]
-                        report["fault_to_mock_zero_ms"] = (
-                            first_zero - started_fault
-                        ) * 1000
-                        report["fault_to_revoke_observed_ms"] = (
-                            stopped - started_fault
-                        ) * 1000
-                        await duration(
-                            0.6,
-                            lambda: (
-                                not driver.armed and controller.commands[-1] == (0, 0)
-                            ),
-                        )
-                        if args.case == "rpc-only":
-                            if vehicle.connection is None:
-                                raise RuntimeError(
-                                    "RPC-only scenario lost its vehicle transport"
-                                )
-                            clock = await vehicle.connection.protocol.request(
-                                "clock", {}
+                        media_only = args.case in {"media-blackhole", "signaling-restart", "turn-outage"}
+                        if media_only:
+                            await until(lambda: not gate.snapshot().ready)
+                            await duration(
+                                0.6, lambda: driver.armed and vehicle.epoch == old_epoch
                             )
-                            report["reliable_rpc_survived_datagram_loss"] = (
-                                type(clock.get("server_time_ms")) is int
+                            brake_requested = time.monotonic()
+                            brake = 1.0
+                            await until(lambda: controller.commands[-1] == (0, 0) and any(
+                                stamp >= brake_requested and sample.brake > 0
+                                for stamp, _, sample in executions
+                            ))
+                            report["brake_ack_during_video_loss"] = True
+                            if driver.connection is not driver_connection or vehicle.connection is not vehicle_connection:
+                                raise RuntimeError("media outage interrupted the control connection")
+                        else:
+                            await until(
+                                lambda: (
+                                    not driver.armed
+                                    and vehicle.epoch is None
+                                    and controller.commands[-1] == (0, 0)
+                                ),
+                                timeout=5,
                             )
-                            report["suppressed_application_datagrams"] = datagrams[
-                                "dropped"
-                            ]
-                            if (
-                                not report["reliable_rpc_survived_datagram_loss"]
-                                or not datagrams["dropped"]
-                            ):
-                                raise RuntimeError(
-                                    "RPC-only scenario did not exercise both paths"
-                                )
-                        if args.case == "media-blackhole":
-                            report["control_transport_survived_video_loss"] = (
-                                driver.connection is driver_connection
-                                and vehicle.connection is vehicle_connection
+                            stopped = time.monotonic()
+                            first_zero_index = next(
+                                i
+                                for i in range(fault_event_index, len(controller.events))
+                                if controller.events[i][1] == (0, 0)
                             )
-                            if not report["control_transport_survived_video_loss"]:
-                                raise RuntimeError(
-                                    "media-only blackout lost the independent control transport"
+                            first_zero = controller.events[first_zero_index][0]
+                            report["fault_to_mock_zero_ms"] = (
+                                first_zero - started_fault
+                            ) * 1000
+                            report["fault_to_revoke_observed_ms"] = (
+                                stopped - started_fault
+                            ) * 1000
+                            await duration(
+                                0.6,
+                                lambda: (
+                                    not driver.armed and controller.commands[-1] == (0, 0)
+                                ),
+                            )
+                            if args.case != "server-restart":
+                                await until(lambda: cache.ready(views, stopped, old_publisher))
+                                report["video_continued_during_control_loss"] = True
+                            if args.case == "rpc-only":
+                                if vehicle.connection is None:
+                                    raise RuntimeError(
+                                        "RPC-only scenario lost its vehicle transport"
+                                    )
+                                clock = await vehicle.connection.protocol.request(
+                                    "clock", {}
                                 )
+                                report["reliable_rpc_survived_datagram_loss"] = (
+                                    type(clock.get("server_time_ms")) is int
+                                )
+                                report["suppressed_application_datagrams"] = datagrams[
+                                    "dropped"
+                                ]
+                                if (
+                                    not report["reliable_rpc_survived_datagram_loss"]
+                                    or not datagrams["dropped"]
+                                ):
+                                    raise RuntimeError(
+                                        "RPC-only scenario did not exercise both paths"
+                                    )
                         report["fault_udp"] = shaper.snapshot()
                         recovery = time.monotonic()
                         datagrams["drop"] = False
@@ -455,11 +480,7 @@ async def validate(args, cache, gate, interrupted):
                             await replacement.start()
                         try:
                             await until(
-                                lambda: (
-                                    picture(recovery)
-                                    and gate.snapshot().ready
-                                    and driver.connection is not None
-                                ),
+                                lambda: picture(recovery) and gate.snapshot().ready,
                                 timeout=45 if args.case == "turn-outage" else 15,
                             )
                         except TimeoutError:
@@ -492,39 +513,64 @@ async def validate(args, cache, gate, interrupted):
                             raise RuntimeError(
                                 "server restart reused publisher identity"
                             )
-                        held_event_index = len(controller.events)
-                        await duration(
-                            0.75,
-                            lambda: (
-                                not driver.armed and controller.commands[-1] == (0, 0)
-                            ),
-                        )
-                        if any(
-                            v or w for _, (v, w) in controller.events[held_event_index:]
-                        ):
-                            raise RuntimeError(
-                                "held input restored motion before neutral"
+                        if media_only:
+                            if not driver.armed or driver.epoch != old_epoch or vehicle.epoch != old_epoch:
+                                raise RuntimeError("media recovery replaced the control lease")
+                            report["control_retained"] = True
+                            report["sample_to_execution_ack_ms"] = [
+                                ms for stamp, ms, _ in executions if stamp >= started_fault
+                            ]
+                            brake = 0.0
+                            await until(lambda: controller.commands[-1][0] > 0)
+                        else:
+                            held_event_index = len(controller.events)
+                            await duration(
+                                0.75,
+                                lambda: (
+                                    not driver.armed and controller.commands[-1] == (0, 0)
+                                ),
                             )
-                        report["held_input_did_not_rearm"] = True
-                        throttle = 0.0
-                        await until(lambda: vehicle.connection is not None)
-                        await until(driver.request_start_control)
-                        await until(lambda: driver.armed and driver.epoch != old_epoch)
-                        report["recovery_to_new_epoch_ms"] = (
-                            time.monotonic() - recovery
-                        ) * 1000
-                        report["new_epoch_after_fresh_neutral"] = True
-                        if any(
-                            v or w
-                            for _, (v, w) in controller.events[first_zero_index + 1 :]
-                        ):
-                            raise RuntimeError(
-                                "motion resumed between failsafe and fresh-neutral recovery"
+                            if any(
+                                v or w for _, (v, w) in controller.events[held_event_index:]
+                            ):
+                                raise RuntimeError(
+                                    "held input restored motion before neutral"
+                                )
+                            report["held_input_did_not_rearm"] = True
+                            throttle = 0.0
+                            await until(
+                                lambda: control_registered()
+                                and vehicle_settings.session not in relay.registry.leases
                             )
-                        report["zero_target_until_neutral_recovery"] = True
-                        throttle = 0.25
-                        await until(lambda: controller.commands[-1][0] > 0)
-                        await duration(args.seconds, lambda: driver.armed)
+                            await until(driver.request_start_control)
+                            await until(
+                                lambda: driver.armed
+                                and driver.epoch != old_epoch
+                                and driver.epoch == vehicle.epoch
+                            )
+                            report["recovery_to_new_epoch_ms"] = (
+                                time.monotonic() - recovery
+                            ) * 1000
+                            report["new_epoch_after_fresh_neutral"] = True
+                            if any(
+                                v or w
+                                for _, (v, w) in controller.events[first_zero_index + 1 :]
+                            ):
+                                raise RuntimeError(
+                                    "motion resumed between failsafe and fresh-neutral recovery"
+                                )
+                            report["zero_target_until_neutral_recovery"] = True
+                            motion_requested = time.monotonic()
+                            throttle = 0.25
+                            await until(
+                                lambda: controller.commands[-1][0] > 0
+                                and any(
+                                    stamp >= motion_requested and sample.throttle > 0
+                                    for stamp, _, sample in executions
+                                )
+                            )
+                            report["motion_ack_in_new_epoch"] = True
+                            await duration(args.seconds, lambda: driver.armed)
                     report["frame_counts_before"] = before_counts
                     report["frame_counts_after"] = cache.counts()
                     after_network = await network_snapshot(publisher, receiver)

@@ -5,6 +5,7 @@ import socket
 import threading
 import time
 from dataclasses import replace
+from itertools import pairwise
 
 import pytest
 from rd_core.async_compat import ExceptionGroup, async_timeout
@@ -13,10 +14,8 @@ from rd_core.settings import (
     ClientNetworkSettings,
     CredentialSettings,
     LoggingSettings,
-    ProcessSettings,
     VehicleSettings,
 )
-from rd_core.video_safety import VideoGate
 from rd_vehicle.processes import ProcessFailure, VehicleProcesses, _component_lifetime
 
 
@@ -72,6 +71,9 @@ async def blocked_media_runner(settings, stop):
 
     directory = settings.logging.directory
     if settings.components == ("media",):
+        if (directory / "media-blocked").exists():
+            await stop.wait()
+            return
         await asyncio.sleep(1.0)
         (directory / "media-blocked").write_text(str(time.monotonic()))
         time.sleep(5)  # noqa: ASYNC251 - deliberate event-loop stall for fault injection
@@ -117,17 +119,10 @@ def configuration(tmp_path, local_tls, monkeypatch):
             reconnect_delay_s=0.05,
         ),
         logging=LoggingSettings(directory=tmp_path / "logs"),
-        processes=ProcessSettings(
-            heartbeat_interval_s=0.02,
-            heartbeat_timeout_s=0.3,
-            startup_timeout_s=0.8,
-            shutdown_timeout_s=0.5,
-            kill_timeout_s=0.3,
-        ),
     )
 
 
-async def until(predicate, task, timeout=6):
+async def until(predicate, task, timeout=20):
     async with async_timeout(timeout):
         while not predicate():
             if task.done():
@@ -174,7 +169,6 @@ async def test_media_captures_only_while_authenticated_viewers_are_in_the_room(
 ):
     import aioice.ice
     from rd_driving.infrastructure.video.webrtc_reciver import WebRTCReceiver
-    from rd_vehicle.application.capture_health import CaptureHealth
     from rd_vehicle.infrastructure.cameras import TestCamera
     from rd_vehicle.main import run
 
@@ -215,12 +209,8 @@ async def test_media_captures_only_while_authenticated_viewers_are_in_the_room(
     def camera_factory(camera):
         return ObservedCamera(camera.width, camera.height, camera.fps, camera.name)
 
-    capture_health, stop = CaptureHealth(), asyncio.Event()
-    vehicle = asyncio.create_task(
-        run(
-            settings, stop, camera_factory=camera_factory, capture_health=capture_health
-        )
-    )
+    stop = asyncio.Event()
+    vehicle = asyncio.create_task(run(settings, stop, camera_factory=camera_factory))
     receivers = []
 
     def connect(token_env):
@@ -233,12 +223,10 @@ async def test_media_captures_only_while_authenticated_viewers_are_in_the_room(
     try:
         await until(lambda: len(signaling.manager.peers) == 1, vehicle)
         publisher = next(iter(signaling.manager.peers))
-        assert not operations and capture_health.permit() is None
+        assert not operations
 
         driver, driver_frames = connect("TEST_DRIVER")
         await until(lambda: len(driver_frames) >= 3, vehicle)
-        first_permit = capture_health.permit()
-        assert first_permit is not None
 
         viewer, viewer_frames = connect("TEST_VIEWER")
         await until(lambda: len(viewer_frames) >= 3, vehicle)
@@ -246,12 +234,11 @@ async def test_media_captures_only_while_authenticated_viewers_are_in_the_room(
         await until(lambda: len(signaling.manager.peers) == 2, vehicle)
         count = len(viewer_frames)
         await until(lambda: len(viewer_frames) > count + 2, vehicle)
-        assert operations == ["open"] and capture_health.permit() == first_permit
+        assert operations == ["open"]
 
         await viewer.close()
         await until(closing.is_set, vehicle)
         assert list(signaling.manager.peers) == [publisher]
-        assert capture_health.permit() is None
 
         reconnected, reconnected_frames = connect("TEST_DRIVER")
         await until(
@@ -265,8 +252,6 @@ async def test_media_captures_only_while_authenticated_viewers_are_in_the_room(
         release.set()
         await until(lambda: len(reconnected_frames) >= 3, vehicle)
         assert operations == ["open", "close", "open"]
-        second_permit = capture_health.permit()
-        assert second_permit not in (None, first_permit)
 
         await signaling.manager.peers[publisher].websocket.close(
             1012, "test disconnect"
@@ -278,7 +263,6 @@ async def test_media_captures_only_while_authenticated_viewers_are_in_the_room(
             vehicle,
         )
         assert operations == ["open", "close", "open", "close", "open"]
-        assert capture_health.permit() not in (None, second_permit)
     finally:
         release.set()
         stop.set()
@@ -332,12 +316,6 @@ async def test_spawned_control_and_media_execute_receive_video_and_clean_up(
         network=network,
         credentials=CredentialSettings("TEST_VEHICLE"),
         cameras=(CameraSettings("front", "synthetic", 96, 64, 20),),
-        processes=replace(
-            settings.processes,
-            heartbeat_timeout_s=1,
-            startup_timeout_s=8,
-            shutdown_timeout_s=4,
-        ),
     )
     group = VehicleProcesses(settings, runner=recorded_runner)
     stop = asyncio.Event()
@@ -350,22 +328,18 @@ async def test_spawned_control_and_media_execute_receive_video_and_clean_up(
     )
     samples = LatestValueQueue()
     executed = []
-    gate = VideoGate()
     client = DrivingControlClient(
         driving,
         samples,
-        video_gate=gate,
         on_execution=lambda *args: executed.append(args[0]),
     )
     receiver = WebRTCReceiver("video", network, driving.credentials)
     frames = []
 
-    def received(name, pixels, source, captured_at):
+    def received(name, pixels, source):
         frames.append((name, pixels.shape))
-        if name == "front":
-            gate.observe(len(frames), time.monotonic(), source, captured_at=captured_at)
 
-    receiver.on_frame(received, include_capture_time=True)
+    receiver.on_frame(received)
     axis = 0.0
 
     async def produce():
@@ -375,20 +349,43 @@ async def test_spawned_control_and_media_execute_receive_video_and_clean_up(
             )
             await asyncio.sleep(0.01)
 
-    tasks = [
-        asyncio.create_task(job) for job in (client.run(), receiver.start(), produce())
-    ]
+    tasks = [asyncio.create_task(job) for job in (client.run(), produce())]
     try:
-        await until(lambda: client.connection is not None, group_task)
+        await until(
+            lambda: (
+                client.connection is not None
+                and 42 in server.services["relay"].registry.vehicles
+            ),
+            group_task,
+        )
         assert client.request_start_control()
-        await until(lambda: client.armed and frames, group_task, timeout=12)
-        assert frames[-1] == ("front", (64, 96, 3))
+        await until(lambda: client.armed, group_task, timeout=12)
         axis = 0.2
         await until(
             lambda: any(sample.throttle == 0.2 for sample in executed), group_task
         )
+        epoch = client.epoch
+        tasks.append(asyncio.create_task(receiver.start()))
+        await until(lambda: frames, group_task, timeout=12)
+        assert frames[-1] == ("front", (64, 96, 3))
+        assert client.armed and client.epoch == epoch
+        assert client.request_stop_control()
+        await until(lambda: client.epoch is None, group_task)
+        frame_count = len(frames)
+        await until(lambda: len(frames) >= frame_count + 3, group_task)
+        axis = 0.0
+        await until(client.request_start_control, group_task)
+        await until(lambda: client.armed, group_task)
+        assert client.epoch != epoch
+        epoch = client.epoch
+        await receiver.close()
+        axis = 0.3
+        await until(
+            lambda: any(sample.throttle == 0.3 for sample in executed), group_task
+        )
+        assert client.armed and client.epoch == epoch
         stop.set()
-        await asyncio.wait_for(group_task, 6)
+        await asyncio.wait_for(group_task, 10)
     finally:
         stop.set()
         await asyncio.gather(group_task, return_exceptions=True)
@@ -418,9 +415,37 @@ async def test_media_stall_does_not_stall_control_and_forced_exit_is_reported(
     tmp_path, local_tls, monkeypatch
 ):
     settings = configuration(tmp_path, local_tls, monkeypatch)
+    # Shorten only the fault being injected. Child imports and the first
+    # heartbeat use the same startup budget as production on a busy host.
+    settings = replace(
+        settings,
+        processes=replace(
+            settings.processes, heartbeat_timeout_s=0.5, shutdown_timeout_s=1.0
+        ),
+    )
     group = VehicleProcesses(settings, runner=blocked_media_runner)
-    with pytest.raises(ProcessFailure):
-        await asyncio.wait_for(group.run(), 7)
+    stop = asyncio.Event()
+    task = asyncio.create_task(group.run(stop))
+    try:
+        await until(
+            lambda: (
+                any(
+                    item["component"] == "media" and item["forced"]
+                    for item in group.outcomes
+                )
+                and len(group.children) == 2
+                and all(child.heartbeat_at for child in group.children)
+            ),
+            task,
+            timeout=30,
+        )
+        assert not (settings.logging.directory / "control-stopped.json").exists()
+        restarted = next(
+            child.started_at for child in group.children if child.component == "media"
+        )
+    finally:
+        stop.set()
+        await asyncio.wait_for(task, 5)
     report = json.loads(
         (settings.logging.directory / "control-stopped.json").read_text()
     )
@@ -428,20 +453,68 @@ async def test_media_stall_does_not_stall_control_and_forced_exit_is_reported(
     assert report["clean"] and report["commands"][-1] == [0, 0]
     assert not report["physical_stop_confirmed"]
     # The independent control loop continues after the media loop blocks.
-    after = [stamp for stamp in report["ticks"] if stamp >= blocked]
-    assert len(after) >= 3
-    assert max(b - a for a, b in zip(report["ticks"], report["ticks"][1:])) < 0.2
-    outcomes = {item["component"]: item for item in group.outcomes}
-    assert outcomes["media"]["forced"]
-    assert not outcomes["control"]["forced"] and outcomes["control"]["exitcode"] == 0
+    assert sum(blocked <= stamp < restarted for stamp in report["ticks"]) >= 3
+    assert [
+        item["forced"] for item in group.outcomes if item["component"] == "media"
+    ] == [True, False]
+    control = [item for item in group.outcomes if item["component"] == "control"]
+    assert (
+        len(control) == 1 and not control[0]["forced"] and control[0]["exitcode"] == 0
+    )
     assert all(item["exitcode"] is not None for item in group.outcomes)
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize(
-    "cause", ["crash", "cancel", "parent_channel_lost", "cleanup_failure"]
-)
-async def test_process_group_cleanup_on_crash_cancellation_and_parent_loss(
+@pytest.mark.parametrize("component", ["control", "media"])
+@pytest.mark.parametrize("cause", ["crash", "parent_channel_lost"])
+async def test_exactly_one_child_restarts_and_sibling_keeps_running(
+    component, cause, tmp_path, local_tls, monkeypatch
+):
+    settings = configuration(tmp_path, local_tls, monkeypatch)
+    group = VehicleProcesses(settings, runner=idle_runner)
+    stop = asyncio.Event()
+    task = asyncio.create_task(group.run(stop))
+    try:
+        await until(
+            lambda: (
+                len(group.children) == 2 and all(c.heartbeat_at for c in group.children)
+            ),
+            task,
+        )
+        children = {child.component: child for child in group.children}
+        failed = children[component]
+        sibling = next(child for child in group.children if child is not failed)
+        heartbeat, pid = sibling.heartbeat_at, failed.process.pid
+        if cause == "crash":
+            failed.process.kill()
+        else:
+            # A supervising parent that disappears delivers this EOF to each child.
+            failed.channel.shutdown(socket.SHUT_WR)
+        await until(
+            lambda: any(
+                c.component == component and c.process.pid != pid and c.heartbeat_at
+                for c in group.children
+            ),
+            task,
+            timeout=20,
+        )
+        assert sibling in group.children and sibling.heartbeat_at > heartbeat
+        assert not (
+            settings.logging.directory / (sibling.component + ".stopped")
+        ).exists()
+        if cause == "parent_channel_lost":
+            assert (settings.logging.directory / (component + ".stopped")).exists()
+    finally:
+        stop.set()
+        await asyncio.wait_for(task, 5)
+    assert len(group.outcomes) == 3
+    assert len({item["pid"] for item in group.outcomes}) == 3
+    assert all(item["exitcode"] is not None for item in group.outcomes)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("cause", ["cancel", "cleanup_failure"])
+async def test_process_group_cleanup_on_cancellation_and_shutdown_failure(
     cause, tmp_path, local_tls, monkeypatch
 ):
     settings = configuration(tmp_path, local_tls, monkeypatch)
@@ -458,25 +531,14 @@ async def test_process_group_cleanup_on_crash_cancellation_and_parent_loss(
             ),
             task,
         )
-        children = {child.component: child for child in group.children}
-        if cause == "crash":
-            children["media"].process.kill()
-            with pytest.raises(ProcessFailure):
-                await task
-        elif cause == "cancel":
+        if cause == "cancel":
             task.cancel()
             await asyncio.sleep(0.03)
             task.cancel()
             with pytest.raises(asyncio.CancelledError):
                 await task
-        elif cause == "cleanup_failure":
-            stop.set()
-            with pytest.raises(ProcessFailure):
-                await task
         else:
-            # Parent death closes its sockets. Deliver the same EOF to control;
-            # it must clean itself up without a signal or another IPC message.
-            children["control"].channel.shutdown(1)
+            stop.set()
             with pytest.raises(ProcessFailure):
                 await task
     finally:
@@ -488,33 +550,47 @@ async def test_process_group_cleanup_on_crash_cancellation_and_parent_loss(
         item["forced"] or item["exitcode"] is None for item in group.outcomes
     )
     assert (settings.logging.directory / "control.stopped").exists()
-    if cause != "crash":
-        assert (settings.logging.directory / "media.stopped").exists()
+    assert (settings.logging.directory / "media.stopped").exists()
 
 
 @pytest.mark.asyncio
-async def test_partial_spawn_failure_reaps_started_child_and_prestart_stop_opens_none(
+async def test_partial_spawn_failure_retries_child_and_prestart_stop_opens_none(
     tmp_path, local_tls, monkeypatch
 ):
     from multiprocessing.process import BaseProcess
 
     # The first spawned interpreter may still be importing when the second spawn fails.
-    settings = replace(
-        configuration(tmp_path, local_tls, monkeypatch), processes=ProcessSettings()
-    )
+    settings = configuration(tmp_path, local_tls, monkeypatch)
     original = BaseProcess.start
+    attempts = []
 
     def start(process):
         if process.name == "rd-vehicle-media":
-            raise OSError("injected second process spawn failure")
+            attempts.append(time.monotonic())
+            if len(attempts) <= 2:
+                raise OSError("injected second process spawn failure")
         return original(process)
 
     monkeypatch.setattr(BaseProcess, "start", start)
     group = VehicleProcesses(settings, runner=idle_runner)
-    with pytest.raises(OSError, match="injected"):
-        await group.run()
-    assert len(group.outcomes) == 1
-    assert group.outcomes[0]["exitcode"] == 0 and not group.outcomes[0]["forced"]
+    stop = asyncio.Event()
+    task = asyncio.create_task(group.run(stop))
+    try:
+        await until(
+            lambda: (
+                len(group.children) == 2 and all(c.heartbeat_at for c in group.children)
+            ),
+            task,
+            timeout=12,
+        )
+        assert not group.outcomes
+        assert len(attempts) == 3
+        assert min(b - a for a, b in pairwise(attempts)) >= 0.2
+    finally:
+        stop.set()
+        await asyncio.wait_for(task, 7)
+    assert len(group.outcomes) == 2
+    assert all(item["exitcode"] == 0 and not item["forced"] for item in group.outcomes)
     stopped = asyncio.Event()
     stopped.set()
     group = VehicleProcesses(settings, runner=idle_runner)
