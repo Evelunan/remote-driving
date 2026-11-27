@@ -16,6 +16,7 @@ STATUS_TEXT = {
     "registered": "已认证",
     "idle": "控制未开启",
     "starting": "正在启动控制",
+    "retrying": "等待自动恢复控制",
     "stopping": "正在释放控制权",
     "paused": "控制已暂停",
     "waiting_device": "等待控制设备",
@@ -25,6 +26,7 @@ STATUS_TEXT = {
     "active": "控制已授权",
     "revoked": "控制授权已撤销",
     "lease_busy": "车辆已被其他驾驶端控制",
+    "vehicle_changed": "受控车辆已更换，请核对后开始控制",
     "error": "连接或授权失败",
     "disconnected": "离线",
 }
@@ -43,7 +45,15 @@ class ControlSystemThread(QThread):
             getattr(self._bridge, signal_name).emit(*args)
 
     def _status(self, state, detail=""):
-        self._safe_emit("control_status_changed", state, STATUS_TEXT.get(state, "状态未知"))
+        text = STATUS_TEXT.get(state, "状态未知")
+        if state in {"paused", "revoked"}:
+            text = {
+                "access_denied": "控制权限被拒绝",
+                "role_denied": "当前身份没有控制权限",
+                "execution_failed": "车端执行失败",
+                "protocol_upgrade_required": "控制协议不兼容",
+            }.get(detail, text)
+        self._safe_emit("control_status_changed", state, text)
         if state == "waiting_execution":
             self._safe_emit("control_target_changed", detail)
         if state != "active":

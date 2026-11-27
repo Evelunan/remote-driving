@@ -2,7 +2,7 @@
 
 import asyncio
 
-from rd_core.async_compat import TaskGroup
+from rd_core.async_compat import TaskGroup, async_timeout
 from rd_core.logging import get_logger
 from rd_core.samples import RawInput
 
@@ -107,16 +107,26 @@ class DrivingInputService:
                         self._update_local_input(processor)
                 except (ConnectionError, OSError) as exc:
                     logger.warning(
-                        "Input device unavailable (%s); waiting for manual retry",
-                        type(exc).__name__,
+                        "Input device unavailable (%s)",
+                        type(exc.__cause__ or exc).__name__,
                     )
                 finally:
                     await process_input(RawInput.capture(None))
                     await device.disconnect()
                 self._usb_waiting = True
                 self._usb_status(False, "未连接")
-                await self._usb_retry.wait()
-                self._usb_retry.clear()
+                while self._usb_waiting:
+                    self._usb_retry.clear()
+                    if not self.client.control_requested:
+                        await self._usb_retry.wait()
+                        continue
+                    delay = min(5.0, max(0.25, self.settings.network.reconnect_delay_s))
+                    try:
+                        async with async_timeout(delay):
+                            await self._usb_retry.wait()
+                    except TimeoutError:
+                        if self.client.control_requested:
+                            self._usb_waiting = False
         finally:
             self._usb_waiting = False
             self._usb_status(False, "离线")
@@ -130,14 +140,21 @@ class DrivingInputService:
         ):
             return False
         self._control_restart_requested = True
+        self.client.prepare_transport_restart()
         self._control_task.cancel()
         return True
 
     def request_start_control(self):
-        return self.client.request_start_control()
+        accepted = self.client.request_start_control()
+        if accepted and self._usb_waiting:
+            self._usb_retry.set()
+        return accepted
 
     def request_stop_control(self):
-        return self.client.request_stop_control()
+        accepted = self.client.request_stop_control()
+        if accepted and self._usb_waiting:
+            self._usb_retry.set()
+        return accepted
 
     def apply_control_request(self, action):
         if not action(self):
@@ -151,6 +168,7 @@ class DrivingInputService:
                 try:
                     await asyncio.wait({self._control_task})
                 except asyncio.CancelledError:
+                    self.request_stop_control()
                     if not self._control_restart_requested:
                         self._control_task.cancel()
                     await asyncio.gather(self._control_task, return_exceptions=True)

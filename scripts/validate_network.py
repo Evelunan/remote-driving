@@ -537,12 +537,11 @@ async def validate(args, cache, gate, interrupted):
                                     "held input restored motion before neutral"
                                 )
                             report["held_input_did_not_rearm"] = True
-                            throttle = 0.0
                             await until(
                                 lambda: control_registered()
                                 and vehicle_settings.session not in relay.registry.leases
                             )
-                            await until(driver.request_start_control)
+                            throttle = 0.0
                             await until(
                                 lambda: driver.armed
                                 and driver.epoch != old_epoch

@@ -62,7 +62,7 @@ class ConnectionItem(QFrame):
         self._name_label.setStyleSheet(
             f"color: {DEFAULT_COLORS['name']}; font-size: {FONT_SIZES['name']}px;"
         )
-        # Reserve identical name / status / action columns in every row.
+        # Keep names aligned while allowing read-only rows to use the full width.
         self._name_label.setFixedWidth(66)
         layout.addWidget(self._name_label)
 
@@ -81,16 +81,9 @@ class ConnectionItem(QFrame):
         self._update_status_style()
         layout.addWidget(self._status_label, 1)
 
-        self._action_slot = QWidget(self)
-        self._action_slot.setFixedSize(64, 28)
-        action_layout = QHBoxLayout(self._action_slot)
-        action_layout.setContentsMargins(0, 0, 0, 0)
-        action_layout.setSpacing(0)
-        layout.addWidget(self._action_slot)
-
     def add_action(self, text, callback, tooltip):
         button = self._action_button = QPushButton(text)
-        button.setFixedSize(self._action_slot.size())
+        button.setFixedSize(64, 28)
         button.setCursor(Qt.CursorShape.PointingHandCursor)
         lines = [line for part in tooltip.split("；") for line in wrap(part, width=18)]
         button.setToolTip(
@@ -99,7 +92,7 @@ class ConnectionItem(QFrame):
         button.setAccessibleDescription(tooltip)
         self.set_action_text(text)
         button.clicked.connect(callback)
-        self._action_slot.layout().addWidget(button)
+        self.layout().addWidget(button)
         return button
 
     def set_action_text(self, text):

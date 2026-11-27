@@ -52,8 +52,9 @@ def test_dashboard_sidebar_orders_metrics_connections_and_disclosures(legacy_pyt
     legacy_python("driving", """
         import os
         os.environ['QT_QPA_PLATFORM'] = 'offscreen'
-        from PyQt6.QtCore import QPoint, QRect
-        from PyQt6.QtWidgets import QApplication
+        from PyQt6.QtCore import QPoint, QRect, Qt
+        from PyQt6.QtTest import QTest
+        from PyQt6.QtWidgets import QApplication, QPushButton
         from rd_driving.factories import UIFactory
         from rd_driving.ui.widgets.control_panel import ControlPanel
         app = QApplication([])
@@ -90,6 +91,17 @@ def test_dashboard_sidebar_orders_metrics_connections_and_disclosures(legacy_pyt
             connections = panel.get_connection_items()
             expected = ('usb', 'quic', 'video', 'control', 'webrtc', 'signal')
             assert tuple(connections) == expected
+            assert panel.layout().itemAt(0).widget() is panel._action_area
+            assert panel._action_area.accessibleName() == '会话操作'
+            for key in ('video', 'control'):
+                button = panel._action_buttons[key]
+                assert panel._action_area.isAncestorOf(button)
+                assert not connections[key].findChildren(QPushButton)
+                assert button.accessibleName() == button.text()
+                assert button.focusPolicy() & Qt.FocusPolicy.TabFocus
+                assert button.height() >= 44
+            for key in ('signal', 'webrtc', 'quic', 'usb'):
+                assert connections[key].isAncestorOf(panel._action_buttons[key])
             viewport = panel._scroll_area.viewport()
             rows = [bounds(connections[key], viewport) for key in expected]
             assert all(first.bottom() < second.top() for first, second in zip(rows, rows[1:]))
@@ -106,6 +118,25 @@ def test_dashboard_sidebar_orders_metrics_connections_and_disclosures(legacy_pyt
         panel.set_camera_grid('back', 0, 0, 0)
         panel._camera_details_button.click()
         assert panel._camera_details.isVisible()
+        actions = bounds(panel._action_area, panel)
+        scroll = panel._scroll_area.verticalScrollBar()
+        scroll.setValue(scroll.maximum())
+        app.processEvents()
+        assert bounds(panel._action_area, panel) == actions
+        assert panel.rect().contains(actions)
+        clicks = []
+        panel.video_toggle_requested.connect(lambda: clicks.append('video'))
+        panel.control_toggle_requested.connect(lambda: clicks.append('control'))
+        panel.set_video_requested(True)
+        panel.set_control_action('停止控制')
+        video, control = (panel._action_buttons[key] for key in ('video', 'control'))
+        assert video.accessibleName() == '断开视频' and control.accessibleName() == '停止控制'
+        video.setFocus()
+        QTest.keyClick(video, Qt.Key.Key_Space)
+        QTest.keyClick(video, Qt.Key.Key_Tab)
+        assert control.hasFocus()
+        QTest.keyClick(control, Qt.Key.Key_Space)
+        assert clicks == ['video', 'control']
         assert [card._title_text for card in panel.camera_cards.values()] == ['前视', '后视', '左视', '右视']
         assert [item.get_value() for item in panel.camera_data['front'].values()] == ['24', '1280×720', '45']
         assert all(item.get_value() == '--' for item in panel.camera_data['back'].values())

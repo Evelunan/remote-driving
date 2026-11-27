@@ -6,6 +6,7 @@ import time
 from collections import OrderedDict
 from uuid import UUID
 
+from rd_core.async_compat import async_timeout
 from rd_core.control import is_newer
 from rd_core.logging import SampledControlLog, get_logger
 from rd_core.samples import ControlInput
@@ -25,6 +26,13 @@ from rd_quic.client import registered_connection
 from rd_quic.framing import RpcError
 
 logger = get_logger(__name__)
+
+_RETRYABLE = {
+    "acquire_timeout", "connection_closed", "disconnected", "execution_confirmation_expired",
+    "forward_failed", "input_expired", "lease_expired", "neutral_required",
+    "released", "server_shutdown", "vehicle_not_ready", "vehicle_unavailable",
+    "device_not_ready",
+}
 
 
 class DrivingControlClient:
@@ -66,6 +74,11 @@ class DrivingControlClient:
         self.state = "idle"
         self._connection_status = (False, "")
         self._control_requested_at = None
+        self.control_requested = False
+        self._target_principal = None
+        self._restart_requested = False
+        self._retry_at = 0.0
+        self._retry_delay = 0.0
         self._attempt_running = False
         self._attempt_end = ("idle", "")
         self._control_changed = asyncio.Event()
@@ -80,10 +93,11 @@ class DrivingControlClient:
     def _status(self, state, detail=""):
         if self.state != state:
             logger.info(
-                "Driving control state=%s session=%s epoch=%s",
+                "Driving control state=%s session=%s epoch=%s%s",
                 state,
                 self.settings.session,
                 self.epoch,
+                f" reason={detail}" if state == "retrying" and detail in _RETRYABLE else "",
             )
         self.state = state
         if self.on_status is not None:
@@ -105,25 +119,37 @@ class DrivingControlClient:
         if (
             self.connection is None
             or not self.connection.protocol.rpc_ready
-            or self._control_requested_at is not None
+            or self.control_requested
             or self._attempt_running
         ):
             return False
+        self.control_requested = True
+        self._target_principal = None
+        self._retry_delay = 0.0
         self._control_requested_at = time.monotonic()
         self._attempt_end = ("idle", "")
         self._status("starting")
         self._control_changed.set()
         return True
 
-    def _stop_control(self, state, detail=""):
-        if self._control_requested_at is None:
+    def _end_attempt(self, state, detail=""):
+        if not self.control_requested:
             return False
+        if state == "retrying":
+            if self._control_requested_at is None:
+                return False  # A disconnect can also arrive during release or backoff.
+            base = max(0.1, self.settings.network.reconnect_delay_s)
+            self._retry_delay = min(5.0, max(base, 2 * self._retry_delay))
+            self._retry_at = time.monotonic() + self._retry_delay
+        else:
+            self.control_requested = False
+            self._target_principal = None
         self._control_requested_at = None
         self.armed = False
         if self.connection is not None and self.connection.protocol.rpc_ready:
             self.connection.protocol.discard_pending_datagrams()
         self._attempt_end = (state, detail)
-        if self._attempt_running:
+        if self._attempt_running and state != "retrying":
             self._status("stopping")
         else:
             self._status(state, detail)
@@ -131,11 +157,17 @@ class DrivingControlClient:
         return True
 
     def request_stop_control(self):
-        return self._stop_control("idle")
+        self._restart_requested = False
+        return self._end_attempt("idle")
+
+    def prepare_transport_restart(self):
+        """Keep the current operator request across this one explicit transport restart."""
+        self._restart_requested = self.control_requested
+        self._end_attempt("retrying", "disconnected")
 
     def _disconnected(self, generation, protocol):
         if generation is self._generation:
-            self._stop_control("paused", "disconnected")
+            self._end_attempt("retrying", "disconnected")
             self._report_connection(False, "disconnected")
             self._control_changed.set()
 
@@ -148,12 +180,13 @@ class DrivingControlClient:
             epoch = UUID(params["epoch"])
         except (ValueError, TypeError, AttributeError):
             raise RpcError("invalid_epoch") from None
-        self._revoked[epoch] = None
+        reason = str(params["reason"])[:64]
+        self._revoked[epoch] = reason
         while len(self._revoked) > 64:
             self._revoked.popitem(last=False)
         if epoch == self.epoch:
             self.epoch = None
-            self._stop_control("revoked", str(params["reason"])[:64])
+            self._end_attempt("retrying" if reason in _RETRYABLE else "revoked", reason)
 
     def _datagram(self, generation, data):
         if generation is not self._generation or self.connection is None:
@@ -196,7 +229,7 @@ class DrivingControlClient:
                     packet.seq,
                     packet.payload.status.name,
                 )
-                self._stop_control("revoked", "execution_failed")
+                self._end_attempt("revoked", "execution_failed")
                 return
             self._last_ack = packet.seq
             self._last_execution = sample.sampled_at
@@ -211,6 +244,7 @@ class DrivingControlClient:
             )
             if not self.armed and sample.throttle == 0 and sample.steering == 0:
                 self.armed = True
+                self._retry_delay = 0.0
                 self._status("active")
             if self.on_execution is not None:
                 self.on_execution(
@@ -272,7 +306,11 @@ class DrivingControlClient:
                     timeout_s=min(0.3, self.settings.network.register_timeout_s),
                 )
             except (ConnectionError, TimeoutError, RpcError):
-                pass  # The independent watchdog and lease deadline still stop motion.
+                # A timed-out release leaves ownership uncertain. Retiring this
+                # transport also revokes its lease before it can be reused.
+                self.connection.protocol.close(
+                    error_code=0x105, reason_phrase="release_unconfirmed"
+                )
 
     def _sample_window(self, sample, now):
         # Use USB capture time even when processing or queue delivery was delayed.
@@ -287,7 +325,7 @@ class DrivingControlClient:
     async def _send_session(self, requested_at):
         protocol = self.connection.protocol
         while protocol.rpc_ready and self._control_requested_at == requested_at:
-            if not self._fresh() or self.latest.sampled_at < requested_at:
+            if not self._fresh() or self.latest.sampled_at <= requested_at:
                 status = "waiting_input"
             elif self._neutral():
                 break
@@ -308,15 +346,19 @@ class DrivingControlClient:
             or grant["session"] != self.settings.session
             or grant.get("neutral_required") is not True
             or epoch.int == 0
-            or epoch in self._revoked
         ):
             raise RpcError("invalid_lease")
+        if epoch in self._revoked:
+            raise RpcError(self._revoked[epoch])
         self.epoch, self.armed = epoch, False
         if self._control_requested_at != requested_at:
             return  # The attempt owner releases this late grant before allowing a new start.
         principal = grant.get("vehicle_principal")
         if not isinstance(principal, str) or not 1 <= len(principal) <= 128:
             raise RpcError("invalid_lease")
+        if self._target_principal is not None and principal != self._target_principal:
+            raise RpcError("vehicle_changed")
+        self._target_principal = principal
         self._windows.clear()
         self._last_window = None
         self._sent.clear()
@@ -378,18 +420,39 @@ class DrivingControlClient:
             requested_at = self._control_requested_at
             if requested_at is None:
                 self._control_changed.clear()
-                await self._control_changed.wait()
+                if not self.control_requested:
+                    await self._control_changed.wait()
+                    continue
+                delay = self._retry_at - time.monotonic()
+                if delay > 0:
+                    try:
+                        async with async_timeout(delay):
+                            await self._control_changed.wait()
+                    except TimeoutError:
+                        pass
+                    continue
+                # Freshness starts on this authenticated connection after retry
+                # backoff. Held or queued pre-recovery inputs cannot re-arm it.
+                self._control_requested_at = time.monotonic()
                 continue
             self._attempt_running = True
             try:
                 await self._send_session(requested_at)
             except RpcError as error:
-                state = "lease_busy" if error.code == "lease_busy" else "paused"
-                self._stop_control(state, error.code)
+                if error.code in _RETRYABLE:
+                    state = "retrying"
+                elif error.code in {"lease_busy", "vehicle_changed"}:
+                    state = error.code
+                else:
+                    state = "paused"
+                if self._control_requested_at == requested_at:
+                    self._end_attempt(state, error.code)
             except TimeoutError:
-                self._stop_control("paused", "acquire_timeout")
+                self._end_attempt("retrying", "acquire_timeout")
+                protocol.close(error_code=0x105, reason_phrase="acquire_unconfirmed")
             finally:
-                self._stop_control("paused", "disconnected")
+                if self._control_requested_at == requested_at:
+                    self._end_attempt("retrying", "disconnected")
                 try:
                     await self._release()
                 finally:
@@ -397,6 +460,7 @@ class DrivingControlClient:
                     self._status(*self._attempt_end)
 
     async def run(self):
+        self._restart_requested = False
         collector = asyncio.create_task(self._collect(), name="driving-input")
         try:
             while True:
@@ -425,6 +489,8 @@ class DrivingControlClient:
                         self._report_connection(True, "registered")
                         await self._run_registered()
                 except (ConnectionError, OSError, TimeoutError, RpcError) as error:
+                    if isinstance(error, RpcError) and error.code not in _RETRYABLE:
+                        self._end_attempt("paused", error.code)
                     self._report_connection(
                         False, error.code if isinstance(error, RpcError) else "disconnected"
                     )
@@ -444,6 +510,9 @@ class DrivingControlClient:
                 await asyncio.sleep(self.settings.network.reconnect_delay_s)
         finally:
             self._generation = None
+            if not self._restart_requested:
+                self.request_stop_control()
+            self._restart_requested = False
             collector.cancel()
             await asyncio.gather(collector, return_exceptions=True)
             self.latest = None

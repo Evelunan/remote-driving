@@ -1,10 +1,14 @@
 import asyncio
+from types import SimpleNamespace
+from unittest.mock import Mock
 
 import pytest
+import usb1
 from rd_core.async_compat import async_timeout
 from rd_core.samples import RawInput
 from rd_core.settings import ClientNetworkSettings, DrivingSettings
 from rd_driving.app.input_service import DrivingInputService
+from rd_driving.infrastructure.device.usb_connector import USBConnector
 
 
 class Device:
@@ -175,6 +179,61 @@ async def test_usb_attempts_only_at_startup_and_on_request(connected_at_shutdown
     assert device.disconnects == 3
     assert statuses[-1] == (False, "离线")
     assert not service.request_usb_connect()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("failure", [usb1.USBErrorBusy, usb1.USBErrorNoDevice, asyncio.CancelledError])
+async def test_usb_partial_open_releases_resources_and_preserves_reason(failure, monkeypatch):
+    connector = USBConnector(1, 2)
+    handle, context = Mock(), Mock()
+
+    async def partial_open():
+        connector.handle, connector.context = handle, context
+        connector.interface_number = 0
+        raise failure()
+
+    monkeypatch.setattr(connector, "_open", partial_open)
+    if failure is asyncio.CancelledError:
+        with pytest.raises(asyncio.CancelledError):
+            await connector.connect()
+    else:
+        with pytest.raises(ConnectionError) as raised:
+            await connector.connect()
+        assert isinstance(raised.value.__cause__, failure)
+    handle.close.assert_called_once_with()
+    context.close.assert_called_once_with()
+    assert connector.handle is connector.context is connector.interface_number is None
+
+
+@pytest.mark.asyncio
+async def test_usb_reprobes_only_while_operator_requests_control():
+    device = Device()
+    service = DrivingInputService(
+        DrivingSettings(network=ClientNetworkSettings(reconnect_delay_s=0.05)),
+        device_factory=lambda *args: device,
+    )
+    service.client.connection = SimpleNamespace(protocol=SimpleNamespace(
+        rpc_ready=True, discard_pending_datagrams=lambda: None
+    ))
+    task = asyncio.create_task(service._usb())
+    try:
+        await until(lambda: service._usb_waiting)
+        assert device.attempts == 1
+        assert service.request_start_control()
+        await until(lambda: device.attempts >= 2)
+        device.available = True
+        await until(device.is_connected)
+        device.available = device.connected = False
+        await until(lambda: service._usb_waiting)
+        assert service.request_stop_control()
+        attempts = device.attempts
+        await asyncio.sleep(0.4)
+        assert device.attempts == attempts
+        assert service.request_usb_connect()
+        await until(lambda: device.attempts == attempts + 1)
+    finally:
+        task.cancel()
+        await asyncio.gather(task, return_exceptions=True)
 
 
 def test_manual_usb_button_routes_to_worker_and_tracks_status(legacy_python):

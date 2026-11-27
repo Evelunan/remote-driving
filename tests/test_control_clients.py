@@ -216,7 +216,6 @@ async def test_real_clients_execute_configured_targets_expire_input_and_rearm_af
         await asyncio.sleep(0.3)
         assert not driver.armed and vehicle.epoch is None
         inputs.throttle = inputs.steering = 0
-        await until(driver.request_start_control)
         await until(lambda: driver.armed)
         assert driver.epoch != old_epoch
         tasks[-1].cancel()
@@ -255,6 +254,122 @@ async def test_real_clients_execute_configured_targets_expire_input_and_rearm_af
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("action", ["recover", "cancel_offline", "manual_reconnect"])
+async def test_reconnect_respects_control_intent_and_requires_new_neutral(
+    runtime_factory, client_settings, action
+):
+    build, _ = runtime_factory
+    runtime = build()
+    await runtime.start()
+    port = runtime.services["relay"].listener._transport.get_extra_info("sockname")[1]
+    vehicle_settings, driving_settings = [
+        replace(item, network=replace(item.network, quic_port=port)) for item in client_settings
+    ]
+    controller = MockController(vehicle_settings.motion)
+    vehicle = VehicleControlClient(vehicle_settings, controller)
+    inputs, acknowledgements = Inputs(), []
+    driver = DrivingControlClient(
+        driving_settings, inputs.queue, on_execution=lambda *args: acknowledgements.append(args)
+    )
+    tasks = [asyncio.create_task(job) for job in (vehicle.run(), inputs.run(), driver.run())]
+    try:
+        await until(lambda: vehicle.connection is not None)
+        await until(driver.request_start_control)
+        await until(lambda: driver.armed)
+        first = driver.epoch
+        inputs.throttle = 0.5
+        await until(lambda: controller.commands[-1][0] > 0)
+        if action == "manual_reconnect":
+            driver.prepare_transport_restart()
+            tasks[-1].cancel()
+            await asyncio.gather(tasks[-1], return_exceptions=True)
+            tasks[-1] = asyncio.create_task(driver.run())
+        else:
+            await runtime.stop()
+            await until(lambda: driver.connection is None and vehicle.epoch is None)
+            if action == "cancel_offline":
+                assert driver.request_stop_control()
+                inputs.throttle = 0
+            runtime = build(port=port)
+            await runtime.start()
+        await until(lambda: driver.connection is not None and vehicle.connection is not None, 8)
+        await until(lambda: controller.commands[-1] == (0, 0))
+        if action == "cancel_offline":
+            await asyncio.sleep(0.4)
+            assert driver.state == "idle" and not driver.control_requested
+            assert not runtime.services["relay"].registry.leases
+        else:
+            await until(lambda: driver.state == "waiting_neutral")
+            assert driver.control_requested and not driver.armed and vehicle.epoch is None
+            inputs.throttle = 0
+            await until(lambda: driver.armed)
+            assert driver.epoch == vehicle.epoch and driver.epoch != first
+            assert acknowledgements[-1][0].throttle == 0
+            inputs.throttle = 0.25
+            await until(lambda: acknowledgements[-1][0].throttle == 0.25)
+    finally:
+        for task in tasks:
+            task.cancel()
+        await asyncio.gather(*tasks, return_exceptions=True)
+        await runtime.stop()
+    assert not driver.control_requested
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("second,expected", [
+    ("lease_busy", "lease_busy"), ("access_denied", "paused"), ("new_vehicle", "vehicle_changed")
+])
+async def test_automatic_recovery_stops_on_refusal_or_target_change(client_settings, second, expected):
+    from uuid import uuid4
+
+    from rd_quic.framing import RpcError
+
+    _, settings = client_settings
+    inputs = Inputs()
+    client = DrivingControlClient(settings, inputs.queue)
+    first, replacement = uuid4(), uuid4()
+    acquires, releases, sent = [], [], []
+
+    async def request(method, params, **kwargs):
+        if method == "release":
+            releases.append(params["epoch"])
+            return {"revoked": True}
+        assert method == "acquire"
+        acquires.append(method)
+        if len(acquires) > 1 and second != "new_vehicle":
+            raise RpcError(second)
+        return {
+            "epoch": str(first if len(acquires) == 1 else replacement),
+            "session": 42,
+            "neutral_required": True,
+            "vehicle_principal": "original" if len(acquires) == 1 else "new",
+        }
+
+    protocol = SimpleNamespace(
+        request=request, rpc_ready=True, discard_pending_datagrams=lambda: None,
+        send_datagram=sent.append,
+    )
+    client.connection = SimpleNamespace(protocol=protocol)
+    assert client.request_start_control()
+    jobs = (inputs.run(), client._collect(), client._run_registered())
+    tasks = [asyncio.create_task(job) for job in jobs]
+    try:
+        await until(lambda: client.epoch == first)
+        client._event(
+            client._generation, "lease_revoked", {"epoch": str(first), "reason": "lease_expired"}
+        )
+        await until(lambda: not client.control_requested and not client._attempt_running)
+        assert client.state == expected
+        assert releases == ([str(replacement)] if second == "new_vehicle" else [])
+        await asyncio.sleep(0.25)
+        assert len(acquires) == 2 and not sent and not client.armed
+    finally:
+        for task in tasks:
+            task.cancel()
+        await asyncio.gather(*tasks, return_exceptions=True)
+
+
+@pytest.mark.asyncio
 async def test_no_execution_ack_causes_driver_release_and_vehicle_failsafe(
     runtime_factory, client_settings
 ):
@@ -287,7 +402,7 @@ async def test_no_execution_ack_causes_driver_release_and_vehicle_failsafe(
         inputs.throttle = 0.5
         await until(lambda: controller.commands[-1][0] == 0.6)
         vehicle._result = lambda *args: None
-        await until(lambda: ("paused", "execution_confirmation_expired") in statuses)
+        await until(lambda: ("retrying", "execution_confirmation_expired") in statuses)
         inputs.enabled = False
         await until(lambda: vehicle.epoch is None and controller.commands[-1] == (0, 0))
     finally:
@@ -423,7 +538,9 @@ async def test_blocked_actuator_does_not_block_independent_stop_or_invalidate_ne
         await until(lambda: vehicle.epoch is None and controller.commands[-1] == (0, 0))
         assert driver.epoch != previous or not driver.armed
         inputs.throttle, inputs.enabled = 0, True
-        await until(driver.request_start_control)
+        if not driver.control_requested:
+            # A concrete REJECTED result from the blocked adapter is terminal.
+            await until(driver.request_start_control)
         await until(lambda: driver.armed)
         assert vehicle.epoch != previous
     finally:

@@ -38,6 +38,7 @@ async def test_wait_reason_matches_device_and_sample(sample_kind, usb_online, ex
     assert service.request_start_control()
     assert await statuses.get() == "starting"
     if sample_kind != "missing":
+        await asyncio.sleep(0.02)  # Advance even on coarse monotonic clocks.
         client.latest = ControlInput(
             throttle=0.5 if sample_kind == "throttle" else 0,
             brake=0,
@@ -89,6 +90,7 @@ async def test_neutral_input_still_acquires_and_waits_for_execution():
         protocol=protocol, clock=SimpleNamespace(check=lambda: None)
     )
     assert service.request_start_control()
+    await asyncio.sleep(0.02)
     client.latest = ControlInput(0, 1, 0, time.monotonic(), time.time_ns() // 1_000_000)
     await client._send_session(client._control_requested_at)
     assert requests == ["acquire"]

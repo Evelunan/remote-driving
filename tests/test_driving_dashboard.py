@@ -45,6 +45,7 @@ def test_dashboard_fits_four_cameras_and_key_metrics(legacy_python, theme):
             )
             assert all(not display.visibleRegion().isEmpty() for display in [main, *auxiliaries])
             for item in (
+                panel._action_buttons["video"], panel._action_buttons["control"],
                 panel._gear, *panel._input_stats.values(),
                 panel._vehicle_stats["speed_mps"], panel._confirmation_state,
             ):
@@ -71,12 +72,17 @@ def test_dashboard_control_status_tracks_worker_and_clears_on_logout(legacy_pyth
         class Worker:
             running = True
             stop_requested = False
+            control_cancelled = False
 
             def isRunning(self):
                 return self.running
 
             def request_stop(self):
                 self.stop_requested = True
+
+            def request_stop_control(self):
+                self.control_cancelled = True
+                return True
 
         app = QApplication([])
         with patch.object(MainWindow, "_start_services"):
@@ -125,6 +131,15 @@ def test_dashboard_control_status_tracks_worker_and_clears_on_logout(legacy_pyth
             window._update_primary_video_status()
             assert video._status_label.text() == expected
             assert navbar._control_tone == "active" and channel.is_online()
+
+        signal.emit("retrying", STATUS_TEXT["retrying"])
+        window._bridge.quic_status_changed.emit(False, STATUS_TEXT["disconnected"])
+        control_button = window._control_panel._action_buttons["control"]
+        assert control_button.text() == "停止控制" and control_button.isEnabled()
+        control_button.click()
+        assert worker.control_cancelled
+        signal.emit("idle", STATUS_TEXT["idle"])
+        assert control_button.text() == "开始控制" and not control_button.isEnabled()
 
         login = window._login_page
         login._room_input.setText("saved-room")

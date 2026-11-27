@@ -29,6 +29,13 @@ async def test_quic_restart_waits_for_cleanup_and_keeps_usb(close_during_cleanup
     class Client:
         runs = 0
         cleaned = 0
+        control_requested = False
+
+        def prepare_transport_restart(self):
+            pass
+
+        def request_stop_control(self):
+            return False
 
         async def run(self):
             self.runs += 1
@@ -163,4 +170,98 @@ def test_media_row_actions_keep_control_worker_and_ignore_old_signals(
             app.processEvents()
         assert all(not worker.isRunning() for worker in workers)
     """,
+    )
+
+
+def test_requested_video_recovers_worker_failures_and_cancels_pending_retries(legacy_python):
+    legacy_python(
+        "driving",
+        """
+        import os
+        os.environ["QT_QPA_PLATFORM"] = "offscreen"
+        import threading, time
+        from PyQt6.QtCore import QThread, pyqtSignal
+        from PyQt6.QtWidgets import QApplication
+        from rd_core.settings import ClientNetworkSettings, DrivingSettings
+        import rd_driving.main_window as module
+
+        app = QApplication([])
+        def until(predicate):
+            deadline = time.monotonic() + 4
+            while not predicate():
+                assert time.monotonic() < deadline
+                app.processEvents()
+                time.sleep(0.005)
+
+        class Worker(QThread):
+            connection_changed = pyqtSignal(bool)
+            status_changed = pyqtSignal(str, str)
+            error_occurred = pyqtSignal(str)
+            def __init__(self, *args, **kwargs):
+                super().__init__()
+                self.end = threading.Event()
+            def run(self):
+                self.end.wait(8)
+            def request_stop(self):
+                self.end.set()
+
+        attempts = []
+        receiver = module.WebRTCReceiver
+        def create(*args, **kwargs):
+            attempts.append(time.monotonic())
+            if len(attempts) <= 2:
+                raise OSError("temporary startup failure")
+            return receiver(*args, **kwargs)
+
+        module.ControlSystemThread = module.WebRTCReceiverThread = Worker
+        module.WebRTCReceiver = create
+        window = module.MainWindow(session_id=42, room="video", settings=DrivingSettings(
+            network=ClientNetworkSettings(reconnect_delay_s=0.15)
+        ))
+        control = window._control_thread
+        try:
+            window._toggle_video()
+            assert window._video_requested and window._media_retry_timer.interval() == 150
+            until(lambda: len(attempts) == 2)
+            assert window._media_retry_timer.interval() == 300
+            until(lambda: window._receiver_thread is not None)
+            old = window._receiver_thread
+            old.status_changed.emit("joined", "")
+            old.status_changed.emit("disconnected", "")
+            old.status_changed.emit("error", "")
+            app.processEvents()
+            assert not window._media_retry_timer.isActive()
+            assert len(attempts) == 3 and old.isRunning()
+            old.end.set()
+            until(window._media_retry_timer.isActive)
+            assert window._media_retry_timer.interval() == 150
+            until(lambda: window._receiver_thread is not None)
+            assert len(attempts) == 4 and not old.isRunning()
+            old.status_changed.emit("connected", "")
+            app.processEvents()
+            assert not window._webrtc_connected
+            assert window._control_thread is control and not control.end.is_set()
+
+            window._receiver_thread.end.set()
+            until(window._media_retry_timer.isActive)
+            window._toggle_video()
+            assert not window._video_requested and not window._media_retry_timer.isActive()
+            stopped = time.monotonic()
+            until(lambda: time.monotonic() - stopped > 0.35)
+            assert len(attempts) == 4 and window._receiver_thread is None
+
+            window._toggle_video()
+            window._receiver_thread.end.set()
+            until(window._media_retry_timer.isActive)
+            window._logout()
+            until(lambda: window._pending_action is None)
+            assert not window._video_requested and not window._media_retry_timer.isActive()
+            stopped = time.monotonic()
+            until(lambda: time.monotonic() - stopped > 0.2)
+            assert len(attempts) == 5 and window._receiver_thread is None
+        finally:
+            window.close()
+            until(lambda: window._closing_ready)
+            app.processEvents()
+        """,
     )

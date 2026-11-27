@@ -32,17 +32,38 @@ class ControlPanel(QFrame):
         self._media_reconnect_callback: Callable | None = None
         self._control_reconnect_callback: Callable | None = None
         self._usb_connect_callback: Callable | None = None
+        self._action_buttons: dict[str, QPushButton] = {}
         self._video_requested = False
 
         self.setFixedWidth(328)
         self.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Expanding)
         self.setObjectName("controlPanel")
-        self.setAccessibleName("驾驶数据与连接")
+        self.setAccessibleName("驾驶操作、数据与连接")
         self._setup_ui()
 
     def _setup_ui(self):
         outer_layout = QVBoxLayout(self)
         outer_layout.setContentsMargins(0, 0, 0, 0)
+        outer_layout.setSpacing(4)
+        self._action_area = QFrame()
+        self._action_area.setAccessibleName("会话操作")
+        actions = QHBoxLayout(self._action_area)
+        actions.setContentsMargins(0, 0, 0, 0)
+        actions.setSpacing(8)
+        for name, text, signal, hint in (
+            ("video", "连接视频", self.video_toggle_requested, "开启或关闭车辆视频"),
+            ("control", "开始控制", self.control_toggle_requested, "开启、恢复或停止行驶控制"),
+        ):
+            button = QPushButton(text)
+            button.setAccessibleName(text)
+            button.setAccessibleDescription(hint)
+            button.setToolTip(hint)
+            button.setCursor(Qt.CursorShape.PointingHandCursor)
+            button.setMinimumHeight(44)
+            button.clicked.connect(signal.emit)
+            self._action_buttons[name] = button
+            actions.addWidget(button, 1)
+        outer_layout.addWidget(self._action_area)
 
         self._scroll_area = QScrollArea()
         self._scroll_area.setWidgetResizable(True)
@@ -57,7 +78,7 @@ class ControlPanel(QFrame):
         self._panel.setObjectName("controlPanelContent")
         self._layout = QVBoxLayout(self._panel)
         self._layout.setContentsMargins(0, 0, 3, 0)
-        self._layout.setSpacing(5)
+        self._layout.setSpacing(4)
 
         self._setup_vehicle_status()
         self._setup_local_input()
@@ -71,7 +92,7 @@ class ControlPanel(QFrame):
     @staticmethod
     def _section(title):
         card = DataCard(title)
-        card.set_margins(6)
+        card.layout().setContentsMargins(6, 3, 6, 3)
         card.set_spacing(4)
         return card
 
@@ -106,12 +127,10 @@ class ControlPanel(QFrame):
             self._conn_card.add_widget(conn)
 
         media_hint = "重建信令与视频连接"
-        self._action_buttons = {
-            name: self._connections[name].add_action(
+        for name in ("signal", "webrtc"):
+            self._action_buttons[name] = self._connections[name].add_action(
                 "重连", self._on_media_reconnect, media_hint
             )
-            for name in ("signal", "webrtc")
-        }
         self._usb_connect_btn = self._connections["usb"].add_action(
             "连接", self._on_usb_connect, "探测并连接控制设备"
         )
@@ -121,12 +140,6 @@ class ControlPanel(QFrame):
             "重连",
             self._on_control_reconnect,
             "重连车辆状态的数据通道；保留设备和视频连接",
-        )
-        self._action_buttons["video"] = self._connections["video"].add_action(
-            "连接视频", self.video_toggle_requested.emit, "开启或关闭车辆视频",
-        )
-        self._action_buttons["control"] = self._connections["control"].add_action(
-            "开始控制", self.control_toggle_requested.emit, "开启、恢复或停止行驶控制",
         )
         self.set_connection_status("video", False, "未连接")
         self.set_connection_status("control", False, "未开启")
@@ -326,9 +339,11 @@ class ControlPanel(QFrame):
         )
 
         for card in (
-            self._vehicle_card, self._input_card, self._confirmation_card, self._conn_card
+            self._vehicle_card, self._input_card, self._confirmation_card, self._conn_card,
         ):
             card.apply_theme(theme)
+        self._action_buttons["video"].setStyleSheet(theme.get_secondary_button_style())
+        self._action_buttons["control"].setStyleSheet(theme.get_button_style())
         self._gear.apply_theme(theme, prominent_label=True, value_size=19)
         for item in self._input_stats.values():
             item.apply_theme(theme, prominent_label=True, value_size=19)
@@ -379,8 +394,10 @@ class ControlPanel(QFrame):
 
     def set_video_requested(self, requested, *, busy=False):
         self._video_requested = requested
-        self._connections["video"].set_action_text("断开视频" if requested else "连接视频")
-        self._action_buttons["video"].setEnabled(not busy or requested)
+        button = self._action_buttons["video"]
+        button.setText("断开视频" if requested else "连接视频")
+        button.setAccessibleName(button.text())
+        button.setEnabled(not busy or requested)
         self.set_media_reconnecting(busy)
 
     def set_media_reconnecting(self, busy):
@@ -388,8 +405,10 @@ class ControlPanel(QFrame):
             self._action_buttons[name].setEnabled(self._video_requested and not busy)
 
     def set_control_action(self, text, *, enabled=True):
-        self._connections["control"].set_action_text(text)
-        self._action_buttons["control"].setEnabled(enabled)
+        button = self._action_buttons["control"]
+        button.setText(text)
+        button.setAccessibleName(text)
+        button.setEnabled(enabled)
 
     def _on_media_reconnect(self):
         if self._media_reconnect_callback:

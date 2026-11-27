@@ -35,6 +35,9 @@ class USBConnector(IInputDevice):
         await self.disconnect()
         try:
             await self._open()
+        except usb1.USBError as exc:
+            await self.disconnect()
+            raise ConnectionError(f"USB open failed ({type(exc).__name__})") from exc
         except BaseException:
             await self.disconnect()
             raise
@@ -76,7 +79,7 @@ class USBConnector(IInputDevice):
                             break
 
         if self.endpoint_in is None:
-            raise RuntimeError("IN endpoint not found")
+            raise ConnectionError("USB IN endpoint not found")
 
         # detach kernel driver (Linux)
         try:

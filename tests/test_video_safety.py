@@ -170,6 +170,7 @@ def test_live_gui_keeps_status_during_manual_control_and_video_lifecycle(
         thread = threading.Thread(target=lambda: asyncio.run(backend()),daemon=True)
         class Device:
             axis = 128
+            reporting = True
             task = None
             def __init__(self,*args): pass
             def set_data_callback(self,callback): self.callback=callback
@@ -177,7 +178,8 @@ def test_live_gui_keeps_status_during_manual_control_and_video_lifecycle(
             def is_connected(self): return self.task is not None and not self.task.done()
             async def produce(self):
                 while True:
-                    await self.callback(RawInput.capture(bytes((0,0,0,128,self.axis))))
+                    if self.reporting:
+                        await self.callback(RawInput.capture(bytes((0,0,0,128,self.axis))))
                     await asyncio.sleep(0.01)
             async def disconnect(self):
                 if self.task is not None:
@@ -245,6 +247,21 @@ def test_live_gui_keeps_status_during_manual_control_and_video_lifecycle(
             last_frame = window.fb.get('front').id
             until(lambda: window.fb.get('front').id > last_frame and window.video_gate.snapshot().ready)
             assert receiver is window._receiver_thread and receiver.isRunning()
+            until(lambda: client.state == 'waiting_neutral')
+            assert client.epoch is None and control_button.text() == '停止控制'
+            Device.axis = 128
+            until(lambda: client.armed and client.epoch != epoch)
+            # A silent USB device pauses control. Cancelling the request while
+            # waiting must keep control off when the device starts reporting again.
+            Device.reporting = False
+            until(lambda: client.state == 'waiting_input' and not client.armed)
+            until(control_button.isEnabled)
+            control_button.click()
+            until(lambda: control_button.text() == '开始控制' and client.epoch is None)
+            Device.reporting = True
+            resumed_at = time.monotonic()
+            until(lambda: client.latest.sampled_at > resumed_at + 0.4)
+            assert not client.armed and client.epoch is None and receiver.isRunning()
         finally:
             if window is not None:
                 window.close()
@@ -295,6 +312,7 @@ async def test_manual_stop_releases_late_acquire_before_sending_any_command():
         clock=SimpleNamespace(check=lambda: None),
     )
     assert client.request_start_control()
+    await asyncio.sleep(0.02)  # Model the first device poll after the request.
     client.latest = ControlInput(0, 0, 0, time.monotonic(), time.time_ns() // 1_000_000)
     task = asyncio.create_task(client._run_registered())
     try:
