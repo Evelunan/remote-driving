@@ -13,6 +13,7 @@ ROOT = Path(__file__).resolve().parents[1]
 TESTS = (
     "test_vehicle_status_wire.py", "test_vehicle_feedback.py", "test_vehicle_status_ui.py",
     "test_v2_wire.py", "test_control_leases.py", "test_control_clients.py",
+    "test_quic_rpc.py", "test_authenticated_relay.py",
     "test_configuration.py", "test_legacy_controllers.py", "test_driving_input_status.py",
     "test_driving_usb_retry.py", "test_scoped_reconnect.py", "test_legacy_control_panel.py",
     "test_legacy_qt_signals.py", "test_client_entrypoints.py", "test_gui_shutdown_signals.py",

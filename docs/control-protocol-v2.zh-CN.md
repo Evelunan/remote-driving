@@ -1,6 +1,6 @@
 # 控制协议 v2
 
-当前协议组合为 QUIC ALPN `rd-control/2`、Datagram 格式 v2 和注册修订 `direct-control/4`。三端须配套升级。
+当前协议组合为 QUIC ALPN `rd-control/2`、Datagram 格式 v2 和注册修订 `direct-control/5`。三端须配套升级。
 
 ## 连接与可靠消息
 
@@ -25,9 +25,9 @@ TLS QUIC 的 ALPN 固定为 `rd-control/2`；完成握手后才处理业务消�
 | version | 1 | 2 |
 | kind | 1 | 下表消息类型 |
 | session | 2 | 车辆控制会话编号，不能代替身份认证 |
-| epoch | 16 | 服务端分配的非零 UUID。车辆状态使用连接的状态流 UUID，其余消息使用配对代次 UUID |
+| epoch | 16 | 服务端分配的非零 UUID。车辆状态请求和响应使用连接的状态流 UUID，其余当前消息使用配对代次 UUID |
 | seq | 4 | 当前代次内的 uint32 序号，严格判断更新与回绕 |
-| source_time_ms | 8 | 原始采样时间，Unix 毫秒；重复发送缓存样本时不得刷新 |
+| source_time_ms | 8 | 原始采样时间，Unix 毫秒。车辆反馈请求填 0，响应携带原始时间供诊断 |
 
 | kind | 负载 | 语义 |
 | --- | --- | --- |
@@ -36,13 +36,15 @@ TLS QUIC 的 ALPN 固定为 `rd-control/2`；完成握手后才处理业务消�
 | 2 EXECUTION | uint8 status、uint64 completed_at_ms | 执行结果；status=1 表示设备 API 完成，2 拒绝、3 控制器未启用、4 已失效；不是实测车速/停车 |
 | 3 TELEMETRY | float32 linear_mps、angular_radps | 来自传感器的真实测量；未接入传感器时不发送伪造值 |
 | 4 STOP_STATUS | uint8 requested、confirmed | 两字段只允许 0/1；请求与物理确认分开，没有真实反馈时 confirmed=0 |
-| 6 VEHICLE_STATUS | uint8 有效位掩码、四个 float32、四个 uint8 | 底盘车速 m/s、转向角 °、左右轮速 m/s、档位、自动驾驶使能、驾驶模式、刹车状态 |
+| 6 VEHICLE_STATUS | uint8 有效位掩码、四个 float32、四个 uint8 | 旧版直接推送的底盘状态。保留原编码，`direct-control/5` 中继跳过此类型 |
+| 7 VEHICLE_STATUS_REQUEST | 16 字节非零请求 ID | 驾驶端请求底盘状态，`source_time_ms` 为 0 |
+| 8 VEHICLE_STATUS_REPLY | 16 字节请求 ID、uint16 `sample_age_ms`、21 字节底盘状态 | 车辆端回显请求 ID，年龄为准备发送时的原始采样年龄，范围 0–10000 毫秒 |
 
-`VEHICLE_STATUS` 的掩码 bit 0..7 对应上述八个字段。未置位表示字段未知，线上占位值必须为 0，解码后为 `None`；已置位的两个布尔字段只允许 0/1。NaN/Inf 不进入协议，不能用无效字段占位冒充实测零。档位和模式保留底盘原始 uint8 编码。该消息不表示停车确认，旧 `TELEMETRY` 的线速度/角速度语义保持不变。
+两种底盘状态负载采用相同的字段布局。有效位掩码 bit 0..7 依次对应车速、转向角、左右轮速、档位、自动驾驶使能、驾驶模式和刹车状态。未置位表示字段未知，线上占位值必须为 0，解码后为 `None`。已置位的两个布尔字段只允许 0/1。档位和模式保留底盘原始 uint8 编码，转向角单位为 °。旧 `TELEMETRY` 继续表示线速度和角速度。
 
 速度字段名为 `speed_mps`、`left_wheel_mps` 和 `right_wheel_mps`，单位固定为 m/s。`vehicle-status/2` 修正了旧 `vehicle-status/1` 的 km/h 约定；虽然 Datagram 长度和字段顺序相同，两种语义不能混用，注册时严格校验修订。
 
-解码时校验固定长度、版本、类型、代次与数值范围。控制 Datagram 无送达保证。拥塞期间仅保留最新控制值；同代次的控制窗口和执行回执各保留最新一条。车辆状态在队列空闲时发送。注册、代次变更和停止请求使用可靠流。
+解码时校验固定长度、版本、类型、代次与数值范围。控制 Datagram 无送达保证。拥塞期间仅保留最新控制值，同代次的控制窗口和执行回执各保留最新一条。车辆反馈请求和响应均在队列空闲时尽力发送。注册、代次变更和停止请求使用可靠流。
 
 ## 新鲜度与代次约束
 
@@ -54,11 +56,13 @@ TLS QUIC 的 ALPN 固定为 `rd-control/2`；完成握手后才处理业务消�
 
 ## 已实现的中继业务
 
-三端与共享包须匹配注册修订 `direct-control/4`。旧租约协议（含 `vehicle-status/3`）会收到 `protocol_upgrade_required`。
+三端与共享包须匹配注册修订 `direct-control/5`。使用 `direct-control/4` 或更旧修订注册会收到 `protocol_upgrade_required`。
 
 注册 RPC 为 `register(token, role, session, revision)`。令牌确定身份，申报的角色必须与服务端配置相符。只有 driving/vehicle 角色可注册对应 session。车端绑定独占，冲突连接不能覆盖已有绑定，同一连接不能二次注册切换身份。注册响应包含连接专用的 `status_stream` 和中继的 `idle_timeout_s`。已注册客户端以双方配置中较短空闲超时的三分之一为间隔调用 `clock({})` 保活。
 
-成功注册的 driving 连接自动订阅该 session 的 `VEHICLE_STATUS`。中继只接收当前已认证车辆连接、同 session、同状态流 UUID 且时间与序号有效的底盘状态。转发时写入每个订阅者的状态流 UUID 和独立序号，保留原始采样时间，即使车辆重连也可以继续按序接收。车辆状态回传独立于操作员的启停选择，状态转发失败只影响当前样本。接收端仍需检查状态流、采样时效及更新次序。
+工作台注册后，驾驶端默认每秒发送 10 个 `VEHICLE_STATUS_REQUEST`。中继确认请求来自已认证的驾驶连接，响应来自同一会话的已认证车辆连接。转发时，中继写入目标连接的状态流 UUID 和独立序号。一个已转发请求可匹配一次响应，任一端断开都会清除未匹配的请求。车辆状态流独立于行驶控制的启停和控制代次。
+
+车端收到 ROS 消息时，用车辆主机的系统时间和 `header.stamp` 计算初始采样年龄，再用本机单调时钟累计后续等待时间。当有新鲜且尚未发送的样本，车辆按设定的频率上限回复。驾驶端以本机单调时钟记录请求发出时刻 `t0`，反馈截止时刻为 `t0 + (feedback.max_age_ms - sample_age_ms)`，所有量换算到同一时间单位。请求往返耗时和 Qt 排队都计入这个预算。默认预算为 300 毫秒，若车端报告年龄为 20 毫秒且请求发出 120 毫秒后收到响应，该值还可显示 160 毫秒。底盘反馈有效期无需跨主机比较系统时间。
 
 同一会话各保留一条已认证驾驶连接与车辆连接。双方到齐后，中继在可靠流上向双方发送 `control_route` 事件，携带 `revision`、`epoch` 与 `vehicle_principal`。缺少对端时，后两个字段均为空。端点只接受当前连接上更新的事件版本。配对期间，车端在后台滚动发布有效窗口。
 

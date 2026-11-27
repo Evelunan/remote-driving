@@ -41,7 +41,7 @@ rd-server --config /path/server.yaml --services signaling --set signaling.port=8
 
 旧信令模块内的 `server.yaml` 和缓存加载器已移除，入口统一为 `rd-server`。字段映射：`ping_interval` → `signaling.ping_interval_s`，`ping_timeout` → `signaling.ping_timeout_s`，`max_message_size` → `signaling.max_message_bytes`；host、port、max_peers_per_room 移入 signaling。
 
-信令和中继可分别配置监听地址和 TLS 路径。生产信令使用 WSS，旧开发模式仅支持显式启用的本机回环。QUIC 的 `idle_timeout_s`、`register_timeout_s` 分别限制传输空闲和注册等待，`max_control_age_ms` 限制控制窗口，`max_clock_skew_ms` 用于观测数据，`max_datagram_bytes` 和 `max_rpc_bytes` 限定消息大小。旧配置中的 `lease_ttl_s` 仍可读取，直接控制协议不使用它。
+信令和中继可分别配置监听地址和 TLS 路径。生产信令使用 WSS，旧开发模式仅支持显式启用的本机回环。QUIC 的 `idle_timeout_s`、`register_timeout_s` 分别限制传输空闲和注册等待，`max_control_age_ms` 限制控制窗口，`max_clock_skew_ms` 用于独立遥测与停车状态，`max_datagram_bytes` 和 `max_rpc_bytes` 限定消息大小。旧配置中的 `lease_ttl_s` 仍可读取，直接控制协议不使用它。
 
 回退须匹配对应版本的制品与配置；新文件不能直接交给旧入口。认证连接不降级为匿名连接。三应用正式入口均使用认证 v2；后续发布文档会补充完整协同升级/回退演练。
 
@@ -82,7 +82,7 @@ rd-server --config /path/server.yaml --services signaling --set signaling.port=8
 
 ### ROS2 底盘状态反馈
 
-车辆端的 `feedback` 配置控制 `/vehicle_status` 订阅和状态回传：
+车辆端的 `feedback` 配置控制 `/vehicle_status` 订阅和响应。
 
 ```yaml
 controller: ros2
@@ -100,11 +100,19 @@ feedback:
 
 `cur_speed` 按用户 2026-11-24 确认的 m/s 原值处理，不自动换算；`cur_steer` 使用度。`wheel_speed_unit` 仅用于左右轮速，允许 `m/s`（原值）或 `km/h`（除以 3.6），传输和显示统一为 m/s，不影响 `/cmd_vel` 的 SI 单位。默认轮速源单位采用当前底盘驱动的 m/s；若现场来源不同，在本配置中调整。
 
-`send_hz` 为回传频率上限，范围 `(0, 50]`；没有新样本时不重复发送。`stale_timeout_ms` 为车端快照的有效时间，范围 `(0, 10000]`。源消息时间必须有效、递增且未过期；零时间、未来时间和旧样本不作为新反馈。NaN/Inf 或非法字段分别标为未知，合法零值与 false 保留。
+`send_hz` 为响应频率上限，范围 `(0, 50]`。每个有效新样本最多响应一次。`stale_timeout_ms` 为车端快照的有效时间，范围 `(0, 10000]`。车辆端用本机时间检查 ROS 原始采样时间并计算初始年龄，后续用单调时钟累计。NaN/Inf 或非法字段分别标为未知，合法零值与 false 保留。
 
-回传还受中继 `max_control_age_ms` / `max_clock_skew_ms` 约束。配置有效期应大于时钟偏差预算。驾驶端以其 `control.command_timeout_ms` 和中继年龄上限的较小值扣除原始采样年龄，得到剩余显示时间，跨 Qt 排队也不刷新期限。中继向获准注册同一车辆会话的驾驶端转发底盘状态。驾驶员开始或停止控制时，底盘状态均可持续回传。
+驾驶端使用自己的 `feedback` 配置。`driving.yaml` 和 `driving.lan.yaml` 显式设置了以下默认值。
 
-三应用与共享包须配套升级至注册修订 `direct-control/4`。按 km/h 解释状态的 `vehicle-status/1` 以及依赖租约接收状态的 `vehicle-status/2` 会收到 `protocol_upgrade_required`。用户操作及验收步骤见[车辆端状态反馈](../apps/vehicle/README.md#ros2-底盘状态反馈)。
+```yaml
+feedback:
+  request_hz: 10
+  max_age_ms: 300
+```
+
+`request_hz` 是请求频率，范围 `(0, 50]`。`max_age_ms` 是底盘反馈的有效期预算，范围为整数 `1..10000`。驾驶端从预算中扣除车辆报告的采样年龄和本机测得的请求往返耗时，将剩余的有效期交给 Qt。启停控制时使用同一个状态流，有效期由 `feedback.max_age_ms` 独立配置。ROS 消息年龄在车辆主机上计算，跨机传输和显示使用本机单调计时。[反馈协议](control-protocol-v2.zh-CN.md#已实现的中继业务)
+
+三应用与共享包须配套升级至注册修订 `direct-control/5`。使用 `direct-control/4` 或更旧修订注册会收到 `protocol_upgrade_required`。[车辆端验收步骤](../apps/vehicle/README.md#ros2-底盘状态反馈)
 
 ### 摄像头不足时复用画面
 
