@@ -5,6 +5,7 @@ only this standard-library script and an already prepared installation root.
 """
 
 import argparse
+import ast
 import fcntl
 import hashlib
 import json
@@ -23,6 +24,10 @@ from urllib.parse import urlsplit
 ROOT = Path(__file__).resolve().parents[1]
 ROLES = ("server", "vehicle", "driving")
 COMPATIBILITY = {"control_alpn": "rd-control/2", "control_revision": "direct-control/4"}
+SUPPORTED_COMPATIBILITIES = (
+    {"control_alpn": "rd-control/2", "control_revision": "direct-control/4"},
+    {"control_alpn": "rd-control/2", "control_revision": "direct-control/5"},
+)
 
 
 def digest(path):
@@ -129,6 +134,47 @@ def check_protocol_config(config):
         )
 
 
+def source_compatibility(source):
+    wire = source / "packages/rd-core/src/rd_core/wire.py"
+    try:
+        constants = {}
+        for statement in ast.parse(wire.read_text(encoding="utf-8")).body:
+            if isinstance(statement, ast.Assign) and isinstance(
+                statement.value, ast.Constant
+            ):
+                for target in statement.targets:
+                    if isinstance(target, ast.Name):
+                        constants[target.id] = statement.value.value
+        compatibility = {
+            "control_alpn": constants["ALPN"],
+            "control_revision": constants["CONTROL_REVISION"],
+        }
+    except (KeyError, SyntaxError):
+        raise ValueError("source protocol declaration is invalid") from None
+    if compatibility not in SUPPORTED_COMPATIBILITIES:
+        raise ValueError("source protocol is unsupported")
+    return compatibility
+
+
+def installed_compatibility(python, *, cwd, env):
+    return json.loads(
+        command(
+            [
+                python,
+                "-I",
+                "-B",
+                "-c",
+                (
+                    "import json; from rd_core.wire import ALPN, CONTROL_REVISION; "
+                    "print(json.dumps({'control_alpn':ALPN,'control_revision':CONTROL_REVISION}))"
+                ),
+            ],
+            cwd=cwd,
+            env=env,
+        )
+    )
+
+
 def current_id(root):
     current = root / "current"
     if not current.is_symlink():
@@ -165,7 +211,7 @@ def verify(root, release_id, *, check_config=True):
     if (
         manifest.get("ready") is not True
         or manifest.get("schema") != 1
-        or manifest.get("compatibility") != COMPATIBILITY
+        or manifest.get("compatibility") not in SUPPORTED_COMPATIBILITIES
         or manifest.get("role") not in ROLES
         or manifest.get("release_id") != release_id
         or manifest.get("directory") != str(directory)
@@ -182,6 +228,12 @@ def verify(root, release_id, *, check_config=True):
         != manifest["interpreter"]["sha256"]
     ):
         raise ValueError("base Python interpreter changed")
+    env = environment()
+    compatibility = installed_compatibility(
+        directory / "venv/bin/python", cwd=root, env=env
+    )
+    if compatibility != manifest["compatibility"]:
+        raise ValueError("installed protocol does not match release manifest")
     if check_config:
         command(
             [
@@ -191,7 +243,7 @@ def verify(root, release_id, *, check_config=True):
                 "--check-config",
             ],
             cwd=root,
-            env=environment(),
+            env=env,
         )
     return manifest
 
@@ -201,6 +253,7 @@ def prepare(args):
 
     env = environment()
     source = args.source.resolve()
+    compatibility = source_compatibility(source)
     wheels, inventory = wheel_inventory(args.wheels, source=source)
     acceptance = json.loads(args.acceptance.read_text())
     lock_hash = digest(source / "uv.lock")
@@ -296,19 +349,8 @@ def prepare(args):
         timeout=600,
     )
     command(["uv", "pip", "check", "--python", python], cwd=root, env=env)
-    compatibility = json.loads(
-        command(
-            [
-                python,
-                "-c",
-                "import json; from rd_core.wire import ALPN, CONTROL_REVISION; print(json.dumps({'control_alpn':ALPN,'control_revision':CONTROL_REVISION}))",
-            ],
-            cwd=root,
-            env=env,
-        )
-    )
-    if compatibility != COMPATIBILITY:
-        raise ValueError("installed protocol is incompatible")
+    if installed_compatibility(python, cwd=root, env=env) != compatibility:
+        raise ValueError("installed protocol does not match release source")
     binary = directory / "venv/bin" / ("rd-" + args.role)
     effective = json.loads(
         command(
@@ -333,7 +375,7 @@ def prepare(args):
             "role": args.role,
             "ready": True,
             "directory": str(directory),
-            "compatibility": COMPATIBILITY,
+            "compatibility": compatibility,
             "created_at": datetime.now(timezone.utc).isoformat(),
             "platform": platform.platform(),
             "interpreter": interpreter,

@@ -6,7 +6,9 @@ import os
 import subprocess
 import sys
 import time
+import venv
 from pathlib import Path
+from types import ModuleType, SimpleNamespace
 
 import pytest
 
@@ -14,6 +16,16 @@ SCRIPT = Path(__file__).resolve().parents[1] / "scripts/manage_release.py"
 spec = importlib.util.spec_from_file_location("release_management", SCRIPT)
 release = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(release)
+OLD_PROTOCOL = {"control_alpn": "rd-control/2", "control_revision": "direct-control/4"}
+NEW_PROTOCOL = {"control_alpn": "rd-control/2", "control_revision": "direct-control/5"}
+
+
+def write_wire(path, protocol):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        f"ALPN = {protocol['control_alpn']!r}\n"
+        f"CONTROL_REVISION = {protocol['control_revision']!r}\n"
+    )
 
 
 @pytest.fixture
@@ -22,12 +34,19 @@ def installation(tmp_path, monkeypatch):
     root = tmp_path / "installation"
     (root / "releases").mkdir(parents=True)
     (root / ".release.lock").touch()
-    for name in ("old", "new"):
+    for name, protocol in (("old", OLD_PROTOCOL), ("new", NEW_PROTOCOL)):
         directory = root / "releases" / name
-        (directory / "venv/bin").mkdir(parents=True)
+        venv.EnvBuilder(symlinks=True).create(directory / "venv")
+        python_version = f"python{sys.version_info.major}.{sys.version_info.minor}"
+        write_wire(
+            directory / "venv/lib" / python_version / "site-packages/rd_core/wire.py",
+            protocol,
+        )
         binary = directory / "venv/bin/rd-server"
         binary.write_text(
-            '#!/bin/sh\nif [ "$3" = --check-config ]; then exit 0; fi\n'
+            "#!/bin/sh\n"
+            f'case "$2" in */releases/{name}/config.json) ;; *) exit 3 ;; esac\n'
+            'if [ "$3" = --check-config ]; then exit 0; fi\n'
             "touch started\nexec sleep 60\n"
         )
         binary.chmod(0o755)
@@ -38,7 +57,7 @@ def installation(tmp_path, monkeypatch):
             "role": "server",
             "release_id": name,
             "directory": str(directory),
-            "compatibility": release.COMPATIBILITY,
+            "compatibility": protocol,
             "external_tls": {},
             "files": release.file_inventory(directory),
             "interpreter": {
@@ -54,8 +73,10 @@ def installation(tmp_path, monkeypatch):
 def test_upgrade_and_explicit_rollback_pair_configuration_with_executable(installation):
     root = installation
     assert release.activate(root, "new", "old")["previous"] == "old"
+    assert release.verify(root, "new")["compatibility"] == NEW_PROTOCOL
     assert json.loads((root / "current/config.json").read_text())["version"] == "new"
     assert release.activate(root, "old", "new")["current"] == "old"
+    assert release.verify(root, "old")["compatibility"] == OLD_PROTOCOL
     assert json.loads((root / "current/config.json").read_text())["version"] == "old"
     with pytest.raises(ValueError, match="current release changed"):
         release.activate(root, "new", "new")
@@ -64,7 +85,17 @@ def test_upgrade_and_explicit_rollback_pair_configuration_with_executable(instal
 
 @pytest.mark.parametrize(
     "fault",
-    ["incomplete", "protocol", "file", "added", "role", "tls", "interpreter", "legacy"],
+    [
+        "incomplete",
+        "protocol",
+        "mislabeled",
+        "file",
+        "added",
+        "role",
+        "tls",
+        "interpreter",
+        "legacy",
+    ],
 )
 def test_invalid_candidate_does_not_change_current(installation, fault):
     root = installation
@@ -74,7 +105,10 @@ def test_invalid_candidate_does_not_change_current(installation, fault):
     if fault == "incomplete":
         manifest["ready"] = False
     elif fault == "protocol":
-        manifest["compatibility"] = {"control_alpn": "v1"}
+        manifest["compatibility"]["control_revision"] = "direct-control/6"
+    elif fault == "mislabeled":
+        # The manifest names an accepted protocol that the installed wheel lacks.
+        manifest["compatibility"] = OLD_PROTOCOL
     elif fault == "role":
         manifest["role"] = "vehicle"
     elif fault == "file":
@@ -94,8 +128,91 @@ def test_invalid_candidate_does_not_change_current(installation, fault):
     assert release.current_id(root) == "old"
 
 
+@pytest.mark.parametrize(
+    ("source_protocol", "installed"),
+    [
+        (OLD_PROTOCOL, OLD_PROTOCOL),
+        (NEW_PROTOCOL, NEW_PROTOCOL),
+        (NEW_PROTOCOL, OLD_PROTOCOL),
+    ],
+)
+def test_prepare_requires_the_source_protocol_even_for_same_version_wheels(
+    tmp_path, monkeypatch, source_protocol, installed
+):
+    source = tmp_path / "source"
+    write_wire(source / "packages/rd-core/src/rd_core/wire.py", source_protocol)
+    lock = source / "uv.lock"
+    lock.write_text("lockfile")
+    wheel_dir = tmp_path / "wheels"
+    wheel_dir.mkdir()
+    wheels, inventory = {}, {}
+    for name in ("rd-core", "rd-quic", "rd-server"):
+        wheel = wheel_dir / f"{name}-0.2.0.whl"
+        wheel.write_text(name)
+        wheels[name] = wheel
+        inventory[name] = {
+            "filename": wheel.name,
+            "version": "0.2.0",
+            "sha256": release.digest(wheel),
+        }
+    verify_wheels = ModuleType("verify_wheels")
+    verify_wheels.wheel_inventory = lambda directory, source: (wheels, inventory)
+    monkeypatch.setitem(sys.modules, "verify_wheels", verify_wheels)
+    acceptance = tmp_path / "acceptance.json"
+    release.write_json(
+        acceptance,
+        {
+            "passed": True,
+            "wheels": inventory,
+            "lock_sha256": release.digest(lock),
+            "roles": dict.fromkeys(release.ROLES),
+        },
+    )
+    config = tmp_path / "config.json"
+    config.write_text('{"services": []}')
+
+    def mock_command(argv, **kwargs):
+        if argv[0] == "uv":
+            return ""
+        if "sys._base_executable" in argv[-1]:
+            return json.dumps({"version": "3.10.12", "executable": sys.executable})
+        if argv[-1] == "--dump-config":
+            return json.dumps({"config": json.loads(config.read_text())})
+        assert argv[-1] == "--check-config"
+        return ""
+
+    monkeypatch.setattr(release, "command", mock_command)
+    monkeypatch.setattr(
+        release, "installed_compatibility", lambda python, **kwargs: installed
+    )
+    args = SimpleNamespace(
+        source=source,
+        wheels=wheel_dir,
+        acceptance=acceptance,
+        config=config,
+        root=tmp_path / "installation",
+        release="candidate",
+        role="server",
+        python=sys.executable,
+        offline=True,
+    )
+    manifest_path = args.root / "releases/candidate/manifest.json"
+    if installed == source_protocol:
+        release.prepare(args)
+        manifest = json.loads(manifest_path.read_text())
+        assert manifest["ready"] and manifest["compatibility"] == source_protocol
+    else:
+        with pytest.raises(
+            ValueError, match="installed protocol does not match release source"
+        ):
+            release.prepare(args)
+        assert json.loads(manifest_path.read_text())["ready"] is False
+
+
 def test_run_pins_old_version_and_blocks_selection_and_duplicate_start(installation):
     root = installation
+    release.activate(root, "new", "old")
+    release.activate(root, "old", "new")
     process = subprocess.Popen(
         [sys.executable, SCRIPT, "run", "--root", root], cwd=root
     )
