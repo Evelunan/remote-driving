@@ -4,7 +4,15 @@ There is no public abort method or bounded replace-latest datagram queue. Keep
 these operations here and pin aioquic until an upgrade passes the same tests.
 """
 
-from rd_core.wire import Execution, Packet, Telemetry, VehicleStatus, Window
+from rd_core.wire import (
+    Execution,
+    Packet,
+    Telemetry,
+    VehicleStatus,
+    VehicleStatusReply,
+    VehicleStatusRequest,
+    Window,
+)
 
 
 def cancel_pending_io(protocol):
@@ -33,7 +41,9 @@ def _queue_datagram(quic, data, best_effort):
             if queued is None or not isinstance(queued.payload, (Window, Execution)):
                 pending.clear()
                 break
-            if packet is not None and isinstance(packet.payload, (Telemetry, VehicleStatus)):
+            if packet is not None and isinstance(
+                packet.payload, (Telemetry, VehicleStatus, VehicleStatusReply, VehicleStatusRequest)
+            ):
                 return False
             if (
                 packet is None or not isinstance(packet.payload, (Window, Execution))

@@ -4,6 +4,7 @@ import asyncio
 import time
 from collections import OrderedDict
 from dataclasses import replace
+from uuid import uuid4
 
 from rd_core.control import is_newer
 from rd_core.logging import SampledControlLog, get_logger
@@ -15,7 +16,8 @@ from rd_core.wire import (
     ExecutionStatus,
     Packet,
     Telemetry,
-    VehicleStatus,
+    VehicleStatusReply,
+    VehicleStatusRequest,
     Window,
     conservative_age_ms,
     parse_control_route,
@@ -26,7 +28,7 @@ from rd_quic.framing import RpcError
 logger = get_logger(__name__)
 
 # Pin the contract implemented by this application even if only the transport is upgraded.
-DRIVING_CONTROL_REVISION = "direct-control/4"
+DRIVING_CONTROL_REVISION = "direct-control/5"
 
 
 class DrivingControlClient:
@@ -63,6 +65,8 @@ class DrivingControlClient:
         self._last_ack = None
         self._last_telemetry = None
         self._last_vehicle_status = None
+        self._feedback_requests = OrderedDict()
+        self._feedback_request_seq = 0
         self._last_execution = None
         self._seq = 0
         self._tx_log = SampledControlLog(logger)
@@ -167,6 +171,7 @@ class DrivingControlClient:
         if self._sent:
             self._needs_recovery_neutral = True
         self._forget_stream()
+        self._feedback_requests.clear()
         self._stop_deadline = None
         if self.control_requested:
             self._status("waiting_channel")
@@ -208,7 +213,7 @@ class DrivingControlClient:
             return
         if packet.session != self.settings.session:
             return
-        if isinstance(packet.payload, VehicleStatus):
+        if isinstance(packet.payload, VehicleStatusReply):
             self._receive_vehicle_status(packet)
             return
         if packet.epoch != self.epoch:
@@ -288,19 +293,40 @@ class DrivingControlClient:
             or not is_newer(packet.seq, self._last_vehicle_status)
         ):
             return
-        budget = min(self.connection.max_control_age_ms,
-                     self.settings.control.command_timeout_ms)
-        try:
-            age = conservative_age_ms(
-                packet.source_time_ms, time.time_ns() // 1_000_000,
-                max_age_ms=budget,
-                clock_skew_ms=self.connection.max_clock_skew_ms,
-            )
-        except ValueError:
+        reply = packet.payload
+        sent_at = self._feedback_requests.pop(reply.request_id, None)
+        if sent_at is None:
+            return
+        # The request was sent before the vehicle measured sample_age_ms.
+        # Charging the full round trip bounds the sample's age at delivery.
+        deadline = sent_at + (self.settings.feedback.max_age_ms - reply.sample_age_ms) / 1000
+        if time.monotonic() >= deadline:
             return
         self._last_vehicle_status = packet.seq
-        # Carry the remaining original budget across Qt's queued delivery.
-        self.on_vehicle_status(packet, time.monotonic() + (budget - age) / 1000)
+        self.on_vehicle_status(replace(packet, payload=reply.status), deadline)
+
+    async def _request_feedback(self, connection):
+        period = 1 / self.settings.feedback.request_hz
+        budget = self.settings.feedback.max_age_ms / 1000
+        while connection.protocol.rpc_ready:
+            now = time.monotonic()
+            while self._feedback_requests and (
+                now >= next(iter(self._feedback_requests.values())) + budget
+            ):
+                self._feedback_requests.popitem(last=False)
+            request_id = uuid4().bytes
+            packet = Packet(
+                self.settings.session, connection.status_stream,
+                self._feedback_request_seq, 0, VehicleStatusRequest(request_id),
+            )
+            try:
+                sent = connection.protocol.send_datagram(packet.encode(), best_effort=True)
+            except ConnectionError:
+                return
+            if sent:
+                self._feedback_requests[request_id] = now
+                self._feedback_request_seq = (self._feedback_request_seq + 1) & 0xFFFFFFFF
+            await asyncio.sleep(period)
 
     def _sample_window(self, sample, now):
         # Use USB capture time even when processing or queue delivery was delayed.
@@ -408,8 +434,20 @@ class DrivingControlClient:
                     ) as connection:
                         self.connection = connection
                         self._last_vehicle_status = None
-                        self._report_connection(True, "registered")
-                        await self._run_registered()
+                        self._feedback_request_seq = 0
+                        feedback = None
+                        if self.on_vehicle_status is not None:
+                            feedback = asyncio.create_task(
+                                self._request_feedback(connection), name="driving-feedback"
+                            )
+                        try:
+                            self._report_connection(True, "registered")
+                            await self._run_registered()
+                        finally:
+                            if feedback is not None:
+                                feedback.cancel()
+                                await asyncio.gather(feedback, return_exceptions=True)
+                            self._feedback_requests.clear()
                 except (ConnectionError, OSError, TimeoutError, RpcError) as error:
                     if isinstance(error, RpcError) and error.code in {
                         "access_denied", "role_denied", "protocol_upgrade_required",

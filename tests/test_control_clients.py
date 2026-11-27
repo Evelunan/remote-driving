@@ -27,10 +27,23 @@ async def until(predicate, timeout=3):
 
 
 @pytest.mark.asyncio
-async def test_real_feedback_transport_keeps_units_and_never_repeats_stale_cache(
-    runtime_factory, client_settings
+async def test_real_feedback_transport_with_unsynchronized_clocks_and_control_switches(
+    runtime_factory, client_settings, monkeypatch
 ):
     from rd_vehicle.infrastructure.controller.vehicle_feedback import FeedbackSample
+
+    vehicle_clock = SimpleNamespace(
+        monotonic=time.monotonic, time_ns=lambda: time.time_ns() + 1_000_000_000,
+    )
+    monkeypatch.setattr("rd_vehicle.application.control_client.time", vehicle_clock)
+    monkeypatch.setattr(
+        "rd_server.relay.registry.time",
+        SimpleNamespace(monotonic=time.monotonic, time=lambda: time.time() - 1),
+    )
+    monkeypatch.setattr(
+        "rd_driving.app.control_client.time",
+        SimpleNamespace(monotonic=time.monotonic, time_ns=lambda: time.time_ns() + 2_000_000_000),
+    )
 
     build, _ = runtime_factory
     runtime = build()
@@ -53,7 +66,7 @@ async def test_real_feedback_transport_keeps_units_and_never_repeats_stale_cache
     try:
         await until(lambda: driver.connection is not None and vehicle.connection is not None)
         assert not driver.control_requested and not driver.armed
-        source.sample = FeedbackSample(status, time.time_ns() // 1_000_000,
+        source.sample = FeedbackSample(status, vehicle_clock.time_ns() // 1_000_000,
                                        time.monotonic(), 1)
         await until(lambda: len(reports) == 1)
         packet, deadline = reports[0]
@@ -67,23 +80,44 @@ async def test_real_feedback_transport_keeps_units_and_never_repeats_stale_cache
         await until(lambda: driver.armed)
         await asyncio.sleep(0.35)
         assert len(reports) == 1 and driver.armed
-        # Changing a revision without a new source timestamp cannot renew freshness.
-        source.sample = replace(source.sample, revision=2)
+        # Even a new revision and a recent wall stamp cannot renew an aged sample.
+        source.sample = replace(source.sample, revision=2,
+                                source_time_ms=vehicle_clock.time_ns() // 1_000_000)
         await asyncio.sleep(0.15)
         assert len(reports) == 1
-        source.sample = FeedbackSample(replace(status, speed_mps=0, p_status=True),
-                                       time.time_ns() // 1_000_000, time.monotonic(), 3)
+        sample_age_ms = 120
+        source.sample = FeedbackSample(
+            replace(status, speed_mps=0, p_status=True),
+            vehicle_clock.time_ns() // 1_000_000 - sample_age_ms,
+            time.monotonic(), 3, age_at_receive_ms=sample_age_ms,
+        )
         await until(lambda: len(reports) == 2)
         assert reports[-1][0].payload.speed_mps == 0
         assert reports[-1][0].source_time_ms > original_timestamp
         assert reports[-1][0].payload.p_status is True
+        remaining_s = (driving_settings.feedback.max_age_ms - sample_age_ms) / 1000
+        assert reports[-1][1] <= source.sample.received_at + remaining_s
+        assert reports[-1][0].epoch == packet.epoch
+
+        control_epoch = driver.epoch
+        assert driver.request_stop_control()
+        await until(lambda: driver.epoch not in (None, control_epoch) and driver.epoch == vehicle.epoch)
+        assert not driver.control_requested and not driver.armed
+        source.sample = FeedbackSample(status, vehicle_clock.time_ns() // 1_000_000,
+                                       time.monotonic(), 4)
+        await until(lambda: len(reports) == 3)
+        assert reports[-1][0].payload == status and reports[-1][0].epoch == packet.epoch
     finally:
         for task in tasks:
             task.cancel()
         await asyncio.gather(*tasks, return_exceptions=True)
         await runtime.stop()
     assert controller.closed
-    assert not [task for task in asyncio.all_tasks() if task.get_name() == "vehicle-feedback"]
+    assert not driver._feedback_requests
+    assert not [
+        task for task in asyncio.all_tasks()
+        if task.get_name() in {"vehicle-feedback", "driving-feedback"}
+    ]
 
 
 class Inputs:

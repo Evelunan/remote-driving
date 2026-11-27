@@ -8,10 +8,11 @@ from pathlib import Path
 from typing import Literal
 from urllib.parse import urlsplit
 
+from .wire import MAX_VEHICLE_STATUS_AGE_MS
+
 Role = Literal["driving", "vehicle", "viewer"]
 Environment = Literal["development", "production"]
 _MAX_FEEDBACK_RATE_HZ = 50
-_MAX_FEEDBACK_AGE_MS = 10_000
 
 
 def _positive(**values):
@@ -423,7 +424,7 @@ class VehicleFeedbackSettings:
 
     def __post_init__(self):
         _positive(send_hz=self.send_hz, stale_timeout_ms=self.stale_timeout_ms)
-        if self.send_hz > _MAX_FEEDBACK_RATE_HZ or self.stale_timeout_ms > _MAX_FEEDBACK_AGE_MS:
+        if self.send_hz > _MAX_FEEDBACK_RATE_HZ or self.stale_timeout_ms > MAX_VEHICLE_STATUS_AGE_MS:
             raise ValueError("feedback rate/timeout exceeds supported limit")
         if not self.topic.startswith("/") or not self.topic.strip("/"):
             raise ValueError("feedback topic must be an absolute ROS topic")
@@ -523,7 +524,7 @@ class DrivingFeedbackSettings:
         if type(self.request_hz) not in (int, float) or type(self.max_age_ms) is not int:
             raise ValueError("feedback request_hz must be numeric and max_age_ms must be an integer")
         _positive(request_hz=self.request_hz, max_age_ms=self.max_age_ms)
-        if self.request_hz > _MAX_FEEDBACK_RATE_HZ or self.max_age_ms > _MAX_FEEDBACK_AGE_MS:
+        if self.request_hz > _MAX_FEEDBACK_RATE_HZ or self.max_age_ms > MAX_VEHICLE_STATUS_AGE_MS:
             raise ValueError("feedback rate/timeout exceeds supported limit")
 
 

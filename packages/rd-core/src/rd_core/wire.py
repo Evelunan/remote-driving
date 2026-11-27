@@ -8,7 +8,8 @@ from uuid import UUID
 
 VERSION = 2
 ALPN = "rd-control/2"
-CONTROL_REVISION = "direct-control/4"
+CONTROL_REVISION = "direct-control/5"
+MAX_VEHICLE_STATUS_AGE_MS = 10_000
 _HEADER = struct.Struct("!2sBBH16sIQ")
 _VEHICLE_STATUS_FIELDS = "BffffBBBB"
 
@@ -177,7 +178,7 @@ class VehicleStatusReply:
     def validate(self):
         VehicleStatusRequest(self.request_id).validate()
         _uint(self.sample_age_ms, 16, "vehicle status sample age")
-        if self.sample_age_ms > 10_000:
+        if self.sample_age_ms > MAX_VEHICLE_STATUS_AGE_MS:
             raise ValueError("vehicle status sample age exceeds supported limit")
         if type(self.status) is not VehicleStatus:
             raise ValueError("invalid vehicle status reply payload")

@@ -23,7 +23,7 @@ from urllib.parse import urlsplit
 
 ROOT = Path(__file__).resolve().parents[1]
 ROLES = ("server", "vehicle", "driving")
-COMPATIBILITY = {"control_alpn": "rd-control/2", "control_revision": "direct-control/4"}
+COMPATIBILITY = {"control_alpn": "rd-control/2", "control_revision": "direct-control/5"}
 SUPPORTED_COMPATIBILITIES = (
     {"control_alpn": "rd-control/2", "control_revision": "direct-control/4"},
     {"control_alpn": "rd-control/2", "control_revision": "direct-control/5"},

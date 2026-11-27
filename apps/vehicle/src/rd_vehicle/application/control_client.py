@@ -13,8 +13,9 @@ from rd_core.wire import (
     Execution,
     ExecutionStatus,
     Packet,
+    VehicleStatusReply,
+    VehicleStatusRequest,
     Window,
-    conservative_age_ms,
     parse_control_route,
 )
 from rd_quic.client import registered_connection
@@ -23,7 +24,7 @@ from rd_quic.framing import RpcError
 from rd_vehicle.shutdown import ComponentCleanupError
 
 logger = get_logger(__name__)
-CONTROL_REVISION = "direct-control/4"
+CONTROL_REVISION = "direct-control/5"
 
 
 class VehicleControlClient:
@@ -46,6 +47,9 @@ class VehicleControlClient:
         self._window_seq = 0
         self._feedback_seq = 0
         self._last_feedback_sample = None
+        self._last_feedback_request = None
+        self._pending_feedback = None
+        self._feedback_changed = asyncio.Event()
         self._rx_log = SampledControlLog(logger)
         self._window_drop_log = SampledControlLog(logger)
         self._route_revision = 0
@@ -115,18 +119,26 @@ class VehicleControlClient:
         self._pending_epoch = epoch
 
     def _datagram(self, generation, data):
-        if (
-            generation is not self._generation
-            or self.connection is None
-            or self.epoch is None
-        ):
+        if generation is not self._generation or self.connection is None:
             return
         try:
             packet = Packet.decode(data)
         except ValueError:
             return
+        if packet.session != self.settings.session:
+            return
+        if isinstance(packet.payload, VehicleStatusRequest):
+            if (
+                packet.epoch == self.connection.status_stream
+                and packet.source_time_ms == 0
+                and is_newer(packet.seq, self._last_feedback_request)
+            ):
+                self._last_feedback_request = packet.seq
+                self._pending_feedback = packet.payload.request_id
+                self._feedback_changed.set()
+            return
         if (
-            packet.session != self.settings.session
+            self.epoch is None
             or packet.epoch != self.epoch
             or not isinstance(packet.payload, Control)
             or not is_newer(packet.seq, self._last_seq)
@@ -209,7 +221,7 @@ class VehicleControlClient:
             )
             self._retire("execution failed")
 
-    def _publish_feedback(self):
+    def _publish_feedback(self, request_id):
         source = getattr(self.controller, "feedback", None)
         if (source is None or self.connection is None
                 or not self.connection.protocol.rpc_ready):
@@ -217,19 +229,16 @@ class VehicleControlClient:
         sample = source.latest()
         if sample is None or sample.revision == self._last_feedback_sample:
             return False
+        age = sample.age_ms(time.monotonic())
+        if age >= self.settings.feedback.stale_timeout_ms:
+            return False
         try:
-            conservative_age_ms(
-                sample.source_time_ms, time.time_ns() // 1_000_000,
-                max_age_ms=min(self.settings.feedback.stale_timeout_ms,
-                               self.connection.max_control_age_ms),
-                clock_skew_ms=self.connection.max_clock_skew_ms,
-            )
             packet = Packet(
                 self.settings.session,
                 self.connection.status_stream,
                 self._feedback_seq,
                 sample.source_time_ms,
-                sample.status,
+                VehicleStatusReply(request_id, age, sample.status),
             )
             if not self.connection.protocol.send_datagram(packet.encode(), best_effort=True):
                 return False
@@ -240,9 +249,17 @@ class VehicleControlClient:
         return True
 
     async def _feedback_watch(self):
+        period = 1 / self.settings.feedback.send_hz
+        next_response = 0.0
         while True:
-            self._publish_feedback()
-            await asyncio.sleep(1 / self.settings.feedback.send_hz)
+            await self._feedback_changed.wait()
+            delay = next_response - time.monotonic()
+            if delay > 0:
+                await asyncio.sleep(delay)
+            request_id, self._pending_feedback = self._pending_feedback, None
+            self._feedback_changed.clear()
+            if self._publish_feedback(request_id):
+                next_response = time.monotonic() + period
 
     async def _watch(self):
         while True:
@@ -313,6 +330,8 @@ class VehicleControlClient:
                     ) as connection:
                         self.connection = connection
                         self._feedback_seq, self._last_feedback_sample = 0, None
+                        self._last_feedback_request = self._pending_feedback = None
+                        self._feedback_changed.clear()
                         watch = asyncio.create_task(
                             self._watch(), name="vehicle-control-watch"
                         )

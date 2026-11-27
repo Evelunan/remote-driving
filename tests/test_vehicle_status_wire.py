@@ -23,7 +23,7 @@ def test_chassis_status_has_fixed_units_order_and_roundtrip():
     assert BASE.kind == Kind.VEHICLE_STATUS
     assert encoded[34:].hex() == "ff40600000c1480000404000004080000002010500"
     assert Packet.decode(encoded) == BASE
-    assert CONTROL_REVISION == "direct-control/4"
+    assert CONTROL_REVISION == "direct-control/5"
 
 
 @pytest.mark.parametrize("payload", [

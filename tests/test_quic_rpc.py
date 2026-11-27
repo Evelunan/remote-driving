@@ -11,7 +11,17 @@ from aioquic.quic.configuration import QuicConfiguration
 from aioquic.quic.connection import QuicConnection
 from aioquic.quic.events import HandshakeCompleted, StreamDataReceived
 from rd_core.async_compat import async_timeout
-from rd_core.wire import ALPN, Execution, ExecutionStatus, Packet, Telemetry, Window
+from rd_core.wire import (
+    ALPN,
+    Execution,
+    ExecutionStatus,
+    Packet,
+    Telemetry,
+    VehicleStatus,
+    VehicleStatusReply,
+    VehicleStatusRequest,
+    Window,
+)
 from rd_quic.framing import MessageBuffer, RpcError, encode_message
 from rd_quic.protocol import RpcProtocol
 from rd_server.relay.service import Listener
@@ -277,6 +287,31 @@ async def test_congested_vehicle_feedback_keeps_latest_window_and_execution():
     protocol.send_datagram(execution(101))
     protocol.discard_pending_datagrams()
     assert not pending
+    protocol.close()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("feedback", [
+    VehicleStatusRequest(b"r" * 16),
+    VehicleStatusReply(b"r" * 16, 12, VehicleStatus(0)),
+])
+async def test_vehicle_status_requests_and_replies_never_displace_pending_control(feedback):
+    protocol = RpcProtocol(QuicConnection(configuration=QuicConfiguration(is_client=True)))
+    protocol.rpc_ready = True
+    protocol.transmit = lambda: None
+    pending = protocol._quic._datagrams_pending
+    epoch = uuid4()
+    status = Packet(42, uuid4(), 0, 0, feedback).encode()
+    window = Packet(42, epoch, 0, 0, Window(b"w" * 16)).encode()
+    execution = Packet(42, epoch, 0, 0, Execution(ExecutionStatus.EXECUTED, 0)).encode()
+
+    assert protocol.send_datagram(status, best_effort=True)
+    assert list(pending) == [status]
+    assert protocol.send_datagram(window)
+    assert protocol.send_datagram(execution)
+    assert not protocol.send_datagram(status, best_effort=True)
+    assert not protocol.send_datagram(status)  # Status stays low priority at the queue boundary.
+    assert list(pending) == [window, execution]
     protocol.close()
 
 

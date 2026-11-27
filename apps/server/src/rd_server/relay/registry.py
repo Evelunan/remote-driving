@@ -10,10 +10,14 @@ from rd_core.control import is_newer
 from rd_core.settings import RelaySettings
 from rd_core.wire import (
     CONTROL_REVISION,
+    MAX_VEHICLE_STATUS_AGE_MS,
     Control,
     Execution,
     Packet,
-    VehicleStatus,
+    StopStatus,
+    Telemetry,
+    VehicleStatusReply,
+    VehicleStatusRequest,
     Window,
     conservative_age_ms,
 )
@@ -27,6 +31,7 @@ class Binding:
     status_stream: UUID
     last_status_seq: int | None = None
     next_status_seq: int = 0
+    status_requests: OrderedDict[bytes, float] = field(default_factory=OrderedDict)
 
 
 @dataclass
@@ -147,6 +152,9 @@ class Registry:
             return
         peers = self.vehicles if binding.principal.role == "vehicle" else self.drivers
         del peers[binding.session]
+        driver = self.bindings.get(self.drivers.get(binding.session))
+        if driver is not None:
+            driver.status_requests.clear()
         self._refresh_route(binding.session)
 
     def sweep(self):
@@ -157,35 +165,46 @@ class Registry:
                 self.unregister(peer)
                 peer.close(error_code=0x103, reason_phrase="credentials_expired")
 
-    def _route_status(self, peer, binding, packet):
+    def _route_status(self, binding, packet):
+        request = isinstance(packet.payload, VehicleStatusRequest)
+        role = "driving" if request else "vehicle"
         if (
-            self.vehicles.get(binding.session) is not peer
+            binding.principal.role != role
             or packet.session != binding.session
             or packet.epoch != binding.status_stream
             or not is_newer(packet.seq, binding.last_status_seq)
+            or (request and packet.source_time_ms != 0)
         ):
             return False
-        try:
-            conservative_age_ms(
-                packet.source_time_ms,
-                int(time.time() * 1000),
-                max_age_ms=self.settings.max_control_age_ms,
-                clock_skew_ms=self.settings.max_clock_skew_ms,
-            )
-        except ValueError:
-            return False
-        binding.last_status_seq = packet.seq
-        target = self.drivers.get(binding.session)
+        targets = self.vehicles if request else self.drivers
+        target = targets.get(binding.session)
         if target is None:
             return False
         try:
-            receiver = self._binding(target, "driving")
+            receiver = self._binding(target, "vehicle" if request else "driving")
+            pending = binding.status_requests if request else receiver.status_requests
+            request_id = packet.payload.request_id
+            now = time.monotonic()
+            while pending and next(iter(pending.values())) <= now:
+                pending.popitem(last=False)
+            if request:
+                if request_id in pending:
+                    return False
+            elif pending.pop(request_id, None) is None:
+                return False
+            binding.last_status_seq = packet.seq
             report = Packet(
                 binding.session, receiver.status_stream, receiver.next_status_seq,
                 packet.source_time_ms, packet.payload,
             )
             if target.send_datagram(report.encode(), best_effort=True):
                 receiver.next_status_seq = (receiver.next_status_seq + 1) & 0xFFFFFFFF
+                if request:
+                    # Keep correlations up to the largest supported feedback age.
+                    pending[request_id] = now + MAX_VEHICLE_STATUS_AGE_MS / 1000
+                    # The maximum supported 50 Hz over 10 seconds needs 500 entries.
+                    if len(pending) > 512:
+                        pending.popitem(last=False)
                 return True
         except (ConnectionError, ValueError, RpcError):
             # Optional status delivery has no effect on control.
@@ -198,8 +217,8 @@ class Registry:
             packet = Packet.decode(data)
         except (ValueError, RpcError):
             return False
-        if isinstance(packet.payload, VehicleStatus):
-            return self._route_status(peer, binding, packet)
+        if isinstance(packet.payload, (VehicleStatusRequest, VehicleStatusReply)):
+            return self._route_status(binding, packet)
         route = self.routes.get(binding.session)
         if route is None or packet.session != binding.session or packet.epoch != route.epoch:
             return False
@@ -241,7 +260,7 @@ class Registry:
                 ):
                     return False
                 route.last_execution = packet.seq
-            else:
+            elif isinstance(packet.payload, (Telemetry, StopStatus)):
                 try:
                     conservative_age_ms(
                         packet.source_time_ms,
@@ -254,6 +273,8 @@ class Registry:
                 if not is_newer(packet.seq, route.last_observations.get(packet.kind)):
                     return False
                 route.last_observations[packet.kind] = packet.seq
+            else:
+                return False
             target = route.driver
         try:
             self._binding(target)
