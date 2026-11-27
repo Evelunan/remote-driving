@@ -15,9 +15,8 @@ import tempfile
 import time
 from pathlib import Path
 
-from check_installed import certificate, check_standby_connection
+from check_installed import certificate
 from manage_release import COMPATIBILITY, write_json
-
 from rd_core.async_compat import async_timeout
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -43,7 +42,6 @@ def operation(action, root, env, *options, fail=False):
 
 
 async def live_server(network, token):
-    from rd_core.settings import ClientNetworkSettings
     from websockets.asyncio.client import connect
 
     async with connect(
@@ -58,15 +56,52 @@ async def live_server(network, token):
         await ws.send('{"type":"join","room":"1234"}')
         async with async_timeout(3):
             assert json.loads(await ws.recv())["type"] == "joined"
-    await check_standby_connection(
-        ClientNetworkSettings(
-            **{
-                **network,
-                "quic_ca_file": Path(network["quic_ca_file"]),
-                "signaling_ca_file": Path(network["signaling_ca_file"]),
-            }
-        ),
+
+
+async def probe_installed_relay(python, network, env, work):
+    # Load the probe's QUIC client and protocol constants from this release's wheels.
+    script = """import asyncio
+import json
+import runpy
+import sys
+from pathlib import Path
+
+from rd_core.settings import ClientNetworkSettings
+
+probe = runpy.run_path(sys.argv[1])["check_standby_connection"]
+network = json.loads(sys.argv[2])
+for key in ("quic_ca_file", "signaling_ca_file"):
+    network[key] = Path(network[key])
+try:
+    asyncio.run(probe(ClientNetworkSettings(**network)))
+except (ConnectionError, OSError):
+    raise SystemExit(2) from None
+"""
+    result = await asyncio.to_thread(
+        subprocess.run,
+        [
+            python,
+            "-I",
+            "-B",
+            "-c",
+            script,
+            Path(__file__).with_name("check_installed.py"),
+            json.dumps(network),
+        ],
+        cwd=work,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=10,
+        check=False,
     )
+    if result.returncode == 2:
+        raise ConnectionError("installed relay is not ready")
+    if result.returncode:
+        detail = result.stderr[-2000:]
+        for secret in (env["RD_OPERATOR_TOKEN"], env["RD_VEHICLE_TOKEN"]):
+            detail = detail.replace(secret, "<redacted>")
+        raise RuntimeError("installed relay authentication check failed: " + detail)
 
 
 def children(pid):
@@ -98,6 +133,8 @@ async def exercise(root, role, release_id, env, work, network):
                 if role == "server":
                     try:
                         await live_server(network, env["RD_OPERATOR_TOKEN"])
+                        python = root / "releases" / release_id / "venv/bin/python"
+                        await probe_installed_relay(python, network, env, work)
                         break
                     except (ConnectionError, OSError):
                         pass  # Startup polling only; authentication failures are fatal.
@@ -203,8 +240,6 @@ async def main(args):
             "QT_QPA_PLATFORM": "offscreen",
         }
     )
-    # The driver's probe resolves this reference in this process as well.
-    os.environ["RD_OPERATOR_TOKEN"] = env["RD_OPERATOR_TOKEN"]
     with tempfile.TemporaryDirectory(prefix="rd-release-rollback-") as temporary:
         work = Path(temporary)
         env["RD_RUNTIME_DIR"] = str(work / "runtime")
@@ -320,6 +355,7 @@ async def main(args):
                     "lock_sha256": manifest["lock_sha256"],
                     "config_sha256": manifest["files"]["config.json"]["sha256"],
                     "python": manifest["interpreter"]["version"],
+                    "compatibility": manifest["compatibility"],
                 }
             report["releases"][version] = records
             write_json(args.output, report)
