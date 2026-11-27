@@ -71,14 +71,42 @@ def test_duplicate_old_and_invalid_timestamps_never_refresh_sample(clock):
     assert buffer.latest() is None
 
 
-def test_wall_and_monotonic_expiry_are_both_enforced(clock):
+def test_queued_feedback_expires_at_original_sample_deadline(clock):
     buffer = VehicleStatusBuffer(VehicleFeedbackSettings())
-    buffer.receive(message())
-    clock.ms += 300
+    assert not buffer.receive(message(clock.ms - 300))
+    assert buffer.receive(message(clock.ms - 175))
+    sample = buffer.latest()
+    assert sample.age_at_receive_ms == 175
+    assert sample.age_ms(clock.mono + 0.0625) == 238
+    clock.mono += 0.125
     assert buffer.latest() is None
-    clock.ms -= 300
-    clock.mono += 0.301
+
+
+def test_wall_clock_changes_do_not_reset_sample_lifetime(clock):
+    buffer = VehicleStatusBuffer(VehicleFeedbackSettings())
+    assert buffer.receive(message())
+    original = buffer.latest()
+    clock.ms += 2_000
+    assert buffer.latest() is original
+    clock.ms -= 4_000
+    assert buffer.latest() is original
+    clock.mono += 0.3125
     assert buffer.latest() is None
+    assert buffer.receive(message(clock.ms))
+    assert buffer.latest().revision == original.revision + 1
+    assert not buffer.receive(message(clock.ms))
+
+
+def test_submillisecond_header_age_is_rounded_up(clock):
+    buffer = VehicleStatusBuffer(VehicleFeedbackSettings())
+    future = message()
+    future.header.stamp.nanosec = 1
+    assert not buffer.receive(future)
+    current = message(clock.ms - 1)
+    current.header.stamp.nanosec += 750_000
+    assert buffer.receive(current)
+    assert buffer.latest().age_at_receive_ms == 0.25
+    assert buffer.latest().age_ms(clock.mono) == 1
 
 
 @pytest.mark.parametrize("changes", [

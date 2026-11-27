@@ -6,7 +6,7 @@ import time
 from dataclasses import dataclass
 
 from rd_core.settings import VehicleFeedbackSettings
-from rd_core.wire import VehicleStatus, conservative_age_ms
+from rd_core.wire import VehicleStatus
 
 
 @dataclass(frozen=True)
@@ -15,6 +15,11 @@ class FeedbackSample:
     source_time_ms: int
     received_at: float
     revision: int
+    age_at_receive_ms: float = 0.0
+
+    def age_ms(self, now: float) -> int:
+        elapsed_ms = max(0.0, now - self.received_at) * 1000
+        return math.ceil(self.age_at_receive_ms + elapsed_ms)
 
 
 def _number(value, scale=1.0):
@@ -43,18 +48,17 @@ class VehicleStatusBuffer:
         self._revision = 0
 
     def receive(self, message):
+        received_at = time.monotonic()
+        wall_now_ns = time.time_ns()
         stamp = getattr(getattr(message, "header", None), "stamp", None)
         sec, nanosec = getattr(stamp, "sec", None), getattr(stamp, "nanosec", None)
         if (type(sec) is not int or sec < 0 or type(nanosec) is not int
                 or not 0 <= nanosec < 1_000_000_000):
             return False
-        source_time_ms = sec * 1000 + nanosec // 1_000_000
-        try:
-            conservative_age_ms(source_time_ms, time.time_ns() // 1_000_000,
-                                max_age_ms=self.settings.stale_timeout_ms, clock_skew_ms=0)
-        except ValueError:
-            return False
-        if source_time_ms == 0:
+        source_time_ns = sec * 1_000_000_000 + nanosec
+        source_time_ms = source_time_ns // 1_000_000
+        age_at_receive_ns = wall_now_ns - source_time_ns
+        if source_time_ms == 0 or not 0 <= age_at_receive_ns < self.settings.stale_timeout_ms * 1_000_000:
             return False
         scale = 1.0 if self.settings.wheel_speed_unit == "m/s" else 1.0 / 3.6
         status = VehicleStatus(
@@ -68,21 +72,20 @@ class VehicleStatusBuffer:
             p_status=_flag(getattr(message, "p_status", None)),
         )
         with self._lock:
-            if self._latest is not None and source_time_ms <= self._latest.source_time_ms:
+            # A wall clock step behind the previous stamp starts a new timestamp sequence.
+            if (self._latest is not None
+                    and source_time_ms <= self._latest.source_time_ms <= wall_now_ns // 1_000_000):
                 return False
             self._revision += 1
-            self._latest = FeedbackSample(status, source_time_ms, time.monotonic(), self._revision)
+            self._latest = FeedbackSample(
+                status, source_time_ms, received_at, self._revision, age_at_receive_ns / 1_000_000
+            )
         return True
 
     def latest(self):
         with self._lock:
             sample = self._latest
-        if sample is None or time.monotonic() - sample.received_at >= self.settings.stale_timeout_ms / 1000:
-            return None
-        try:
-            conservative_age_ms(sample.source_time_ms, time.time_ns() // 1_000_000,
-                                max_age_ms=self.settings.stale_timeout_ms, clock_skew_ms=0)
-        except ValueError:
+        if sample is None or sample.age_ms(time.monotonic()) >= self.settings.stale_timeout_ms:
             return None
         return sample
 
