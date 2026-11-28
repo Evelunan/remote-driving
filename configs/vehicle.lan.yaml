@@ -19,6 +19,8 @@ session: 1234
 room: "1234"
 components: [control,media]
 controller: ros2
+ros2:
+  cmd_vel_topic: /cmd_vel_remote
 feedback:
   enabled: true
   topic: /vehicle_status

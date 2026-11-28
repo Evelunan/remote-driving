@@ -1,16 +1,24 @@
 # ros2_cmd_vel_controller.py
 import rclpy  # type: ignore
-from rclpy.node import Node  # type: ignore
 from geometry_msgs.msg import Twist  # type: ignore
-from rd_vehicle.interfaces.icontroller import IController, StopResult
+from rclpy.node import Node  # type: ignore
 from rd_core.logging import get_logger
+from rd_vehicle.interfaces.icontroller import IController, StopResult
+
 from .motion import target_velocity
 
 logger = get_logger(__name__)
 
 
 class RCLpyCmdVelController(IController):
-    def __init__(self, max_linear=5.0, max_angular=2.0, *, feedback=None):
+    def __init__(
+        self,
+        max_linear=5.0,
+        max_angular=2.0,
+        *,
+        cmd_vel_topic="/cmd_vel",
+        feedback=None,
+    ):
         target_velocity(0, 0, 0, max_linear, max_angular)
         self._owns_context = not rclpy.ok()
         if not rclpy.ok():
@@ -19,7 +27,7 @@ class RCLpyCmdVelController(IController):
         self.max_angular = max_angular
         self._closed = False
         self.node = Node("cmd_vel_publisher")
-        self.publisher = self.node.create_publisher(Twist, "/cmd_vel", 10)
+        self.publisher = self.node.create_publisher(Twist, cmd_vel_topic, 10)
         self.feedback = None
         if feedback is not None and feedback.enabled:
             try:
@@ -31,7 +39,7 @@ class RCLpyCmdVelController(IController):
                 if self._owns_context and rclpy.ok():
                     rclpy.shutdown()
                 raise
-        logger.info("CmdVel controller initialized")
+        logger.info("CmdVel controller initialized: topic=%s", cmd_vel_topic)
 
     def send_command(self, throttle, brake, steering):
         msg = Twist()

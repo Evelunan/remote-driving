@@ -36,13 +36,15 @@ def test_ros_receives_configured_si_limits_and_stop_is_unconfirmed(legacy_python
         from dataclasses import replace
         messages = []
         destroyed = []
+        publisher_topics = []
         class Twist:
             def __init__(self):
                 self.linear = SimpleNamespace(x=0.0)
                 self.angular = SimpleNamespace(z=0.0)
         class Node:
             def __init__(self, name): pass
-            def create_publisher(self, *args):
+            def create_publisher(self, message_type, topic, depth):
+                publisher_topics.append(topic)
                 return SimpleNamespace(publish=messages.append)
             def destroy_node(self): destroyed.append(True)
         # ROS adapter contract only; no actual rclpy runtime or chassis involved.
@@ -51,9 +53,11 @@ def test_ros_receives_configured_si_limits_and_stop_is_unconfirmed(legacy_python
         sys.modules['geometry_msgs'] = SimpleNamespace()
         sys.modules['geometry_msgs.msg'] = SimpleNamespace(Twist=Twist)
         from rd_vehicle.main import _create_controller
-        from rd_core.settings import VehicleSettings, MotionSettings, SerialSettings
-        cfg = VehicleSettings(controller='ros2', motion=MotionSettings(1.2, 0.4))
+        from rd_core.settings import VehicleSettings, MotionSettings, Ros2Settings
+        cfg = VehicleSettings(controller='ros2', motion=MotionSettings(1.2, 0.4),
+                              ros2=Ros2Settings('/cmd_vel_remote'))
         ctrl = _create_controller(cfg)
+        assert publisher_topics == ['/cmd_vel_remote']
         ctrl.send_command(0.5, 0, -0.5)
         assert messages[-1].linear.x == 0.6
         assert messages[-1].angular.z == 0.2
@@ -64,6 +68,8 @@ def test_ros_receives_configured_si_limits_and_stop_is_unconfirmed(legacy_python
         assert messages[-1].linear.x == messages[-1].angular.z == 0
         ctrl.close()
         ctrl.close()
+        assert publisher_topics == ['/cmd_vel_remote']
+        assert len(messages) == 4
         assert destroyed == [True]
         try:
             _create_controller(replace(cfg, controller='typo'))
@@ -72,6 +78,33 @@ def test_ros_receives_configured_si_limits_and_stop_is_unconfirmed(legacy_python
         else:
             raise AssertionError('unknown controller must not silently disable control')
     """,
+    )
+
+
+def test_ros_check_config_imports_adapter_without_opening_node(legacy_python):
+    legacy_python(
+        "vehicle-unit",
+        """
+        import sys
+        from types import SimpleNamespace
+
+        class Node:
+            def __init__(self, name):
+                raise AssertionError('configuration check created a ROS node')
+
+        sys.modules['rclpy'] = SimpleNamespace(ok=lambda: False)
+        sys.modules['rclpy.node'] = SimpleNamespace(Node=Node)
+        sys.modules['geometry_msgs'] = SimpleNamespace()
+        sys.modules['geometry_msgs.msg'] = SimpleNamespace(Twist=object)
+
+        import rd_quic.client
+        rd_quic.client.check_control_config = lambda *args: None
+
+        from rd_core.settings import VehicleSettings
+        from rd_vehicle.main import check_config
+
+        check_config(VehicleSettings(controller='ros2', components=('control',)))
+        """,
     )
 
 

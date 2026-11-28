@@ -83,6 +83,7 @@ def _create_controller(settings):
             return RCLpyCmdVelController(
                 max_linear=settings.motion.max_linear_mps,
                 max_angular=settings.motion.max_angular_radps,
+                cmd_vel_topic=settings.ros2.cmd_vel_topic,
                 feedback=settings.feedback,
             )
         case _:

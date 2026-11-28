@@ -31,6 +31,15 @@ def _env_name(value):
         raise ValueError("invalid credential environment variable name")
 
 
+def _absolute_ros_topic(value, *, field_name):
+    if not isinstance(value, str) or not re.fullmatch(
+        r"/(?:[A-Za-z_][A-Za-z0-9_]*)(?:/[A-Za-z_][A-Za-z0-9_]*)*", value
+    ):
+        raise ValueError(f"{field_name} must be an absolute ROS topic")
+    if len(value) > 255:
+        raise ValueError(f"{field_name} exceeds the ROS name length limit")
+
+
 @dataclass(frozen=True)
 class LoggingSettings:
     level: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = "INFO"
@@ -433,6 +442,14 @@ class VehicleFeedbackSettings:
 
 
 @dataclass(frozen=True)
+class Ros2Settings:
+    cmd_vel_topic: str = "/cmd_vel"
+
+    def __post_init__(self):
+        _absolute_ros_topic(self.cmd_vel_topic, field_name="cmd_vel_topic")
+
+
+@dataclass(frozen=True)
 class VehicleSettings:
     environment: Environment = "development"
     session: int = 1234
@@ -447,6 +464,7 @@ class VehicleSettings:
     network: ClientNetworkSettings = field(default_factory=ClientNetworkSettings)
     control: ControlSettings = field(default_factory=ControlSettings)
     motion: MotionSettings = field(default_factory=MotionSettings)
+    ros2: Ros2Settings = field(default_factory=Ros2Settings)
     feedback: VehicleFeedbackSettings = field(default_factory=VehicleFeedbackSettings)
     serial: SerialSettings = field(default_factory=SerialSettings)
     cameras: tuple[CameraSettings, ...] = field(

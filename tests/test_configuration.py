@@ -1,9 +1,12 @@
 import json
 from dataclasses import FrozenInstanceError
+from pathlib import Path
 
 import pytest
 from rd_core.configuration import ConfigError, cli_overrides, load_config
 from rd_core.settings import DrivingSettings, ServerSettings, VehicleSettings
+
+ROOT = Path(__file__).resolve().parents[1]
 
 
 def test_precedence_sources_and_independent_instances(tmp_path):
@@ -26,6 +29,17 @@ def test_precedence_sources_and_independent_instances(tmp_path):
         first.value.motion.max_linear_mps = 4
     with pytest.raises(TypeError):
         first.sources["motion.max_linear_mps"] = "wrong"
+
+
+def test_vehicle_lan_routes_ros2_commands_to_remote_topic():
+    loaded = load_config(
+        VehicleSettings,
+        "vehicle",
+        path=ROOT / "configs/vehicle.lan.yaml",
+        environ={},
+    )
+    assert loaded.value.ros2.cmd_vel_topic == "/cmd_vel_remote"
+    assert loaded.sources["ros2.cmd_vel_topic"] == "file"
 
 
 def test_environment_only_applies_to_its_role_and_paths_follow_config(tmp_path):
@@ -67,6 +81,10 @@ def test_arrays_replace_and_are_deeply_immutable(tmp_path):
         ("cameras: [{width: 641}]", "dimensions"),
         ("controller: unknown", "controller"),
         ("controller: none\ncontroller: ros2", "duplicate"),
+        ("ros2:\n  cmd_vel_topic: ''", "cmd_vel_topic"),
+        ("ros2:\n  cmd_vel_topic: cmd_vel_remote", "cmd_vel_topic"),
+        ("ros2:\n  cmd_vel_topic: /cmd-vel", "cmd_vel_topic"),
+        ("ros2:\n  cmd_vel_topic: /cmd//vel", "cmd_vel_topic"),
     ],
 )
 def test_invalid_configuration_fails_with_field_path(tmp_path, contents, match):
