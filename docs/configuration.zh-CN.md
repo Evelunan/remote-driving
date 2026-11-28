@@ -74,9 +74,12 @@ rd-server --config /path/server.yaml --services signaling --set signaling.port=8
 | app.yaml 中 USB 常量 | `usb.vendor_id` / `usb.product_id` |
 | UI 刷新常量与 debug | `ui.frame_interval_ms` / stats_interval_ms / debug；画面过期改为 `video.stale_frame_ms` |
 | 车端模糊 cm/s、mm/s 最大速度 | `motion.max_linear_mps` / max_angular_radps，当前默认 5.0 / 2.0 |
+| ROS2 控制器固定发布 `/cmd_vel` | `ros2.cmd_vel_topic`；现场远程配置使用 `/cmd_vel_remote` |
 | 控制超时秒数 | `control.command_timeout_ms`，当前默认 300；输入超时默认 200 ms |
 | 串口全局配置 | `serial.port` / baud_rate / read_timeout_s / write_timeout_s / template_hex |
 | VID/PID 推测相机索引、硬编码四路参数 | `cameras` 数组，各路 source / width / height / fps |
+
+`ros2.cmd_vel_topic` 必须是非空的绝对 ROS 话题名，类型化默认值为 `/cmd_vel`。`vehicle.lan.yaml` 显式使用 `/cmd_vel_remote`；该值在创建 ROS 控制器时注入，正常指令、停车请求和关闭时的零速请求都复用同一个发布器。`--check-config` 会完成字段校验和依赖导入，但不会初始化 rclpy 或创建 ROS 节点。
 
 相机 name 仅接受当前四视角 front/back/left/right，不允许重复；source 可为 synthetic、非负设备索引或设备路径。推荐 Linux `/dev/v4l/by-id/…` 稳定路径。尺寸必须为正偶数，FPS 为 (0, 240]；各路实际硬件参数需检查协商日志。数组整体替换，未配置的视角显示无信号。
 

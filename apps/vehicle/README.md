@@ -31,7 +31,7 @@ uv run --package rd-vehicle rd-vehicle --config configs/vehicle.mock.yaml --comp
 控制链路为：
 
 ```text
-rd-vehicle → /cmd_vel（geometry_msgs/msg/Twist）
+rd-vehicle → /cmd_vel_remote（geometry_msgs/msg/Twist）
            → cmdvel_2_ecu → /ecu（yunle_msgs/msg/Ecu）
            → chassis_driver → 底盘
 ```
@@ -45,13 +45,15 @@ rd-vehicle → /cmd_vel（geometry_msgs/msg/Twist）
    source /home/akun/workspace/Car_jetson/real_ws/install/setup.bash
 
    ros2 run cmdvel_2_ecu cmdvel_2_ecu --ros-args \
-     --params-file /home/akun/workspace/Car_jetson/real_ws/install/cmdvel_2_ecu/share/cmdvel_2_ecu/config/config.yaml
+     --params-file /home/akun/workspace/Car_jetson/real_ws/install/cmdvel_2_ecu/share/cmdvel_2_ecu/config/config.yaml \
+     -p cmd_vel_topic:=/cmd_vel_remote \
+     -p require_localization:=false
    ```
 
    正常会输出类似：
 
    ```text
-   /cmd_vel → /ecu 节点已启动
+   /cmd_vel_remote → /ecu 节点已启动 (require_localization=False)
    ```
 
 2. **终端二：查询转换节点和话题。**
@@ -61,7 +63,9 @@ rd-vehicle → /cmd_vel（geometry_msgs/msg/Twist）
    source /home/akun/workspace/Car_jetson/real_ws/install/setup.bash
 
    ros2 node list --no-daemon
-   ros2 topic info /cmd_vel --verbose --no-daemon
+   ros2 topic info /cmd_vel_remote --verbose --no-daemon
+   ros2 param get /cmdvel_to_ecu cmd_vel_topic
+   ros2 param get /cmdvel_to_ecu require_localization
    ```
 
    预期看到节点 `/cmdvel_to_ecu`。仅启动一个转换节点、尚未启动车辆端或其他发布者时，话题信息应包含：
@@ -72,7 +76,7 @@ rd-vehicle → /cmd_vel（geometry_msgs/msg/Twist）
    Subscription count: 1
    ```
 
-   此时发布者为 `0` 正常，表示转换器已等待输入。`--check-config` 不创建 ROS 节点，不能代替这里的启动步骤。
+   此时发布者为 `0` 正常，表示转换器已等待输入；两个参数应分别为 `/cmd_vel_remote` 和 `False`。远程模式不得同时启动 Nav2 配置的第二个转换器。`--check-config` 不创建 ROS 节点，不能代替这里的启动步骤。
 
 3. **终端三：需要连接真实底盘时，启动底盘驱动，保持运行。**
 
@@ -97,19 +101,19 @@ rd-vehicle → /cmd_vel（geometry_msgs/msg/Twist）
    .venv/bin/rd-vehicle --config configs/vehicle.lan.yaml
    ```
 
-   仅排查控制接口时，可在同一命令中增加 `--components control`，不打开摄像头。已有车辆端实例时，先结束旧实例再启动。返回终端二查询 `/cmd_vel`，单实例下预期新增发布节点 `cmd_vel_publisher`，发布者和转换器订阅者各为 `1`。
+   仅排查控制接口时，可在同一命令中增加 `--components control`，不打开摄像头。已有车辆端实例时，先结束旧实例再启动。`configs/vehicle.lan.yaml` 的 `ros2.cmd_vel_topic` 为 `/cmd_vel_remote`；返回终端二查询该话题，单实例下预期新增发布节点 `cmd_vel_publisher`，发布者和转换器订阅者各为 `1`。
 
-车辆端的 `Command received and accepted` 日志表示指令已被控制监护接收；ROS 发布成功也不代表底盘已执行。当前现场的 `cmdvel_2_ecu` 只有在 `/vehicle_status` 反馈新鲜且 `is_autodrive=true` 时才下发 `/ecu`，反馈超时阈值由底盘配置 `input_timeout_sec` 决定，当前为 `0.20 s`。只有转向输入、`throttle=0` 时，车辆端请求的线速度仍为零。
+车辆端的 `Command received and accepted` 日志表示指令已被控制监护接收；ROS 发布成功也不代表底盘已执行。远程配置关闭 LIO 定位门控，但 `cmdvel_2_ecu` 仍只有在 `/vehicle_status` 反馈新鲜且 `is_autodrive=true` 时才下发 `/ecu`，反馈超时阈值由底盘配置 `input_timeout_sec` 决定，当前为 `0.20 s`。只有转向输入、`throttle=0` 时，车辆端请求的线速度仍为零。
 
 如果收到指令却没有底盘响应，在终端二查询以下信息；`echo` 命令只订阅消息，5 秒未收到消息会超时退出：
 
 ```bash
-timeout 5s ros2 topic echo /cmd_vel geometry_msgs/msg/Twist --once --no-daemon
+timeout 5s ros2 topic echo /cmd_vel_remote geometry_msgs/msg/Twist --once --no-daemon
 timeout 5s ros2 topic echo /vehicle_status yunle_msgs/msg/VehicleStatus --once --no-daemon
 ros2 topic info /ecu --verbose --no-daemon
 ```
 
-依次确认 `/cmd_vel` 有实际输入、`/vehicle_status` 持续更新且自动驾驶状态允许输出，以及 `/ecu` 有底盘驱动订阅。节点数量和话题可见只说明通信端点被发现，不能作为实际停车或运动的确认。
+依次确认 `/cmd_vel_remote` 有实际输入、`/vehicle_status` 持续更新且自动驾驶状态允许输出，以及 `/ecu` 有底盘驱动订阅。节点数量和话题可见只说明通信端点被发现，不能作为实际停车或运动的确认。
 
 ## ROS2 底盘状态反馈
 
